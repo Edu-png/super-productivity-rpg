@@ -294,6 +294,12 @@ export interface Task {
   dueDay?: string | null;
   dueWithTime?: number | null;
   repeatCfgId?: string | null;
+  /** Number of individually schedulable focus-block subtasks configured on a task. */
+  focusBlockCount?: number;
+  /** Duration of every generated focus block in milliseconds. */
+  focusBlockDuration?: number;
+  /** One-based position when this task is a generated focus block. */
+  focusBlockIndex?: number;
 
   // Issue tracking fields (optional)
   issueId?: string | null;

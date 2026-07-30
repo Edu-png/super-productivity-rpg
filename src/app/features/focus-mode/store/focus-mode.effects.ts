@@ -9,6 +9,7 @@ import {
   filter,
   map,
   pairwise,
+  startWith,
   switchMap,
   take,
   tap,
@@ -86,12 +87,14 @@ export class FocusModeEffects {
       skipWhileApplyingRemoteOps(),
       // currentTaskId$ is local UI state (not synced), so distinctUntilChanged is sufficient
       distinctUntilChanged(),
-      filter((taskId) => !!taskId),
+      startWith(null),
+      pairwise(),
+      filter(([, taskId]) => !!taskId),
       withLatestFrom(
         this.store.select(selectFocusModeConfig),
         this.store.select(selectIsFocusModeEnabled),
       ),
-      filter(([_taskId, _cfg, isFocusModeEnabled]) => isFocusModeEnabled),
+      filter(([_taskIds, _cfg, isFocusModeEnabled]) => isFocusModeEnabled),
       withLatestFrom(
         this.store.select(selectors.selectTimer),
         this.store.select(selectors.selectMode),
@@ -103,13 +106,28 @@ export class FocusModeEffects {
       ),
       switchMap(
         ([
-          [_taskId, cfg],
+          [[previousTaskId, currentTaskId], cfg],
           timer,
           mode,
           currentScreen,
           isOverlayShown,
           isResumingBreak,
         ]) => {
+          const currentTask = this.taskService.currentTask?.();
+          const taskDuration =
+            currentTask?.focusBlockDuration || currentTask?.timeEstimate || 0;
+          const strategy = this.strategyFactory.getStrategy(mode);
+          const duration =
+            taskDuration > 0 ? taskDuration : strategy.initialSessionDuration;
+
+          if (
+            timer.purpose === 'work' &&
+            timer.isRunning &&
+            previousTaskId &&
+            previousTaskId !== currentTaskId
+          ) {
+            return of(actions.startFocusSession({ duration }));
+          }
           // If session is paused (purpose is 'work' but not running), resume it
           if (timer.purpose === 'work' && !timer.isRunning) {
             return of(actions.unPauseFocusSession());
@@ -140,8 +158,6 @@ export class FocusModeEffects {
             if (isOverlayShown && cfg?.isShowPreparation) {
               return EMPTY;
             }
-            const strategy = this.strategyFactory.getStrategy(mode);
-            const duration = strategy.initialSessionDuration;
             return of(
               actions.startFocusSession({
                 duration,

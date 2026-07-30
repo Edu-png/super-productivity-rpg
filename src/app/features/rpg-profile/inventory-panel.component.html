@@ -1,0 +1,261 @@
+<section
+  class="inventory-shell"
+  (click)="$event.stopPropagation()"
+  (mousedown)="$event.stopPropagation()"
+  (pointerdown)="$event.stopPropagation()"
+>
+  <header>
+    <span>Inventário e equipamento</span>
+    <strong>
+      {{ profile.state().displayName }} · Nível {{ profile.level() }} ·
+      {{ profile.coins() }} moedas
+    </strong>
+  </header>
+
+  <div class="equipment-stage">
+    <div class="slot-column">
+      @for (slot of slots.slice(0, 6); track slot.id) {
+        <button
+          class="equipment-slot"
+          type="button"
+          draggable="true"
+          [attr.data-state]="slotState(slot.id)"
+          [attr.data-rarity]="profile.equippedItem(slot.id)?.rarity ?? 'empty'"
+          (dragstart)="beginSlotDrag($event, slot.id)"
+          (dragend)="endDrag($event)"
+          (dragover)="allowDrop($event)"
+          (drop)="dropOnSlot($event, slot.id)"
+          (click)="unequipByClick($event, slot.id)"
+        >
+          @if (profile.equippedItem(slot.id); as item) {
+            @if (item.imageUrl) {
+              <img [src]="item.imageUrl" [alt]="item.name" />
+            } @else {
+              <mat-icon>{{ item.icon }}</mat-icon>
+            }
+            <span>{{ item.name }}</span>
+          } @else {
+            <img class="empty-slot-icon" [src]="slot.imageUrl" alt="" />
+            <span>{{ slot.label }}</span>
+          }
+        </button>
+      }
+    </div>
+
+    <div class="player-preview">
+      <div class="character-stage">
+        @if (profile.equippedItem('mainHand'); as weapon) {
+          <div class="equipment-showcase weapon-showcase">
+            <small>ARMA</small>
+            @if (weapon.imageUrl) {
+              <img [src]="weapon.imageUrl" [alt]="weapon.name" />
+            } @else {
+              <mat-icon>{{ weapon.icon }}</mat-icon>
+            }
+            <span>{{ weapon.name }}</span>
+          </div>
+        }
+        <character-renderer
+          [appearance]="profile.state().appearance"
+          [species]="profile.state().speciesId"
+          [characterClass]="profile.state().classId"
+          [equipment]="{}"
+        />
+        @if (profile.equippedItem('pet'); as pet) {
+          <div class="equipment-showcase pet-showcase">
+            <small>MASCOTE</small>
+            @if (pet.imageUrl) {
+              <img [src]="pet.imageUrl" [alt]="pet.name" />
+            } @else {
+              <mat-icon>{{ pet.icon }}</mat-icon>
+            }
+            <span>{{ pet.name }}</span>
+          </div>
+        }
+      </div>
+      <div class="equipment-stats">
+        @for (stat of equipmentStats(); track stat.label) {
+          <span>
+            <mat-icon>{{ stat.icon }}</mat-icon>
+            <small>{{ stat.label }}</small>
+            <b>{{ stat.value }}</b>
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="slot-column">
+      @for (slot of slots.slice(6); track slot.id) {
+        <button
+          class="equipment-slot"
+          type="button"
+          draggable="true"
+          [attr.data-state]="slotState(slot.id)"
+          [attr.data-rarity]="profile.equippedItem(slot.id)?.rarity ?? 'empty'"
+          (dragstart)="beginSlotDrag($event, slot.id)"
+          (dragend)="endDrag($event)"
+          (dragover)="allowDrop($event)"
+          (drop)="dropOnSlot($event, slot.id)"
+          (click)="unequipByClick($event, slot.id)"
+        >
+          @if (profile.equippedItem(slot.id); as item) {
+            @if (item.imageUrl) {
+              <img [src]="item.imageUrl" [alt]="item.name" />
+            } @else {
+              <mat-icon>{{ item.icon }}</mat-icon>
+            }
+            <span>{{ item.name }}</span>
+          } @else {
+            <img class="empty-slot-icon" [src]="slot.imageUrl" alt="" />
+            <span>{{ slot.label }}</span>
+          }
+        </button>
+      }
+    </div>
+  </div>
+
+  <div
+    class="backpack"
+    (dragover)="allowDrop($event)"
+    (drop)="dropInBackpack($event)"
+  >
+    <div class="backpack-title">
+      <strong>Mochila</strong>
+      <span>Clique para selecionar · duplo clique para equipar</span>
+    </div>
+    @if (selectedItems().length) {
+      <div class="item-actions">
+        <div>
+          <strong>{{ selectedItems().length }} selecionado(s)</strong>
+          @if (selectedItems().length === 1) {
+            <small>{{ selectedItems()[0].name }}</small>
+          }
+        </div>
+        <button
+          type="button"
+          (click)="sellSelected($event)"
+          [disabled]="selectedItems().length !== 1"
+        >
+          <mat-icon>sell</mat-icon>
+          Vender
+          @if (selectedItems().length === 1) {
+            <b>{{ profile.itemSaleValue(selectedItems()[0]) }} moedas</b>
+          }
+        </button>
+        <button
+          type="button"
+          (click)="upgradeSelected($event)"
+          [disabled]="selectedItems().length !== 1 || !profile.canUseItem(selectedItems()[0])"
+        >
+          <mat-icon>upgrade</mat-icon>
+          Aprimorar
+          @if (selectedItems().length === 1) {
+            <b>{{ profile.itemUpgradeCost(selectedItems()[0]) }} moedas</b>
+          }
+        </button>
+        <button
+          type="button"
+          (click)="fuseSelected($event)"
+          [disabled]="selectedItems().length !== 3"
+        >
+          <mat-icon>auto_fix_high</mat-icon>
+          Fundir 3
+        </button>
+        <button
+          type="button"
+          class="clear-action"
+          (click)="clearSelection($event)"
+        >
+          Limpar
+        </button>
+      </div>
+    }
+    <div class="inventory-grid">
+      @for (item of backpack(); track item.id) {
+        <button
+          type="button"
+          class="inventory-item"
+          draggable="true"
+          [attr.data-rarity]="item.rarity"
+          [attr.data-selected]="selectedItemIds().includes(item.id)"
+          [attr.data-locked]="!profile.canUseItem(item)"
+          [title]="itemTooltip(item)"
+          (dragstart)="beginInventoryDrag($event, item)"
+          (dragend)="endDrag($event)"
+          (click)="toggleSelection($event, item)"
+          (dblclick)="equipByClick($event, item)"
+        >
+          @if (item.imageUrl) {
+            <img [src]="item.imageUrl" [alt]="item.name" />
+          } @else {
+            <mat-icon>{{ item.icon }}</mat-icon>
+          }
+          @if ((item.quantity ?? 1) > 1) {
+            <b>{{ item.quantity }}</b>
+          }
+          @if (!profile.canUseItem(item)) {
+            <span class="class-lock">
+              <mat-icon>lock</mat-icon>
+              {{ item.requiredClass || ('Nv. ' + item.requiredLevel) }}
+            </span>
+          }
+          @if ((item.upgradeLevel ?? 0) > 0) {
+            <span class="upgrade-badge">+{{ item.upgradeLevel }}</span>
+          }
+        </button>
+      }
+      @for (empty of emptySlots(); track empty) {
+        <span class="empty-slot"></span>
+      }
+    </div>
+  </div>
+
+  @if (message()) {
+    <div class="inventory-message">{{ message() }}</div>
+  }
+
+  @if (overflowItem(); as incoming) {
+    <div class="overflow-backdrop" (click)="$event.stopPropagation()">
+      <section class="overflow-dialog" (click)="$event.stopPropagation()">
+        <span class="overflow-kicker">MOCHILA CHEIA · 22/22</span>
+        <h3>Você encontrou {{ incoming.name }}</h3>
+        <div class="overflow-item-preview" [attr.data-rarity]="incoming.rarity">
+          @if (incoming.imageUrl) {
+            <img [src]="incoming.imageUrl" [alt]="incoming.name" />
+          } @else {
+            <mat-icon>{{ incoming.icon }}</mat-icon>
+          }
+          <div>
+            <strong>{{ incoming.name }}</strong>
+            <small>{{ incoming.rarity }} · poder {{ incoming.power }}</small>
+          </div>
+        </div>
+        <p>
+          Escolha um item da mochila para remover e guardar o novo, ou venda o
+          item recém-encontrado.
+        </p>
+        <div class="overflow-replace-grid">
+          @for (item of backpack(); track item.id) {
+            <button
+              type="button"
+              [disabled]="profile.isItemEquipped(item.id)"
+              (click)="replaceWithOverflow($event, item.id)"
+              [title]="'Remover ' + item.name"
+            >
+              @if (item.imageUrl) {
+                <img [src]="item.imageUrl" [alt]="item.name" />
+              } @else {
+                <mat-icon>{{ item.icon }}</mat-icon>
+              }
+              <span>{{ item.name }}</span>
+            </button>
+          }
+        </div>
+        <button type="button" class="sell-overflow" (click)="sellOverflow($event)">
+          <mat-icon>paid</mat-icon>
+          Vender {{ incoming.name }} por {{ profile.itemSaleValue(incoming) }} moedas
+        </button>
+      </section>
+    </div>
+  }
+</section>

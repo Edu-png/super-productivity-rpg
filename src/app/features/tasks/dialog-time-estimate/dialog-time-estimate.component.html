@@ -27,6 +27,33 @@
         </input-duration-slider>
       </div>
 
+      <div class="focus-blocks">
+        <mat-form-field>
+          <mat-label>{{ T.F.TASK.D_TIME.FOCUS_BLOCK_COUNT | translate }}</mat-label>
+          <input
+            [(ngModel)]="focusBlockCount"
+            min="1"
+            matInput
+            name="focusBlockCount"
+            type="number"
+          />
+          <mat-icon matPrefix>view_week</mat-icon>
+        </mat-form-field>
+        <div
+          aria-live="polite"
+          class="focus-block-summary"
+        >
+          {{
+            T.F.TASK.D_TIME.FOCUS_BLOCK_SUMMARY
+              | translate
+                : {
+                    count: focusBlockCount || 1,
+                    duration: taskCopy.timeEstimate / 60000,
+                  }
+          }}
+        </div>
+      </div>
+
       <div class="other-days">
         <button
           (click)="showAddForAnotherDayForm()"
@@ -83,7 +110,6 @@
       </button>
 
       <button
-        (click)="submit()"
         color="primary"
         mat-flat-button
         type="submit"

@@ -1,0 +1,475 @@
+<main class="academy-page">
+  <header class="academy-hero">
+    <div>
+      <span>REINO DO CONHECIMENTO</span>
+      <h1>Academia Arcana</h1>
+      <p>Estudos, revisões e conhecimento transformados em poder.</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" (click)="exportData()">
+        <mat-icon>download</mat-icon> Backup completo
+      </button>
+      <label>
+        <mat-icon>upload</mat-icon> Restaurar
+        <input type="file" accept="application/json" (change)="importData($event)" />
+      </label>
+    </div>
+  </header>
+
+  <nav class="academy-tabs">
+    <button [class.active]="tab() === 'dashboard'" (click)="tab.set('dashboard')">
+      <mat-icon>dashboard</mat-icon> Painel
+    </button>
+    <button [class.active]="tab() === 'library'" (click)="tab.set('library')">
+      <mat-icon>auto_stories</mat-icon> Biblioteca
+    </button>
+    <button [class.active]="tab() === 'review'" (click)="tab.set('review')">
+      <mat-icon>style</mat-icon> Revisar
+      <b>{{ academy.dashboard().pendingReviews }}</b>
+    </button>
+    <button [class.active]="tab() === 'history'" (click)="tab.set('history')">
+      <mat-icon>history</mat-icon> Histórico
+    </button>
+  </nav>
+  <section class="academy-character-selector">
+    <div><span>HERÓI DA ACADEMIA</span><strong>Estudos, revisões, XP e ouro pertencem a este personagem</strong></div>
+    <div class="character-cards" role="radiogroup" aria-label="Herói da Academia">
+      @for(character of profile.characters(); track character.id) {
+        <button type="button" role="radio" [attr.aria-checked]="character.id === selectedCharacterId()" [class.active]="character.id === selectedCharacterId()" (click)="selectCharacter(character.id)">
+          <character-renderer [appearance]="character.appearance" [species]="character.speciesId" [characterClass]="character.classId" [compact]="true" [portrait]="true" [headerIcon]="true" />
+          <span><b>{{ character.displayName }}</b><small>{{ character.speciesId }} · {{ character.classId }}</small></span>
+          <mat-icon>{{ character.id === selectedCharacterId() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (academy.loading()) {
+    <section class="loading-rune"><mat-icon>auto_awesome</mat-icon> Abrindo os arquivos antigos…</section>
+  } @else if (tab() === 'dashboard') {
+    <section class="metric-grid">
+      <article><mat-icon>today</mat-icon><span>Hoje</span><strong>{{ minutes(academy.dashboard().todayMinutes) }}</strong></article>
+      <article><mat-icon>date_range</mat-icon><span>Esta semana</span><strong>{{ minutes(academy.dashboard().weekMinutes) }}</strong></article>
+      <article><mat-icon>calendar_month</mat-icon><span>Este mês</span><strong>{{ minutes(academy.dashboard().monthMinutes) }}</strong></article>
+      <article><mat-icon>local_fire_department</mat-icon><span>Sequência</span><strong>{{ academy.dashboard().streak }} dias</strong></article>
+      <article><mat-icon>style</mat-icon><span>Revisões pendentes</span><strong>{{ academy.dashboard().pendingReviews }}</strong></article>
+      <article><mat-icon>psychology</mat-icon><span>Precisão</span><strong>{{ academy.dashboard().accuracy }}%</strong></article>
+      <article><mat-icon>collections_bookmark</mat-icon><span>Flashcards</span><strong>{{ academy.dashboard().learnedCards }}/{{ academy.dashboard().flashcardCount }}</strong></article>
+      <article><mat-icon>route</mat-icon><span>Assuntos concluídos</span><strong>{{ academy.dashboard().completedTopics }}/{{ academy.dashboard().totalTopics }}</strong></article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="arcane-card quick-study">
+        <header><div><span>CRONÔMETRO ARCANO</span><h2>Sessão de estudos</h2></div><mat-icon>timer</mat-icon></header>
+        @if (academy.activeSession(); as session) {
+          <div class="active-session">
+            <i></i>
+            <strong>{{ session.title }}</strong>
+            <small>Iniciada às {{ session.startedAt | date:'HH:mm' }}</small>
+            <button type="button" (click)="finishSession()">Finalizar e registrar</button>
+          </div>
+        } @else {
+          <select
+            [ngModel]="selectedAreaId()"
+            (ngModelChange)="selectSessionArea($event)"
+          >
+            <option value="">Selecione uma área</option>
+            @for (area of academy.areas(); track area.id) {
+              <option [value]="area.id">{{ area.title }}</option>
+            }
+          </select>
+          <select
+            aria-label="O que será estudado"
+            [ngModel]="selectedModuleId()"
+            (ngModelChange)="selectSessionModule($event)"
+          >
+            <option value="">O que será estudado? Selecione um módulo</option>
+            @for (module of sessionModules(); track module.id) {
+              <option [value]="module.id">{{ module.title }}</option>
+            }
+          </select>
+          <select
+            aria-label="Tópico"
+            [ngModel]="selectedTopicId()"
+            (ngModelChange)="selectSessionTopic($event)"
+          >
+            <option value="">Tópico</option>
+            @for (topic of sessionTopics(); track topic.id) {
+              <option [value]="topic.id">{{ topic.title }}</option>
+            }
+          </select>
+          <select
+            aria-label="Subassunto"
+            [ngModel]="selectedSubtopicId()"
+            (ngModelChange)="selectedSubtopicId.set($event)"
+          >
+            <option value="">Subassunto</option>
+            @for (subtopic of sessionSubtopics(); track subtopic.id) {
+              <option [value]="subtopic.id">{{ subtopic.title }}</option>
+            }
+          </select>
+          <input [(ngModel)]="sessionTitle" placeholder="Observação ou objetivo da sessão (opcional)" />
+          <label>Meta <input type="number" min="1" [(ngModel)]="sessionMinutes" /> minutos</label>
+          <button type="button" [disabled]="!selectedAreaId()" (click)="startSession()">
+            <mat-icon>play_arrow</mat-icon> Iniciar estudo
+          </button>
+        }
+      </article>
+
+      <article class="arcane-card heatmap-card">
+        <header>
+          <div><span>CONSTÂNCIA</span><h2>Mapa de conhecimento</h2></div>
+          <div class="heatmap-year">
+            <strong>{{ minutes(heatmapYearMinutes()) }}</strong>
+            <select
+              aria-label="Ano do mapa de conhecimento"
+              [ngModel]="heatmapYear()"
+              (ngModelChange)="heatmapYear.set(+$event)"
+            >
+              @for (year of heatmapYears(); track year) {
+                <option [value]="year">{{ year }}</option>
+              }
+            </select>
+          </div>
+        </header>
+        <div class="heatmap-months" aria-hidden="true">
+          <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span>
+          <span>Mai</span><span>Jun</span><span>Jul</span><span>Ago</span>
+          <span>Set</span><span>Out</span><span>Nov</span><span>Dez</span>
+        </div>
+        <div class="heatmap">
+          @for (day of heatmapDays(); track day.date) {
+            <i
+              [class.padding]="day.padding"
+              [attr.data-level]="heatLevel(day.minutes)"
+              [title]="day.padding ? '' : day.date + ' · ' + minutes(day.minutes)"
+            ></i>
+          }
+        </div>
+        <div class="heatmap-legend">
+          <small>Menos</small>
+          @for (level of [0, 1, 2, 3, 4]; track level) {
+            <i [attr.data-level]="level"></i>
+          }
+          <small>Mais</small>
+        </div>
+        <small>De 1º de janeiro a 31 de dezembro. Dias sem estudo permanecem visíveis.</small>
+      </article>
+
+      <article class="arcane-card progress-card">
+        <header><div><span>CRONOGRAMA</span><h2>Progresso da formação</h2></div><mat-icon>school</mat-icon></header>
+        <div class="progress-ring">
+          <strong>{{ academy.dashboard().totalTopics ? (academy.dashboard().completedTopics * 100 / academy.dashboard().totalTopics | number:'1.0-0') : 0 }}%</strong>
+        </div>
+        <p>{{ academy.dashboard().completedTopics }} assuntos dominados de {{ academy.dashboard().totalTopics }}.</p>
+      </article>
+
+      <article class="arcane-card areas-overview">
+        <header><div><span>ALAS DA ACADEMIA</span><h2>Áreas de estudo</h2></div><button (click)="tab.set('library')">Gerenciar</button></header>
+        <div>
+          @for (area of academy.areas(); track area.id) {
+            <button type="button" [style.--area-color]="area.color" (click)="selectedAreaId.set(area.id); tab.set('library')">
+              <mat-icon>{{ area.icon }}</mat-icon><strong>{{ area.title }}</strong>
+              <small>{{ areaNodeCount(area.id) }} itens</small>
+            </button>
+          } @empty {
+            <p>Crie sua primeira ala na Biblioteca Arcana.</p>
+          }
+        </div>
+      </article>
+
+      <article class="arcane-card study-chart">
+        <header>
+          <div><span>HISTÓRICO ARCANO</span><h2>Minutos estudados por dia</h2></div>
+          <select
+            aria-label="Filtrar gráfico por assunto"
+            [ngModel]="chartFilter()"
+            (ngModelChange)="chartFilter.set($event)"
+          >
+            <option value="all">Todas as pastas</option>
+            @for (folder of chartFolders(); track folder.id) {
+              <option [value]="'folder:' + folder.id">{{ folder.title }}</option>
+            }
+          </select>
+        </header>
+        <div class="line-chart">
+          <div class="chart-scale">
+            <span>{{ chartMax() }}m</span><span>{{ chartMax() / 2 | number:'1.0-0' }}m</span><span>0m</span>
+          </div>
+          <svg viewBox="0 0 700 180" preserveAspectRatio="none" role="img" aria-label="Minutos estudados nos últimos 30 dias">
+            <line x1="0" y1="20" x2="700" y2="20"></line>
+            <line x1="0" y1="95" x2="700" y2="95"></line>
+            <line x1="0" y1="170" x2="700" y2="170"></line>
+            <polyline [attr.points]="chartPoints()"></polyline>
+            @for (day of chartDays(); track day.date; let index = $index) {
+              @if (day.minutes > 0) {
+                <ellipse
+                  class="chart-rune-glow"
+                  [attr.cx]="index * (700 / 29)"
+                  [attr.cy]="chartY(day.minutes)"
+                  rx="7"
+                  ry="11"
+                ></ellipse>
+                <ellipse
+                  class="chart-rune"
+                  [attr.cx]="index * (700 / 29)"
+                  [attr.cy]="chartY(day.minutes)"
+                  rx="3"
+                  ry="6"
+                >
+                  <title>{{ day.date }} · {{ minutes(day.minutes) }}</title>
+                </ellipse>
+              }
+            }
+          </svg>
+          <div class="chart-dates">
+            <span>{{ chartDays()[0].label }}</span>
+            <span>{{ chartDays()[14].label }}</span>
+            <span>{{ chartDays()[29].label }}</span>
+          </div>
+        </div>
+      </article>
+    </section>
+  } @else if (tab() === 'library') {
+    <section class="library-layout">
+      <aside class="arcane-card">
+        <header><span>ÁREAS</span><h2>Alas da Academia</h2></header>
+        @for (area of academy.areas(); track area.id) {
+          <button type="button" [class.active]="selectedAreaId() === area.id" [style.--area-color]="area.color" (click)="selectLibraryArea(area.id)">
+            <mat-icon>{{ area.icon }}</mat-icon>{{ area.title }}
+          </button>
+        }
+        <div class="creator">
+          <input [(ngModel)]="areaTitle" placeholder="Nova área" />
+          <input type="color" [(ngModel)]="areaColor" />
+          <button (click)="createArea()"><mat-icon>add</mat-icon></button>
+        </div>
+      </aside>
+      <section class="arcane-card library-content">
+        <header>
+          <div><span>GALERIA DE CONHECIMENTO</span><h2>{{ selectedArea()?.title || 'Selecione uma área' }}</h2></div>
+          <button type="button" (click)="exportData(['studies'])"><mat-icon>archive</mat-icon> Exportar estudos</button>
+        </header>
+        <nav class="library-breadcrumbs" aria-label="Caminho da biblioteca">
+          <button type="button" (click)="openLibraryLevel(null)">
+            <mat-icon>home</mat-icon>{{ selectedArea()?.title || 'Área' }}
+          </button>
+          @for (node of libraryBreadcrumbs(); track node.id) {
+            <mat-icon>chevron_right</mat-icon>
+            <button type="button" (click)="openLibraryLevel(node.id)">
+              {{ node.title }}
+            </button>
+          }
+        </nav>
+        <div class="node-creator">
+          <div>
+            <mat-icon>{{ nextLibraryKind() ? 'add_circle' : 'check_circle' }}</mat-icon>
+            {{ nextLibraryKind() ? ('Novo ' + nodeKindLabel(nextLibraryKind())) : 'Último nível' }}
+          </div>
+          <input
+            [(ngModel)]="nodeTitle"
+            [disabled]="!nextLibraryKind()"
+            [placeholder]="nextLibraryKind() ? 'Nome do novo ' + nodeKindLabel(nextLibraryKind()) : 'Subassuntos não possuem filhos'"
+          />
+          <button [disabled]="!selectedAreaId() || !nextLibraryKind() || !nodeTitle.trim()" (click)="createNode()">Adicionar</button>
+        </div>
+        <div class="node-grid">
+          @for (node of visibleLibraryNodes(); track node.id) {
+            <article
+              [style.--node-color]="node.color"
+              [class.leaf]="node.kind === 'subtopic'"
+              (click)="openLibraryNode(node)"
+            >
+              <button
+                type="button"
+                class="node-settings"
+                title="Editar descrição, links e anotações"
+                (click)="$event.stopPropagation(); openNodeEditor(node)"
+              >
+                <mat-icon>settings</mat-icon>
+              </button>
+              <mat-icon>{{ node.icon }}</mat-icon>
+              <span>{{ nodeKindLabel(node.kind) }}</span><h3>{{ node.title }}</h3>
+              @if (node.description) {
+                <p>{{ node.description }}</p>
+              }
+              @if (node.links?.length) {
+                <small><mat-icon>link</mat-icon>{{ node.links?.length }} links</small>
+              }
+              <small>Dificuldade {{ node.difficulty }}/5 · peso {{ node.weight }}</small>
+            </article>
+          } @empty {
+            <div class="empty-state">
+              <mat-icon>menu_book</mat-icon>
+              <h3>Este nível ainda está vazio</h3>
+              @if (nextLibraryKind()) {
+                <p>Crie o primeiro {{ nodeKindLabel(nextLibraryKind()) }} acima.</p>
+              }
+            </div>
+          }
+        </div>
+        <div class="flashcard-creator">
+          <h3>Criar flashcard nesta área</h3>
+          <textarea [(ngModel)]="flashcardQuestion" placeholder="Pergunta"></textarea>
+          <textarea [(ngModel)]="flashcardAnswer" placeholder="Resposta"></textarea>
+          <button [disabled]="!selectedAreaId()" (click)="createFlashcard()">Guardar no grimório</button>
+        </div>
+      </section>
+    </section>
+  } @else if (tab() === 'review') {
+    <section class="review-stage arcane-card">
+      <header><div><span>REPETIÇÃO ESPAÇADA</span><h2>Sala de revisão</h2></div><button (click)="exportData(['flashcards'])">Exportar flashcards</button></header>
+      @if (currentCard(); as card) {
+        <article class="review-card" (click)="cardAnswerVisible.set(true)">
+          <span>PERGUNTA</span><h2>{{ card.question }}</h2>
+          @if (cardAnswerVisible()) { <div><span>RESPOSTA</span><p>{{ card.answer }}</p></div> }
+          @else { <small>Clique para revelar a resposta</small> }
+        </article>
+        @if (cardAnswerVisible()) {
+          <div class="rating-row">
+            <button (click)="rateCard(1)">Errei<small>1 dia</small></button>
+            <button (click)="rateCard(2)">Difícil<small>intervalo curto</small></button>
+            <button (click)="rateCard(3)">Bom<small>intervalo normal</small></button>
+            <button (click)="rateCard(4)">Fácil<small>intervalo maior</small></button>
+          </div>
+        }
+      } @else {
+        <div class="empty-state"><mat-icon>verified</mat-icon><h2>Revisões do dia concluídas</h2><p>Novos cartões aparecerão apenas quando estiverem vencidos.</p></div>
+      }
+    </section>
+  } @else {
+    <section class="history-list arcane-card">
+      <header><div><span>ARQUIVO ANTIGO</span><h2>Histórico de estudos</h2></div><button (click)="exportData(['sessions'])">Exportar sessões</button></header>
+      @for (session of academy.recentSessions(); track session.id) {
+        <article><mat-icon>{{ session.status === 'completed' ? 'check_circle' : 'schedule' }}</mat-icon>
+          <div><strong>{{ session.title }}</strong><small>{{ session.startedAt | date:'dd/MM/yyyy HH:mm' }}</small></div>
+          <span>{{ minutes(session.actualMinutes || session.plannedMinutes) }}</span><b>+{{ session.xpEarned }} XP</b>
+        </article>
+      } @empty { <div class="empty-state">Nenhuma sessão registrada.</div> }
+    </section>
+  }
+
+  @if (editingNodeId()) {
+    <div class="node-editor-backdrop" (click)="closeNodeEditor()">
+      <section
+        class="node-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="node-editor-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div><span>ARQUIVO DO CONHECIMENTO</span><h2 id="node-editor-title">Editar conteúdo</h2></div>
+          <button type="button" title="Fechar" (click)="closeNodeEditor()"><mat-icon>close</mat-icon></button>
+        </header>
+        <label>
+          Nome
+          <input [(ngModel)]="editorTitle" />
+        </label>
+        <label>
+          Descrição
+          <textarea rows="4" [(ngModel)]="editorDescription" placeholder="Resumo, objetivo e informações importantes"></textarea>
+        </label>
+        <div class="links-editor">
+          <h3>Links e materiais externos</h3>
+          @for (link of editorLinks; track $index) {
+            <div>
+              <a [href]="link.url" target="_blank" rel="noopener noreferrer"><mat-icon>open_in_new</mat-icon>{{ link.label }}</a>
+              <button type="button" title="Remover link" (click)="removeEditorLink($index)"><mat-icon>delete</mat-icon></button>
+            </div>
+          }
+          <div class="link-creator">
+            <input [(ngModel)]="editorLinkLabel" placeholder="Nome do link" />
+            <input [(ngModel)]="editorLinkUrl" placeholder="https://..." />
+            <button type="button" (click)="addEditorLink()"><mat-icon>add_link</mat-icon>Adicionar</button>
+          </div>
+        </div>
+        <section class="notion-editor">
+          <header>
+            <div>
+              <strong>Anotações completas</strong>
+              <small>Markdown compatível com títulos, listas, links, imagens e código</small>
+            </div>
+            <nav>
+              <button type="button" class="draw-action" (click)="excalidrawOpen.set(true)">
+                <mat-icon>draw</mat-icon>Desenhar
+              </button>
+              <button type="button" [class.active]="notesMode() === 'write'" (click)="notesMode.set('write')">
+                <mat-icon>edit</mat-icon>Escrever
+              </button>
+              <button type="button" [class.active]="notesMode() === 'preview'" (click)="notesMode.set('preview')">
+                <mat-icon>visibility</mat-icon>Visualizar
+              </button>
+            </nav>
+          </header>
+          @if (notesMode() === 'write') {
+            <div class="markdown-toolbar" aria-label="Formatação Markdown">
+              <button type="button" title="Título" (click)="formatMarkdown('## ', '', 'Título')">H2</button>
+              <button type="button" title="Negrito" (click)="formatMarkdown('**', '**', 'negrito')"><strong>B</strong></button>
+              <button type="button" title="Itálico" (click)="formatMarkdown('*', '*', 'itálico')"><em>I</em></button>
+              <button type="button" title="Lista" (click)="formatMarkdown('- ', '', 'item da lista')"><mat-icon>format_list_bulleted</mat-icon></button>
+              <button type="button" title="Checklist" (click)="formatMarkdown('- [ ] ', '', 'tarefa')"><mat-icon>check_box</mat-icon></button>
+              <button type="button" title="Citação" (click)="formatMarkdown('> ', '', 'citação')"><mat-icon>format_quote</mat-icon></button>
+              <button type="button" title="Código" (click)="formatMarkdown('`', '`', 'código')"><mat-icon>code</mat-icon></button>
+              <button type="button" title="Link" (click)="formatMarkdown('[', '](https://)', 'texto do link')"><mat-icon>link</mat-icon></button>
+              <button type="button" title="Imagem" (click)="formatMarkdown('![', '](https://)', 'descrição da imagem')"><mat-icon>image</mat-icon></button>
+              <button type="button" title="Separador" (click)="formatMarkdown('\n---\n', '', '')"><mat-icon>horizontal_rule</mat-icon></button>
+            </div>
+            <textarea
+              #notesTextarea
+              class="notes-editor"
+              rows="16"
+              [(ngModel)]="editorNotes"
+              placeholder="# Minha anotação&#10;&#10;Comece a escrever como em uma página do Notion..."
+            ></textarea>
+          } @else {
+            <article class="markdown-preview">
+              @if (editorNotes.trim()) {
+                <div markdown [data]="editorNotes"></div>
+              } @else {
+                <div class="markdown-empty"><mat-icon>description</mat-icon>Nenhuma anotação escrita.</div>
+              }
+            </article>
+          }
+          @if (editorDrawing?.previewDataUrl) {
+            <button
+              type="button"
+              class="drawing-preview"
+              (click)="excalidrawOpen.set(true)"
+              title="Abrir desenho no Excalidraw"
+            >
+              <img [src]="editorDrawing?.previewDataUrl" alt="Pré-visualização do desenho salvo" />
+              <span><mat-icon>draw</mat-icon>Desenho salvo · clique para editar</span>
+            </button>
+          }
+        </section>
+        @if (excalidrawOpen()) {
+          <div class="excalidraw-backdrop" (click)="closeDrawingEditor()">
+            <section class="excalidraw-window" (click)="$event.stopPropagation()">
+              <header>
+                <div>
+                  <span>QUADRO VISUAL</span>
+                  <h2>Excalidraw</h2>
+                  <small>Desenhe diagramas, mapas mentais e esquemas visuais.</small>
+                </div>
+                <button type="button" (click)="closeDrawingEditor()">
+                  <mat-icon>save</mat-icon>Concluir e salvar
+                </button>
+              </header>
+              <academy-excalidraw
+                [drawing]="editorDrawing"
+                (drawingChange)="updateEditorDrawing($event)"
+              />
+            </section>
+          </div>
+        }
+        <footer>
+          <button type="button" (click)="closeNodeEditor()">Cancelar</button>
+          <button type="button" class="primary" [disabled]="!editorTitle.trim()" (click)="saveNodeEditor()">
+            <mat-icon>save</mat-icon>Salvar alterações
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+</main>

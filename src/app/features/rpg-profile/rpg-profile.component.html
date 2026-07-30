@@ -1,0 +1,1584 @@
+<div class="rpg-page" [attr.data-realm]="profile.state().currentRealmId">
+  <nav
+    class="party-bar card"
+    aria-label="Personagens"
+  >
+    <div class="party-members">
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          class="party-member"
+          [class.active]="character.id === profile.activeCharacterId()"
+          (click)="switchCharacter(character.id)"
+        >
+          <character-renderer
+            class="generated-profile-avatar"
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          @if (character.avatarDataUrl) {
+            @if (isVideoAvatar(character.avatarDataUrl)) {
+              <video
+                [src]="character.avatarDataUrl"
+                muted
+                loop
+                autoplay
+                playsinline
+              ></video>
+            } @else {
+              <img
+                [src]="character.avatarDataUrl"
+                alt=""
+              />
+            }
+          } @else {
+            <character-renderer
+              [appearance]="character.appearance"
+              [species]="character.speciesId"
+              [characterClass]="character.classId"
+              [compact]="true"
+              [portrait]="true"
+              [headerIcon]="true"
+            />
+          }
+          <span>{{ character.displayName }}</span>
+          <small>{{ character.speciesId }} • {{ character.classId }}</small>
+        </button>
+      }
+    </div>
+    <div class="party-actions">
+      <button
+        mat-button
+        (click)="showCharacterCreator = true"
+      >
+        + Criar herói
+      </button>
+      @if (profile.characters().length > 1) {
+        <button
+          mat-icon-button
+          aria-label="Excluir personagem ativo"
+          (click)="deleteActiveCharacter()"
+        >
+          <mat-icon>delete</mat-icon>
+        </button>
+      }
+    </div>
+  </nav>
+
+  <header class="hero card pixel-frame">
+    <div class="character-column">
+      <label class="avatar">
+        <character-renderer
+          class="generated-profile-avatar"
+          [appearance]="profile.state().appearance"
+          [species]="profile.state().speciesId"
+          [characterClass]="profile.state().classId"
+          [equipment]="profile.equippedVisualAssets()"
+          [compact]="true"
+          [portrait]="true"
+        />
+        @if (avatarDataUrl) {
+          @if (isVideoAvatar(avatarDataUrl)) {
+            <video
+              [src]="avatarDataUrl"
+              muted
+              loop
+              autoplay
+              playsinline
+            ></video>
+          } @else {
+            <img
+              [src]="avatarDataUrl"
+              alt="Avatar do personagem"
+            />
+          }
+        } @else {
+          <character-renderer
+            [appearance]="profile.state().appearance"
+            [species]="profile.state().speciesId"
+            [characterClass]="profile.state().classId"
+            [equipment]="profile.equippedVisualAssets()"
+            [compact]="true"
+          />
+        }
+        <input
+          type="file"
+          accept="image/*,video/mp4,video/webm"
+          (change)="onAvatarSelected($event)"
+        />
+        <span>Trocar imagem ou vídeo</span>
+      </label>
+      <span class="class-label">
+        <mat-icon>{{ selectedClass()?.icon }}</mat-icon>
+        {{ selectedClass()?.name }}
+      </span>
+    </div>
+
+    <div class="identity">
+      <div class="identity-heading">
+        <span class="eyebrow">FICHA DO HERÓI</span>
+        <div class="hero-actions">
+          <button
+            type="button"
+            class="create-character-button"
+            (click)="showCharacterCreator = true"
+          >
+            <mat-icon>person_add</mat-icon>
+            Criar personagem
+          </button>
+          @if (profile.characters().length > 1) {
+            <button
+              type="button"
+              class="delete-character-button"
+              aria-label="Excluir personagem ativo"
+              (click)="deleteActiveCharacter()"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          }
+        </div>
+      </div>
+      <input
+        class="name"
+        [(ngModel)]="displayName"
+        (blur)="saveIdentity()"
+        aria-label="Nome do personagem"
+      />
+      <div class="level-line">
+        <strong>Nível {{ profile.level() }}</strong>
+        <span class="hero-title">✦ {{ profile.selectedTitle() }}</span>
+        <span>{{ profile.totalXp() }} XP</span>
+        <span>🪙 {{ profile.coins() }}</span>
+      </div>
+      <div
+        class="progress"
+        aria-label="Progresso do nível"
+      >
+        <span [style.width.%]="profile.levelProgress()"></span>
+      </div>
+      <small
+        >{{ profile.totalXp() - profile.levelStartXp() }} /
+        {{ profile.nextLevelXp() - profile.levelStartXp() }} XP para o próximo
+        nível</small
+      >
+      <div class="class-selector">
+        <div class="class-readonly">
+          <span>Classe</span>
+          <strong>{{ selectedClass()?.name }}</strong>
+        </div>
+        <div class="class-readonly">
+          <span>Subclasse</span>
+          @if (profile.state().subclassId !== 'none') {
+            <strong>{{ selectedSubclass()?.name }}</strong>
+          } @else if (unlockedSubclasses().length) {
+            <select
+              aria-label="Escolher subclasse desbloqueada"
+              (change)="chooseSubclass($any($event.target).value)"
+            >
+              <option value="none">Escolha sua subclasse</option>
+              @for (subclass of unlockedSubclasses(); track subclass.id) {
+                <option [value]="subclass.id">
+                  {{ subclass.name }} — {{ subclass.bonus }}
+                </option>
+              }
+            </select>
+          } @else {
+            <strong>Bloqueada</strong>
+            @if (nextSubclassUnlockLevel(); as unlockLevel) {
+              <small>Libera no nível {{ unlockLevel }}</small>
+            }
+          }
+        </div>
+        <div class="perk">
+          <mat-icon>{{ selectedClass()?.icon }}</mat-icon>
+          <span>
+            {{ selectedClass()?.bonus }}
+            @if (profile.state().subclassId !== 'none') {
+              <br />{{ selectedSubclass()?.bonus }}
+            }
+          </span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+    <section class="card quest-card">
+      <h2><span>⚔</span> Atributos</h2>
+      <div class="radar-wrap">
+        <svg
+          class="radar"
+          viewBox="0 0 200 200"
+          role="img"
+          aria-label="Gráfico de atributos do personagem"
+        >
+          <polygon
+            class="radar-grid outer"
+            points="100,22 174,76 146,163 54,163 26,76"
+          />
+          <polygon
+            class="radar-grid"
+            points="100,48 150,84 131,143 69,143 50,84"
+          />
+          <polygon
+            class="radar-grid"
+            points="100,74 125,92 115,121 85,121 75,92"
+          />
+          @for (axis of radarAxes; track axis.label) {
+            <line
+              class="radar-axis"
+              x1="100"
+              y1="100"
+              [attr.x2]="axis.x"
+              [attr.y2]="axis.y"
+            />
+          }
+          <polygon
+            class="radar-value"
+            [attr.points]="radarPoints()"
+          />
+          @for (point of radarPoints().split(' '); track $index) {
+            <circle
+              class="radar-point"
+              [attr.cx]="+point.split(',')[0]"
+              [attr.cy]="+point.split(',')[1]"
+              r="3"
+            />
+          }
+        </svg>
+        <div class="radar-label health">Saúde</div>
+        <div class="radar-label intelligence">Inteligência</div>
+        <div class="radar-label finance">Finanças</div>
+        <div class="radar-label social">Social</div>
+        <div class="radar-label discipline-label">Disciplina</div>
+      </div>
+      @for (attribute of attributes; track attribute.id) {
+        <div class="attribute-row">
+          <mat-icon>{{ attribute.icon }}</mat-icon>
+          <span>{{ attribute.label }}</span>
+          <input
+            class="attribute-rating"
+            type="range"
+            min="0"
+            max="10"
+            step="1"
+            [value]="profile.state().attributeRatings[attribute.id]"
+            (input)="setAttributeRating(attribute.id, $any($event.target).value)"
+            [attr.aria-label]="'Nota de ' + attribute.label"
+          />
+          <strong>{{ profile.state().attributeRatings[attribute.id] }}/10</strong>
+        </div>
+      }
+      <div class="attribute-row discipline">
+        <mat-icon>military_tech</mat-icon>
+        <span>Disciplina</span>
+        <input
+          class="attribute-rating"
+          type="range"
+          min="0"
+          max="10"
+          step="1"
+          [value]="profile.state().attributeRatings.discipline"
+          (input)="setAttributeRating('discipline', $any($event.target).value)"
+          aria-label="Nota de Disciplina"
+        />
+        <strong>{{ profile.state().attributeRatings.discipline }}/10</strong>
+      </div>
+      <p class="hint">
+        Dê uma nota de 0 a 10 para cada atributo. A teia muda imediatamente.
+        Sua disciplina automática atual é {{ profile.discipline() | number: '1.0-1' }}%.
+      </p>
+    </section>
+
+    <section class="card quest-card daily-quests">
+      <h2><span>!</span> Missões diárias</h2>
+      <div class="quest-streak">REINICIA À MEIA-NOITE • calendário de hoje</div>
+      @for (quest of profile.dailyQuests(); track quest.id) {
+        <article
+          class="daily-quest"
+          [class.complete]="quest.isComplete"
+        >
+          <mat-icon>{{ quest.icon }}</mat-icon>
+          <div>
+            <strong>{{ quest.title }}</strong>
+            <small>{{ quest.description }}</small>
+            <div class="quest-progress">
+              <span [style.width.%]="(quest.progress / quest.target) * 100"></span>
+            </div>
+            <small>{{ quest.progress }}/{{ quest.target }}</small>
+          </div>
+          <div class="quest-reward">
+            <span>+{{ quest.rewardXp }} XP</span>
+            <span>+{{ quest.rewardCoins }} 🪙</span>
+            @if (quest.isClaimed) {
+              <b>RESGATADA</b>
+            }
+          </div>
+        </article>
+      }
+    </section>
+
+    <div class="quest-column">
+    <section class="card quest-card monthly-quest">
+      <h2><span>📅</span> Missão mensal</h2>
+      <div class="quest-streak">DESAFIO DO MÊS • jornada estilo Duolingo</div>
+      @for (quest of profile.monthlyQuests(); track quest.id) {
+        <article
+          class="daily-quest"
+          [class.complete]="quest.isComplete"
+        >
+          <mat-icon>{{ quest.icon }}</mat-icon>
+          <div>
+            <strong>{{ quest.title }}</strong>
+            <small>{{ quest.description }}</small>
+            <div class="quest-progress">
+              <span [style.width.%]="(quest.progress / quest.target) * 100"></span>
+            </div>
+            <small>{{ quest.progress }}/{{ quest.target }}</small>
+          </div>
+          <div class="quest-reward">
+            <span>+{{ quest.rewardXp }} XP</span>
+            <span>+{{ quest.rewardCoins }} 🪙</span>
+            @if (quest.isClaimed) {
+              <b>RESGATADA</b>
+            }
+          </div>
+        </article>
+      }
+    </section>
+
+    <section class="card quest-card weekly-boss">
+      <h2><span>♜</span> Chefe semanal</h2>
+      <div class="boss-scene">
+        <mat-icon>castle</mat-icon>
+        <div>
+          <strong>{{ profile.weeklyBoss().title }}</strong>
+          <small>
+            Acumule XP de tarefas nesta semana. Chefes sempre concedem um item raro ou
+            melhor.
+          </small>
+        </div>
+      </div>
+      <div class="boss-health">
+        <span [style.width.%]="profile.weeklyBoss().percentage"></span>
+      </div>
+      <div class="boss-meta">
+        <span
+          >{{ profile.weeklyBoss().progress }} /
+          {{ profile.weeklyBoss().target }} dano</span
+        >
+        <b>
+          @if (profile.weeklyBoss().isClaimed) {
+            DERROTADO
+          } @else {
+            +300 XP • +25 🪙 • DROP RARO
+          }
+        </b>
+      </div>
+    </section>
+    </div>
+
+    <section class="card quest-card">
+      <h2><span>◆</span> Projetos e atributos</h2>
+      <p class="hint">
+        O XP já conquistado é redistribuído automaticamente quando você altera uma
+        associação.
+      </p>
+      <div class="project-list">
+        @for (project of projects(); track project.id) {
+          <label class="project-row">
+            <span
+              class="project-color"
+              [style.background]="project.theme?.primary"
+            ></span>
+            <span>{{ project.title }}</span>
+            <select
+              [ngModel]="profile.state().projectAttributes[project.id] || ''"
+              (ngModelChange)="mapProject(project.id, $event)"
+            >
+              <option value="">Sem atributo</option>
+              @for (attribute of attributes; track attribute.id) {
+                <option [value]="attribute.id">{{ attribute.label }}</option>
+              }
+            </select>
+            <select
+              [ngModel]="profile.state().projectRealms[project.id] || 'village'"
+              (ngModelChange)="mapProjectRealm(project.id, $event)"
+              title="Reino deste projeto"
+            >
+              @for (realm of realms; track realm.id) {
+                <option [value]="realm.id">{{ realm.shortName }}</option>
+              }
+            </select>
+          </label>
+        }
+      </div>
+    </section>
+
+    <section class="card quest-card trophy-hall">
+      <h2><span>🏛️</span> Salão de troféus</h2>
+      <p class="trophy-intro">
+        Medalhas calculadas automaticamente pelos hábitos concluídos. Os meses exigem
+        pelo menos 80% de consistência e são entregues ao fechar o mês. Este salão e
+        suas recompensas pertencem somente a
+        <b>{{ profile.state().displayName }}</b>.
+      </p>
+
+      <div class="trophy-section-heading">
+        <div>
+          <span>MEDALHAS DOS MESES</span>
+          <h3>Jornada de {{ profile.monthlyMedals()[0].id.slice(0, 4) }}</h3>
+        </div>
+        <strong>
+          {{ unlockedMonthlyMedals() }}/12
+        </strong>
+      </div>
+      <div class="trophy-grid monthly-trophies">
+        @for (medal of profile.monthlyMedals(); track medal.id) {
+          <article
+            class="trophy-card"
+            [class.unlocked]="medal.isUnlocked"
+            [class.editing]="editingMonthlyMedalId === medal.id"
+          >
+            <button
+              type="button"
+              mat-icon-button
+              class="monthly-medal-settings"
+              title="Editar meta e hábitos desta medalha"
+              (click)="editMonthlyMedal(medal)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
+            <div class="trophy-art">
+              <img [src]="medal.imageUrl" [alt]="medal.title" />
+              @if (!medal.isUnlocked) {
+                <span class="trophy-lock"><mat-icon>lock</mat-icon></span>
+              }
+            </div>
+            <div class="trophy-copy">
+              <span class="trophy-month">
+                {{ ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'][medal.monthIndex] }}
+              </span>
+              <h4>{{ medal.title }}</h4>
+              <small>{{ medal.completed }}/{{ medal.possible }} hábitos · {{ medal.percentage }}%</small>
+              <small class="trophy-reward">
+                +{{ profile.trophyReward('monthly', medal.possible).xp }} XP ·
+                +{{ profile.trophyReward('monthly', medal.possible).gold }} ouro
+              </small>
+              <div class="trophy-progress">
+                <span [style.width.%]="medal.progressPercentage"></span>
+              </div>
+              <small class="monthly-target">
+                Meta: {{ medal.completedDays }}/{{ medal.targetDays }} dias ·
+                {{ medal.habitIds.length || 'todos' }} hábitos selecionados
+              </small>
+              <b>{{ medal.isUnlocked ? 'CONQUISTADA' : 'EM PROGRESSO' }}</b>
+            </div>
+            @if (editingMonthlyMedalId === medal.id) {
+              <div class="monthly-medal-editor">
+                <label>
+                  Dias necessários no mês
+                  <span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      [(ngModel)]="monthlyMedalTarget"
+                    />
+                    dias
+                  </span>
+                </label>
+                <div class="monthly-habit-picker">
+                  <strong>Hábitos acompanhados</strong>
+                  @for (
+                    habit of habitTracker.habitsForCharacters([profile.state().id]);
+                    track habit.id
+                  ) {
+                    <button
+                      type="button"
+                      [class.selected]="monthlyMedalHabitIds.has(habit.id)"
+                      (click)="toggleMonthlyMedalHabit(habit.id)"
+                    >
+                      <mat-icon>
+                        {{ monthlyMedalHabitIds.has(habit.id) ? 'check_box' : 'check_box_outline_blank' }}
+                      </mat-icon>
+                      {{ habit.title }}
+                    </button>
+                  } @empty {
+                    <small>Crie hábitos na aba Habit Tracker primeiro.</small>
+                  }
+                </div>
+                <button
+                  type="button"
+                  class="save-monthly-config"
+                  [disabled]="!monthlyMedalHabitIds.size"
+                  (click)="saveMonthlyMedalConfig()"
+                >
+                  Salvar configuração
+                </button>
+              </div>
+            }
+          </article>
+        }
+      </div>
+
+      <div class="trophy-section-heading annual-heading">
+        <div>
+          <span>METAS DO ANO</span>
+          <h3>Conquistas que você escolheu perseguir</h3>
+        </div>
+      </div>
+
+      <div class="annual-goal-builder">
+        <div class="goal-main-fields">
+          <input [(ngModel)]="annualGoalTitle" placeholder="Nome da meta anual" />
+          <label>
+            Dias necessários
+            <input [(ngModel)]="annualGoalTarget" type="number" min="1" max="366" />
+          </label>
+        </div>
+        <div class="goal-habit-picker">
+          <span>Hábitos que devem ser concluídos no dia</span>
+          <div>
+            @for (habit of habitTracker.habitsForCharacters([profile.state().id]); track habit.id) {
+              <button
+                type="button"
+                [class.selected]="annualGoalHabitIds.has(habit.id)"
+                (click)="toggleAnnualGoalHabit(habit.id)"
+              >
+                <mat-icon>{{ annualGoalHabitIds.has(habit.id) ? 'check' : 'add' }}</mat-icon>
+                {{ habit.title }}
+              </button>
+            } @empty {
+              <small>Crie hábitos automáticos na aba Habit Tracker primeiro.</small>
+            }
+          </div>
+        </div>
+        <div class="goal-icon-picker">
+          <span>Ícone da conquista</span>
+          <div>
+            @for (iconIndex of [1,2,3,4,5,6,7,8,9,10,11,12]; track iconIndex) {
+              <button
+                type="button"
+                [class.selected]="annualGoalIconIndex === iconIndex"
+                (click)="annualGoalIconIndex = iconIndex"
+              >
+                <img
+                  [src]="'assets/rpg/trophies/annual-' + (iconIndex < 10 ? '0' : '') + iconIndex + '.png'"
+                  [alt]="'Ícone ' + iconIndex"
+                />
+              </button>
+            }
+          </div>
+        </div>
+        <button
+          mat-flat-button
+          color="primary"
+          [disabled]="!annualGoalTitle.trim() || !annualGoalHabitIds.size"
+          (click)="createAnnualGoal()"
+        >
+          <mat-icon>add</mat-icon>
+          Criar meta e medalha
+        </button>
+      </div>
+
+      <div class="trophy-grid annual-trophies">
+        @for (goal of profile.state().annualGoals; track goal.id) {
+          <article
+            class="trophy-card annual"
+            [class.unlocked]="profile.annualGoalProgress(goal).isUnlocked"
+          >
+            <div class="trophy-art">
+              <img
+                [src]="'assets/rpg/trophies/annual-' + (goal.iconIndex < 10 ? '0' : '') + goal.iconIndex + '.png'"
+                [alt]="goal.title"
+              />
+              @if (!profile.annualGoalProgress(goal).isUnlocked) {
+                <span class="trophy-lock"><mat-icon>lock</mat-icon></span>
+              }
+            </div>
+            <div class="trophy-copy">
+              <span class="trophy-month">META DE {{ goal.year }}</span>
+              <h4>{{ goal.title }}</h4>
+              <small>
+                {{ profile.annualGoalProgress(goal).completedDays }}/{{ goal.targetDays }}
+                dias completos
+              </small>
+              <small class="trophy-reward">
+                +{{ profile.trophyReward('annual', goal.targetDays, goal.habitIds.length).xp }} XP ·
+                +{{ profile.trophyReward('annual', goal.targetDays, goal.habitIds.length).gold }} ouro
+              </small>
+              <div class="trophy-progress">
+                <span [style.width.%]="profile.annualGoalProgress(goal).percentage"></span>
+              </div>
+              <b>
+                {{ profile.annualGoalProgress(goal).isUnlocked ? 'CONQUISTADA' : 'EM JORNADA' }}
+              </b>
+            </div>
+            <button
+              mat-icon-button
+              class="delete-goal"
+              title="Excluir meta anual"
+              (click)="profile.removeAnnualGoal(goal.id)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="card shop quest-card">
+      <h2><span>🪙</span> Loja de recompensas</h2>
+      <div class="new-reward">
+        <input
+          [(ngModel)]="rewardTitle"
+          placeholder="Ex.: assistir a um episódio"
+        />
+        <input
+          [(ngModel)]="rewardCost"
+          type="number"
+          min="1"
+          aria-label="Preço em moedas"
+        />
+        <button
+          mat-button
+          (click)="addReward()"
+        >
+          Adicionar
+        </button>
+      </div>
+      <div class="reward-card-grid">
+        @for (reward of profile.state().rewards; track reward.id) {
+          <article class="reward-card">
+            <label class="card-image-picker">
+              @if (reward.imageUrl) {
+                <img [src]="reward.imageUrl" [alt]="reward.title" />
+              } @else {
+                <mat-icon>add_photo_alternate</mat-icon>
+                <span>Adicionar foto</span>
+              }
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onRewardImageSelected(reward.id, $event)"
+              />
+            </label>
+            <div class="card-copy">
+            <strong>{{ reward.title }}</strong>
+            @if (reward.purchasedCount) {
+              <small>Resgatada {{ reward.purchasedCount }}x</small>
+            }
+            </div>
+            <div class="card-actions">
+              <button mat-button (click)="buyReward(reward.id)">🪙 {{ reward.cost }}</button>
+              <button
+                mat-icon-button
+                aria-label="Excluir recompensa"
+                (click)="profile.removeReward(reward.id)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">Crie recompensas pessoais para gastar suas moedas.</p>
+        }
+      </div>
+      @if (shopMessage) {
+        <p class="shop-message">{{ shopMessage }}</p>
+      }
+    </section>
+
+    <section class="card quest-card penalty-dungeon">
+      <h2><span>☠</span> Calabouço de penalidades</h2>
+      <p class="hint">
+        Registre deslizes conscientemente. Penalidades reduzem o saldo, mas nunca deixam
+        XP ou moedas negativos.
+      </p>
+      <div class="penalty-form">
+        <input
+          [(ngModel)]="penaltyTitle"
+          placeholder="O que aconteceu?"
+        />
+        <label
+          >XP
+          <input
+            [(ngModel)]="penaltyXp"
+            type="number"
+            min="0"
+          />
+        </label>
+        <label
+          >Moedas
+          <input
+            [(ngModel)]="penaltyCoins"
+            type="number"
+            min="0"
+          />
+        </label>
+        <button
+          mat-button
+          (click)="addPenalty()"
+        >
+          Aplicar
+        </button>
+      </div>
+      <div class="penalty-card-grid">
+        @for (penalty of profile.state().penalties; track penalty.id) {
+          <article class="penalty-card">
+            <label class="card-image-picker">
+              @if (penalty.imageUrl) {
+                <img [src]="penalty.imageUrl" [alt]="penalty.title" />
+              } @else {
+                <mat-icon>add_photo_alternate</mat-icon>
+                <span>Adicionar foto</span>
+              }
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onPenaltyImageSelected(penalty.id, $event)"
+              />
+            </label>
+            <strong>{{ penalty.title }}</strong>
+            <b>-{{ penalty.xpLoss }} XP<br />-{{ penalty.coinsLoss }} 🪙</b>
+            <button
+              mat-icon-button
+              aria-label="Remover penalidade"
+              (click)="profile.removePenalty(penalty.id)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </article>
+        } @empty {
+          <p class="empty">O calabouço está vazio.</p>
+        }
+      </div>
+    </section>
+
+    <rpg-inventory-panel />
+    <section class="card quest-card inventory legacy-inventory">
+      <h2><span>🎒</span> Inventário e equipamento</h2>
+      <div class="equipment-view">
+        <div class="equipment-slots left">
+          @for (slot of equipmentSlots.slice(0, 3); track slot.id) {
+            <button
+              type="button"
+              class="equipment-slot"
+              [attr.data-rarity]="profile.equippedItem(slot.id)?.rarity || 'empty'"
+              (click)="profile.unequipSlot(slot.id)"
+            >
+              @if (profile.equippedItem(slot.id); as item) {
+                @if (item.imageUrl) {
+                  <img
+                    class="item-sprite"
+                    [src]="item.imageUrl"
+                    alt=""
+                  />
+                } @else {
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                }
+                <span>{{ item.name }}</span>
+              } @else {
+                <mat-icon>add</mat-icon><span>{{ slot.label }}</span>
+              }
+            </button>
+          }
+        </div>
+        <div class="character-model">
+          @if (avatarDataUrl) {
+            @if (isVideoAvatar(avatarDataUrl)) {
+              <video
+                [src]="avatarDataUrl"
+                muted
+                loop
+                autoplay
+                playsinline
+              ></video>
+            } @else {
+              <img
+                [src]="avatarDataUrl"
+                alt="Personagem equipado"
+              />
+            }
+          } @else {
+            <character-renderer
+              [appearance]="profile.state().appearance"
+              [species]="profile.state().speciesId"
+              [characterClass]="profile.state().classId"
+              [equipment]="profile.equippedVisualAssets()"
+            />
+          }
+          <div class="model-glow"></div>
+          <span>PODER {{ profile.state().inventory.length }}</span>
+        </div>
+        <div class="equipment-slots right">
+          @for (slot of equipmentSlots.slice(3); track slot.id) {
+            <button
+              type="button"
+              class="equipment-slot"
+              [attr.data-rarity]="profile.equippedItem(slot.id)?.rarity || 'empty'"
+              (click)="profile.unequipSlot(slot.id)"
+            >
+              @if (profile.equippedItem(slot.id); as item) {
+                @if (item.imageUrl) {
+                  <img
+                    class="item-sprite"
+                    [src]="item.imageUrl"
+                    alt=""
+                  />
+                } @else {
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                }
+                <span>{{ item.name }}</span>
+              } @else {
+                <mat-icon>add</mat-icon><span>{{ slot.label }}</span>
+              }
+            </button>
+          }
+        </div>
+      </div>
+      <div class="item-grid">
+        @for (item of profile.state().inventory; track item.id) {
+          <button
+            type="button"
+            class="inventory-item"
+            [attr.data-rarity]="item.rarity"
+            (click)="profile.equipItem(item.id)"
+          >
+            @if (item.imageUrl) {
+              <img
+                class="item-sprite"
+                [src]="item.imageUrl"
+                [alt]="item.name"
+              />
+            } @else {
+              <mat-icon>{{ item.icon }}</mat-icon>
+            }
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.rarity }} • poder {{ item.power }}</small>
+          </button>
+        } @empty {
+          <p class="empty">
+            Itens surgem ao subir de nível. Raros, épicos e lendários dependem de níveis
+            altos ou chefes semanais.
+          </p>
+        }
+      </div>
+    </section>
+
+    <rpg-constellation-map />
+    <rpg-realm-map />
+
+    <section class="card quest-card journey">
+      <h2><span>🔥</span> Jornada e pets</h2>
+      <div class="streak-display">
+        <span>🔥</span>
+        <strong>{{ profile.streak() }} dias</strong>
+        <small>Ofensiva atual com pelo menos 70% do dia concluído</small>
+      </div>
+      <div class="pet-card">
+        <div class="pet-emblem">
+          <img
+            [src]="profile.petImageUrl()"
+            [alt]="profile.state().pet.name"
+          />
+          <span>Nível {{ profile.petLevel() }}</span>
+        </div>
+        <div class="pet-editor">
+          <strong>{{ profile.state().pet.name }}</strong>
+          <span>{{ profile.petStage() }} · {{ profile.petAgeDays() }} dias de vínculo</span>
+          <small>{{ profile.state().pet.xp }} XP · nível {{ profile.petLevel() }}</small>
+          @if (profile.petIsBound()) {
+            <span class="pet-forever-bond">
+              <mat-icon>lock</mat-icon>
+              Vínculo eterno · este pet pertence a este personagem
+            </span>
+          } @else {
+            <button
+              mat-button
+              (click)="openPetCreator()"
+            >
+              <mat-icon>pets</mat-icon>
+              Criar meu único pet
+            </button>
+          }
+        </div>
+      </div>
+      <div class="pet-evolution-track">
+        @for (stage of profile.petEvolutionPath(); track stage.key) {
+          <div [class.active]="profile.petStageKey() === stage.key">
+            <img
+              [src]="petAsset(profile.state().pet.type, stage.key)"
+              [alt]="stage.label"
+            />
+            <strong>{{ stage.label }}</strong>
+            <small>Nv. {{ stage.level }} · {{ stage.days }} dias</small>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="card quest-card campaigns">
+      <h2><span>🗺</span> Projetos de vida</h2>
+      <div class="campaign-form">
+        <input
+          [(ngModel)]="campaignTitle"
+          placeholder="Grande objetivo"
+        />
+        <input
+          [(ngModel)]="campaignBoss"
+          placeholder="Boss final"
+        />
+        <button
+          mat-button
+          (click)="createCampaign()"
+        >
+          Criar campanha
+        </button>
+      </div>
+      <div class="chapter-form">
+        <select [(ngModel)]="selectedCampaignId">
+          <option value="">Selecione uma campanha</option>
+          @for (campaign of profile.state().campaigns; track campaign.id) {
+            <option [value]="campaign.id">{{ campaign.title }}</option>
+          }
+        </select>
+        <input
+          [(ngModel)]="chapterTitle"
+          placeholder="Novo capítulo"
+        />
+        <select [(ngModel)]="chapterProjectId">
+          <option value="">Todos os projetos</option>
+          @for (project of projects(); track project.id) {
+            <option [value]="project.id">{{ project.title }}</option>
+          }
+        </select>
+        <input
+          [(ngModel)]="chapterTarget"
+          type="number"
+          min="1"
+          aria-label="Tarefas necessárias"
+        />
+        <button
+          mat-button
+          (click)="addChapter()"
+        >
+          Adicionar capítulo
+        </button>
+      </div>
+      @for (campaign of profile.state().campaigns; track campaign.id) {
+        <article class="campaign">
+          <div class="campaign-cover">
+            @if (campaign.imageUrl) {
+              <img
+                [src]="campaign.imageUrl"
+                [alt]="'Capa da campanha ' + campaign.title"
+              />
+            } @else {
+              <mat-icon>landscape</mat-icon>
+              <span>Adicionar capa</span>
+            }
+            <label>
+              <mat-icon>add_a_photo</mat-icon>
+              <span>{{ campaign.imageUrl ? 'Trocar foto' : 'Adicionar foto' }}</span>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onCampaignImageSelected(campaign.id, $event)"
+              />
+            </label>
+          </div>
+          <div class="campaign-content">
+          <button
+            class="delete-campaign"
+            mat-icon-button
+            type="button"
+            aria-label="Excluir campanha"
+            title="Excluir campanha"
+            (click)="deleteCampaign(campaign.id, campaign.title)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+          <h3>🎯 {{ campaign.title }}</h3>
+          @for (chapter of campaign.chapters; track chapter.id) {
+            <div class="campaign-chapter">
+              <span>{{ chapter.title }}</span>
+              <div>
+                <span
+                  [style.width.%]="
+                    profile.campaignChapterProgress(
+                      chapter.projectId,
+                      chapter.targetCompletedTasks
+                    )
+                  "
+                ></span>
+              </div>
+              <small>
+                {{
+                  profile.campaignChapterProgress(
+                    chapter.projectId,
+                    chapter.targetCompletedTasks
+                  ) | number: '1.0-0'
+                }}%
+              </small>
+            </div>
+          } @empty {
+            <p class="empty">Adicione capítulos ligados aos seus projetos.</p>
+          }
+          <strong class="final-boss">♛ Boss final: {{ campaign.finalBoss }}</strong>
+          </div>
+        </article>
+      }
+    </section>
+
+    <section class="card quest-card">
+      <h2><span>📜</span> Crônicas de disciplina</h2>
+      @if (disciplineChartDays().length) {
+        <div class="discipline-chart">
+          <svg
+            viewBox="0 0 640 220"
+            role="img"
+            aria-label="Disciplina por dia"
+          >
+            <line
+              x1="35"
+              y1="35"
+              x2="605"
+              y2="35"
+            ></line>
+            <line
+              x1="35"
+              y1="110"
+              x2="605"
+              y2="110"
+            ></line>
+            <line
+              x1="35"
+              y1="185"
+              x2="605"
+              y2="185"
+            ></line>
+            <text
+              x="4"
+              y="40"
+            >
+              100%
+            </text>
+            <text
+              x="10"
+              y="115"
+            >
+              50%
+            </text>
+            <text
+              x="18"
+              y="190"
+            >
+              0%
+            </text>
+            <polyline [attr.points]="disciplineChartPoints()"></polyline>
+            @for (day of disciplineChartDays(); track day.date; let index = $index) {
+              <circle
+                [attr.cx]="disciplineChartX(index, disciplineChartDays().length)"
+                [attr.cy]="disciplineChartY(day.percentage)"
+                r="5"
+              ></circle>
+              <text
+                class="date-label"
+                [attr.x]="disciplineChartX(index, disciplineChartDays().length)"
+                y="210"
+              >
+                {{ day.date.slice(5) }}
+              </text>
+            }
+          </svg>
+        </div>
+      }
+      @if (showAllDisciplineHistory) {
+        <div class="discipline-months">
+          @for (month of disciplineHistoryMonths(); track month.key) {
+            <section class="discipline-month">
+              <h3>{{ month.label }}</h3>
+              @for (day of month.days; track day.date) {
+                <div class="day-row">
+                  <span>{{ day.date }}</span>
+                  <div class="mini-progress">
+                    <span [style.width.%]="day.percentage"></span>
+                  </div>
+                  <strong>{{ day.completed }}/{{ day.total }}</strong>
+                  <span>{{ day.percentage | number: '1.0-0' }}%</span>
+                </div>
+              }
+            </section>
+          } @empty {
+            <p class="empty">Ainda não há dias com tarefas para calcular.</p>
+          }
+        </div>
+      } @else {
+        @for (day of profile.disciplineDays().slice(0, 7); track day.date) {
+          <div class="day-row">
+            <span>{{ day.date }}</span>
+            <div class="mini-progress">
+              <span [style.width.%]="day.percentage"></span>
+            </div>
+            <strong>{{ day.completed }}/{{ day.total }}</strong>
+            <span>{{ day.percentage | number: '1.0-0' }}%</span>
+          </div>
+        } @empty {
+          <p class="empty">Ainda não há dias com tarefas para calcular.</p>
+        }
+      }
+      @if (profile.disciplineDays().length > 7) {
+        <button
+          mat-stroked-button
+          class="expand-discipline"
+          (click)="showAllDisciplineHistory = !showAllDisciplineHistory"
+        >
+          <mat-icon>{{ showAllDisciplineHistory ? 'expand_less' : 'expand_more' }}</mat-icon>
+          {{ showAllDisciplineHistory ? 'Mostrar somente os últimos 7 dias' : 'Expandir histórico por mês' }}
+        </button>
+      }
+    </section>
+  </div>
+
+  @if (profile.levelUpCelebration(); as celebration) {
+    <div class="level-up-backdrop">
+      <section class="level-up-modal">
+        <div class="level-rays"></div>
+        <span class="level-kicker">JORNADA DO AVENTUREIRO</span>
+        <mat-icon class="level-crown">workspace_premium</mat-icon>
+        <h2>PARABÉNS!</h2>
+        <p>Você passou de nível</p>
+        <div class="level-number">
+          <small>NÍVEL</small>
+          <strong>{{ celebration.currentLevel }}</strong>
+        </div>
+        @if (celebration.previousLevel + 1 < celebration.currentLevel) {
+          <span class="level-jump">
+            Níveis {{ celebration.previousLevel + 1 }}–{{ celebration.currentLevel }}
+            conquistados
+          </span>
+        }
+        <div class="level-rewards">
+          <h3>RECOMPENSAS</h3>
+          <div>
+            <mat-icon>auto_awesome</mat-icon>
+            <span>
+              <strong>+{{ celebration.starPoints }} Star Point{{ celebration.starPoints > 1 ? 's' : '' }}</strong>
+              <small>Use nas Constelações do Destino</small>
+            </span>
+          </div>
+          @for (itemName of celebration.itemNames; track $index) {
+            <div>
+              <mat-icon>redeem</mat-icon>
+              <span><strong>{{ itemName }}</strong><small>Novo item no inventário</small></span>
+            </div>
+          }
+          @for (unlock of celebration.unlocks; track unlock) {
+            <div>
+              <mat-icon>lock_open</mat-icon>
+              <span><strong>{{ unlock }}</strong><small>Novo conteúdo liberado</small></span>
+            </div>
+          }
+        </div>
+        <button
+          type="button"
+          (click)="profile.dismissLevelUpCelebration()"
+        >
+          CONTINUAR
+        </button>
+      </section>
+    </div>
+  }
+
+  @if (showPetCreator) {
+    <div
+      class="creator-backdrop"
+      (click)="showPetCreator = false"
+    >
+      <section
+        class="character-creator pet-creator card pixel-frame"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <span class="eyebrow">NOVO VÍNCULO MÍSTICO</span>
+            <h2>Criação de mascote</h2>
+          </div>
+          <button
+            mat-icon-button
+            aria-label="Fechar"
+            (click)="showPetCreator = false"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+
+        <div class="pet-creator-content">
+          <div class="pet-creator-preview">
+            <img
+              [src]="petAsset(petType, 'egg')"
+              [alt]="petName || 'Ovo místico'"
+            />
+            <strong>{{ petName || 'Ovo místico' }}</strong>
+            <small>Todo vínculo começa dentro de um ovo.</small>
+          </div>
+
+          <div class="pet-creator-options">
+            <label>
+              Nome do pet
+              <input
+                [(ngModel)]="petName"
+                maxlength="28"
+                placeholder="Nome do seu companheiro"
+              />
+            </label>
+
+            <div class="mystic-pet-grid">
+              @for (type of petTypes; track type.id) {
+                <button
+                  type="button"
+                  [class.selected]="petType === type.id"
+                  (click)="petType = type.id"
+                >
+                  <img
+                    [src]="petAsset(type.id, 'cub')"
+                    [alt]="type.name"
+                  />
+                  <strong>{{ type.name }}</strong>
+                  <small>{{ type.description }}</small>
+                </button>
+              }
+            </div>
+
+            <div class="pet-creator-evolution">
+              @for (stage of profile.petEvolutionPath(); track stage.key) {
+                <div>
+                  <img
+                    [src]="petAsset(petType, stage.key)"
+                    [alt]="stage.label"
+                  />
+                  <strong>{{ stage.label }}</strong>
+                  <small>Nv. {{ stage.level }} · {{ stage.days }} dias</small>
+                </div>
+              }
+            </div>
+
+            <label class="custom-pet-photo">
+              <mat-icon>add_a_photo</mat-icon>
+              Foto personalizada opcional
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onPetImageSelected($event)"
+              />
+            </label>
+          </div>
+        </div>
+
+        <footer>
+          <button
+            mat-button
+            (click)="showPetCreator = false"
+          >
+            Cancelar
+          </button>
+          <button
+            mat-button
+            (click)="savePet()"
+          >
+            Confirmar pet
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (showCharacterCreator) {
+    <div
+      class="creator-backdrop"
+      (click)="showCharacterCreator = false"
+    >
+      <section
+        class="character-creator card pixel-frame"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <span class="eyebrow">NOVO AVENTUREIRO</span>
+            <h2>Criação de personagem</h2>
+          </div>
+          <button
+            mat-icon-button
+            aria-label="Fechar"
+            (click)="showCharacterCreator = false"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+
+        <div class="creator-content">
+          <div class="creator-preview">
+            <character-renderer
+              [appearance]="newCharacterAppearance"
+              [species]="newCharacterSpecies"
+              [characterClass]="newCharacterClass"
+            />
+            <strong>Equipamento inicial</strong>
+            <small>Roupa simples + arma básica da classe</small>
+            <div class="creator-tags">
+              <span>{{ newCharacterSpecies }}</span>
+              <span>{{
+                newCharacterAppearance.gender === 'male' ? 'Homem' : 'Mulher'
+              }}</span>
+              <span>{{ className(newCharacterClass) }}</span>
+            </div>
+          </div>
+
+          <div class="creator-options">
+            <label>Nome <input [(ngModel)]="newCharacterName" /></label>
+            <label>
+              Espécie
+              <select [(ngModel)]="newCharacterSpecies">
+                @for (race of species; track race.id) {
+                  <option [value]="race.id">{{ race.name }} — {{ race.trait }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Classe
+              <select
+                [ngModel]="newCharacterClass"
+                (ngModelChange)="onNewCharacterClassChange($event)"
+              >
+                @for (class of classes; track class.id) {
+                  <option [value]="class.id">{{ class.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Subclasse
+              <select [(ngModel)]="newCharacterSubclass">
+                <option value="none">Não escolhida</option>
+                @for (subclass of creatorSubclasses(); track subclass.id) {
+                  <option
+                    [value]="subclass.id"
+                    [disabled]="profile.level() < subclassUnlockLevel(subclass.id)"
+                  >
+                    {{ subclass.name }} — nível {{ subclassUnlockLevel(subclass.id) }}
+                  </option>
+                }
+              </select>
+            </label>
+            <label class="working-appearance-control">
+              Sexo
+              <select
+                [ngModel]="newCharacterAppearance.gender"
+                (ngModelChange)="onGenderChange($event)"
+              >
+                <option value="male">Homem</option>
+                <option value="female">Mulher</option>
+              </select>
+            </label>
+            <label>
+              Corpo
+              <select [(ngModel)]="newCharacterAppearance.bodyType">
+                <option value="slim">Magro</option>
+                <option value="standard">Padrão</option>
+                <option value="strong">Forte</option>
+              </select>
+            </label>
+            <label>
+              Rosto
+              <select [(ngModel)]="newCharacterAppearance.faceType">
+                <option value="round">Redondo</option>
+                <option value="oval">Oval</option>
+                <option value="square">Quadrado</option>
+              </select>
+            </label>
+            <fieldset class="palette-field working-appearance-control">
+              <legend>Cor da pele</legend>
+              <div class="swatches">
+                @for (color of skinPalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.skinColor === color"
+                    [style.background]="color"
+                    [attr.aria-label]="'Selecionar pele ' + color"
+                    (click)="setAppearance('skinColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+            <fieldset class="palette-field">
+              <legend>Cor dos olhos</legend>
+              <div class="swatches">
+                @for (color of eyePalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.eyeColor === color"
+                    [style.background]="color"
+                    [attr.aria-label]="'Selecionar olhos ' + color"
+                    (click)="setAppearance('eyeColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+            <fieldset class="visual-options">
+              <legend>Cabelo</legend>
+              <div class="asset-choice-grid">
+                @for (choice of hairChoices; track choice.id) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.hairStyle === choice.id"
+                    (click)="setAppearance('hairStyle', choice.id)"
+                  >
+                    <character-renderer
+                      [appearance]="appearancePreview('hairStyle', choice.id)"
+                      [species]="newCharacterSpecies"
+                      [characterClass]="newCharacterClass"
+                      [compact]="true"
+                    />
+                    <span>{{ choice.label }}</span>
+                  </button>
+                }
+              </div>
+            </fieldset>
+            <fieldset class="palette-field working-appearance-control">
+              <legend>Cor do cabelo</legend>
+              <div class="swatches">
+                @for (color of hairPalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.hairColor === color"
+                    [style.background]="color"
+                    [attr.aria-label]="'Selecionar cabelo ' + color"
+                    (click)="setAppearance('hairColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+            <label>
+              Bigode
+              <select [(ngModel)]="newCharacterAppearance.mustache">
+                <option value="none">Sem bigode</option>
+                <option value="thin">Fino</option>
+                <option value="thick">Grosso</option>
+              </select>
+            </label>
+            <label>
+              Olhos
+              <select [(ngModel)]="newCharacterAppearance.eyeStyle">
+                <option value="round">Redondos</option>
+                <option value="sharp">Marcantes</option>
+                <option value="bright">Luminosos</option>
+              </select>
+            </label>
+            <label>
+              Sobrancelhas
+              <select [(ngModel)]="newCharacterAppearance.eyebrows">
+                <option value="soft">Suaves</option>
+                <option value="straight">Retas</option>
+                <option value="bold">Fortes</option>
+              </select>
+            </label>
+            <label>
+              Nariz
+              <select [(ngModel)]="newCharacterAppearance.noseStyle">
+                <option value="small">Pequeno</option>
+                <option value="straight">Reto</option>
+                <option value="wide">Largo</option>
+              </select>
+            </label>
+            <label>
+              Boca
+              <select [(ngModel)]="newCharacterAppearance.mouthStyle">
+                <option value="neutral">Neutra</option>
+                <option value="smile">Sorriso</option>
+                <option value="serious">Séria</option>
+              </select>
+            </label>
+            <label>
+              Marcas
+              <select [(ngModel)]="newCharacterAppearance.marking">
+                <option value="none">Nenhuma</option>
+                <option value="freckles">Sardas</option>
+                <option value="scar">Cicatriz</option>
+                <option value="warpaint">Pintura de guerra</option>
+                <option value="makeup">Maquiagem</option>
+              </select>
+            </label>
+            <label>
+              Acessório
+              <select [(ngModel)]="newCharacterAppearance.accessory">
+                <option value="none">Nenhum</option>
+                <option value="earring">Brinco</option>
+                <option value="glasses">Óculos</option>
+                <option value="circlet">Tiara rúnica</option>
+                <option value="scar">Cicatriz</option>
+              </select>
+            </label>
+            <fieldset class="palette-field palette-wide">
+              <legend>Roupa</legend>
+              <div class="swatches">
+                @for (color of clothingPalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.clothingColor === color"
+                    [style.background]="color"
+                    (click)="setAppearance('clothingColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+            <fieldset class="palette-field">
+              <legend>Armadura</legend>
+              <div class="swatches">
+                @for (color of armorPalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.armorColor === color"
+                    [style.background]="color"
+                    (click)="setAppearance('armorColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+            <fieldset class="palette-field">
+              <legend>Detalhes</legend>
+              <div class="swatches">
+                @for (color of detailPalette; track color) {
+                  <button
+                    type="button"
+                    [class.selected]="newCharacterAppearance.detailColor === color"
+                    [style.background]="color"
+                    (click)="setAppearance('detailColor', color)"
+                  ></button>
+                }
+              </div>
+            </fieldset>
+          </div>
+        </div>
+        <footer>
+          <button
+            mat-button
+            (click)="showCharacterCreator = false"
+          >
+            Cancelar
+          </button>
+          <button
+            mat-button
+            (click)="createCharacter()"
+          >
+            Criar personagem
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+</div>

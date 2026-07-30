@@ -1695,7 +1695,9 @@
       "D_TIME": {
         "ADD_FOR_OTHER_DAY": "Adicionar entrada em outro dia",
         "DELETE_FOR": "Excluir entrada para o dia",
-        "ESTIMATE": "Tempo Estimativa",
+        "ESTIMATE": "Tempo estimado",
+        "FOCUS_BLOCK_COUNT": "Quantidade de blocos de foco",
+        "FOCUS_BLOCK_SUMMARY": "Blocos: {{count}} × {{duration}} min",
         "TIME_SPENT": "Tempo Trabalhado",
         "TIME_SPENT_ON": "Tempo Trabalhado em {{date}}",
         "TITLE": "Duração"

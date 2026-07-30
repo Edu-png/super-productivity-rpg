@@ -389,10 +389,11 @@ export const selectTimelineTasks = createSelector(
   } => {
     const allPlannedTasks: TaskWithDueTime[] = [];
     activeTaskMap.forEach((t) => {
-      if (!t.isDone && t.dueWithTime) {
+      if (t.dueWithTime && !t.parentId) {
         allPlannedTasks.push(t as TaskWithDueTime);
       }
     });
+
     // Use Set for O(1) lookup instead of O(n) .includes() in filter
     const allPlannedIdSet = new Set(allPlannedTasks.map((t) => t.id));
 
@@ -410,7 +411,7 @@ export const selectTimelineTasks = createSelector(
             subTasks: taskIdsToTasks(t.subTaskIds),
           }),
         )
-        .filter((t) => !t.isDone && !allPlannedIdSet.has(t.id)),
+        .filter((t) => !t.parentId && !allPlannedIdSet.has(t.id)),
     };
   },
 );

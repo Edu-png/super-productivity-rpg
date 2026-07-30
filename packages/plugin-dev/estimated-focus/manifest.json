@@ -1,0 +1,13 @@
+{
+  "name": "Estimated Focus",
+  "id": "estimated-focus",
+  "manifestVersion": 1,
+  "version": "1.3.0",
+  "minSupVersion": "18.16.0",
+  "description": "Uses a task's time estimate for repeating focus blocks with an alarm and automatic continuation.",
+  "hooks": ["currentTaskChange", "action"],
+  "permissions": ["showSnack", "openDialog", "persistDataSynced", "loadSyncedData"],
+  "iFrame": false,
+  "isSkipMenuEntry": true,
+  "icon": "icon.svg"
+}

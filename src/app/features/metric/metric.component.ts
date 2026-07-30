@@ -19,6 +19,10 @@ import { SharePayload } from '../../core/share/share.model';
 import { map } from 'rxjs/operators';
 import { calculateSustainabilityScore } from './metric-scoring.util';
 import { TODAY_TAG } from '../tag/tag.const';
+import { ActivatedRoute } from '@angular/router';
+import { MenuTreeService } from '../menu-tree/menu-tree.service';
+import { FolderMetricsService } from './folder-metrics.service';
+import { of } from 'rxjs';
 
 const FULL_PRODUCTIVITY_BREAKDOWN_CHART_RANGE = Number.MAX_SAFE_INTEGER;
 
@@ -42,10 +46,31 @@ export class MetricComponent {
   metricService = inject(MetricService);
   projectMetricsService = inject(ProjectMetricsService);
   allTasksMetricsService = inject(AllTasksMetricsService);
+  private readonly _route = inject(ActivatedRoute);
+  private readonly _menuTreeService = inject(MenuTreeService);
+  private readonly _folderMetricsService = inject(FolderMetricsService);
 
   T: typeof T = T;
 
   activeWorkContext = toSignal(this.workContextService.activeWorkContext$);
+  private readonly _folderId =
+    this._route.snapshot.paramMap.get('folderId') ??
+    this._route.parent?.snapshot.paramMap.get('folderId');
+  private readonly _folder = this._folderId
+    ? this._menuTreeService.findFolderInTree(
+        this._folderId,
+        this._menuTreeService.projectTree(),
+      )
+    : null;
+  private readonly _folderMetrics = toSignal(
+    this._folderId
+      ? this._folderMetricsService.getSimpleMetrics$(
+          this._menuTreeService.getProjectIdsForFolder(this._folderId),
+        )
+      : of(undefined),
+  );
+  readonly isFolderMetrics = !!this._folderId;
+  readonly folderName = this._folder?.name;
 
   /**
    * Whether the active work context is the global "Today / all tasks" view.
@@ -152,6 +177,9 @@ export class MetricComponent {
    * based on the current context
    */
   simpleMetrics = computed(() => {
+    if (this.isFolderMetrics) {
+      return this._folderMetrics();
+    }
     return this.isShowingAllTasks()
       ? this.allTasksMetricsService.simpleMetrics()
       : this.projectMetricsService.simpleMetrics();
@@ -173,7 +201,7 @@ export class MetricComponent {
           start: sm.start,
           end: sm.end,
         },
-        projectName: workContext?.title,
+        projectName: this._folder?.name ?? workContext?.title,
         detailedMetrics: {
           timeEstimate: sm.timeEstimate,
           totalTasks: sm.nrOfAllTasks,

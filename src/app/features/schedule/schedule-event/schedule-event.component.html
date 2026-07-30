@@ -59,6 +59,25 @@
   ) {
     <div class="time-badge">{{ scheduledClockStr() }}</div>
   }
+
+  @if (task(); as task) {
+    <button
+      class="task-play-btn"
+      [class.is-tracking]="isTrackingThisTask()"
+      [attr.aria-label]="
+        (isTrackingThisTask() ? T.F.TASK.CMP.TRACK_TIME_STOP : T.F.TASK.CMP.TRACK_TIME)
+          | translate
+      "
+      [matTooltip]="
+        (isTrackingThisTask() ? T.F.TASK.CMP.TRACK_TIME_STOP : T.F.TASK.CMP.TRACK_TIME)
+          | translate
+      "
+      (click)="toggleTaskTracking($event)"
+      type="button"
+    >
+      <mat-icon>{{ isTrackingThisTask() ? 'pause' : 'play_arrow' }}</mat-icon>
+    </button>
+  }
 </div>
 <!-- -->
 
@@ -88,6 +107,37 @@
       }
     }
   </span>
+  @if (visibleSubTasks().length) {
+    <div
+      class="subtask-list"
+      aria-label="Subtarefas"
+    >
+      @for (subTask of visibleSubTasks(); track subTask.id) {
+        <button
+          class="subtask"
+          [class.is-done]="subTask.isDone"
+          [attr.aria-label]="
+            subTask.isDone ? 'Reabrir ' + subTask.title : 'Concluir ' + subTask.title
+          "
+          (click)="toggleSubTaskDone($event, subTask.id, subTask.isDone)"
+          type="button"
+        >
+          <mat-icon>{{
+            subTask.isDone ? 'check_box' : 'check_box_outline_blank'
+          }}</mat-icon>
+          <span>{{ subTask.title }}</span>
+          @if (subTask.timeEstimate > 0) {
+            <span class="subtask-duration"
+              >({{ subTaskDurationLabel(subTask.timeEstimate) }})</span
+            >
+          }
+        </button>
+      }
+      @if (remainingSubTaskCount()) {
+        <div class="more-subtasks">+{{ remainingSubTaskCount() }} subtarefas</div>
+      }
+    </div>
+  }
 </div>
 
 @if (task()) {

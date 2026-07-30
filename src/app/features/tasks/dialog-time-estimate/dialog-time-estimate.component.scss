@@ -25,6 +25,24 @@
   justify-content: center;
 }
 
+.focus-blocks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 280px);
+  margin: 0 auto var(--s2);
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.focus-block-summary {
+  margin-top: calc(-1 * var(--s));
+  text-align: center;
+  color: var(--text-color-muted);
+  font-size: 13px;
+}
+
 .other-day {
   display: flex;
   align-items: center;

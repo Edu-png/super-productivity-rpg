@@ -1958,6 +1958,8 @@
         "ADD_FOR_OTHER_DAY": "Add time spent for other day",
         "DELETE_FOR": "Delete entry for day",
         "ESTIMATE": "Estimate",
+        "FOCUS_BLOCK_COUNT": "Number of focus blocks",
+        "FOCUS_BLOCK_SUMMARY": "{{count}} blocks × {{duration}} min",
         "TIME_SPENT": "Time Spent",
         "TIME_SPENT_ON": "Time Spent {{date}}",
         "TITLE": "Duration"

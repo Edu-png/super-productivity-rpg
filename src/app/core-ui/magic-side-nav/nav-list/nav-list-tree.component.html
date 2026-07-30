@@ -74,6 +74,7 @@
             [showLabels]="showLabels()"
             (clicked)="onChildClick(node)"
             [folderId]="node.id"
+            [folderColor]="getFolderColor(node.id)"
             [treeKind]="treeKind()"
           ></nav-item>
         </div>

@@ -126,3 +126,13 @@ data/
 
 # Generated App Store Connect "What's New" notes (see tools/prepare-appstore-release-notes.js)
 /fastlane/appstore_metadata
+
+# Local RPG development assets and distributables
+/Ocean's Nostalgia - MZ Heroes/
+/Ocean's Nostalgia - MZ Heroes.zip
+/RPG Items/
+/RPG Items.zip
+/src/assets/characters/oceans-nostalgia/
+/releases/
+/lancamentos_onvue.csv
+/tmp/imagegen/

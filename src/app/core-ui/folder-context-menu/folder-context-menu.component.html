@@ -21,6 +21,14 @@
 @if (treeKind === MenuTreeKind.PROJECT) {
   <button
     mat-menu-item
+    (click)="openMetrics()"
+  >
+    <mat-icon>donut_large</mat-icon>
+    <span>{{ T.MH.METRICS | translate }}</span>
+  </button>
+
+  <button
+    mat-menu-item
     (click)="addProject()"
   >
     <mat-icon>add</mat-icon>

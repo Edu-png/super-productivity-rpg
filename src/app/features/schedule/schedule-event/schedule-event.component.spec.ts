@@ -1,5 +1,5 @@
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { NO_ERRORS_SCHEMA, signal } from '@angular/core';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { TranslateModule } from '@ngx-translate/core';
@@ -11,6 +11,7 @@ import { TaskService } from '../../tasks/task.service';
 import { CalendarEventActionsService } from '../../calendar-integration/calendar-event-actions.service';
 import { DateTimeFormatService } from '../../../core/date-time-format/date-time-format.service';
 import { selectTaskByIdWithSubTaskData } from '../../tasks/store/task.selectors';
+import { TaskSharedActions } from '../../../root-store/meta/task-shared.actions';
 
 const makeCalendarScheduleEvent = (isReferenceCalendar: boolean): ScheduleEvent => ({
   id: 'cal-1',
@@ -36,7 +37,12 @@ const makeTaskScheduleEvent = (overlap?: ScheduleEvent['overlap']): ScheduleEven
   startHours: 10,
   timeLeftInHours: 1,
   overlap,
-  data: { id: 'task-1', title: 'Task', timeEstimate: 3600000 } as any,
+  data: {
+    id: 'task-1',
+    title: 'Task',
+    timeEstimate: 3600000,
+    isDone: false,
+  } as any,
 });
 
 describe('ScheduleEventComponent – isReferenceCalendar', () => {
@@ -53,6 +59,8 @@ describe('ScheduleEventComponent – isReferenceCalendar', () => {
           provide: TaskService,
           useValue: {
             setSelectedId: jasmine.createSpy('setSelectedId'),
+            setCurrentId: jasmine.createSpy('setCurrentId'),
+            currentTaskId: signal(null),
             remove: jasmine.createSpy('remove'),
           },
         },
@@ -75,6 +83,9 @@ describe('ScheduleEventComponent – isReferenceCalendar', () => {
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
+    TestBed.inject(MockStore).overrideSelector(selectTaskByIdWithSubTaskData, {
+      subTasks: [],
+    } as any);
     fixture = TestBed.createComponent(ScheduleEventComponent);
     component = fixture.componentInstance;
   });
@@ -194,6 +205,78 @@ describe('ScheduleEventComponent – isReferenceCalendar', () => {
     expect(taskService.remove).toHaveBeenCalledOnceWith(task);
   }));
 
+  it('should start the task directly from the card play button', () => {
+    const taskService = TestBed.inject(TaskService) as jasmine.SpyObj<TaskService>;
+    fixture.componentRef.setInput('event', makeTaskScheduleEvent());
+    fixture.detectChanges();
+    const event = new MouseEvent('click');
+    spyOn(event, 'stopPropagation');
+
+    component.toggleTaskTracking(event);
+
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(taskService.setCurrentId).toHaveBeenCalledOnceWith('task-1');
+  });
+
+  it('should expose the completed visual state for done tasks', () => {
+    const event = makeTaskScheduleEvent();
+    event.data = { ...(event.data as any), isDone: true };
+    fixture.componentRef.setInput('event', event);
+    fixture.detectChanges();
+
+    expect(component.cssClass()).toContain('is-done');
+  });
+
+  it('should render a compact subtask list inside the task card', () => {
+    const store = TestBed.inject(MockStore);
+    store.overrideSelector(selectTaskByIdWithSubTaskData, {
+      ...(makeTaskScheduleEvent().data as any),
+      isDone: false,
+      subTasks: [
+        {
+          id: 'sub-1',
+          title: 'First subtask',
+          isDone: false,
+          timeEstimate: 30 * 60 * 1000,
+        },
+        { id: 'sub-2', title: 'Second subtask', isDone: true },
+      ],
+    } as any);
+    fixture.componentRef.setInput('event', makeTaskScheduleEvent());
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('.subtask').length).toBe(2);
+    expect(fixture.nativeElement.querySelector('.subtask.is-done')).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('First subtask');
+    expect(fixture.nativeElement.textContent).toContain('(30 min)');
+  });
+
+  it('should complete the parent when its last open subtask is completed', () => {
+    const store = TestBed.inject(MockStore);
+    store.overrideSelector(selectTaskByIdWithSubTaskData, {
+      ...(makeTaskScheduleEvent().data as any),
+      isDone: false,
+      subTasks: [
+        { id: 'sub-1', title: 'First subtask', isDone: true },
+        { id: 'sub-2', title: 'Second subtask', isDone: false },
+      ],
+    } as any);
+    fixture.componentRef.setInput('event', makeTaskScheduleEvent());
+    fixture.detectChanges();
+    spyOn(store, 'dispatch');
+
+    component.toggleSubTaskDone(new MouseEvent('click'), 'sub-2', false);
+
+    expect(store.dispatch).toHaveBeenCalledWith(
+      TaskSharedActions.updateTasks({
+        tasks: [
+          { id: 'sub-2', changes: { isDone: true } },
+          { id: 'task-1', changes: { isDone: true } },
+        ],
+      }),
+    );
+  });
+
   describe('style', () => {
     it('should render overlapping events in equal-width lanes', () => {
       fixture.componentRef.setInput(
@@ -236,6 +319,8 @@ describe('ScheduleEventComponent – isReferenceCalendar', () => {
             provide: TaskService,
             useValue: {
               setSelectedId: jasmine.createSpy('setSelectedId'),
+              setCurrentId: jasmine.createSpy('setCurrentId'),
+              currentTaskId: signal(null),
               remove: jasmine.createSpy('remove'),
             },
           },

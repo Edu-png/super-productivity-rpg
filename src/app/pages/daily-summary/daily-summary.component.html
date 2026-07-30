@@ -245,3 +245,10 @@
     </div>
   </section>
 </div>
+@if (journeyReport(); as report) {
+  <daily-journey-report
+    [report]="report"
+    (confirm)="confirmJourneyReport()"
+    (cancel)="journeyReport.set(null)"
+  />
+}

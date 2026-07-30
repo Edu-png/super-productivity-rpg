@@ -58,9 +58,10 @@
   }
 
   <!-- Grid Rows -->
-  @for (row of rowsByNr; track $index) {
+  @for (row of halfHourRowsByNr; track $index) {
     <div
       class="row"
+      [class.half-hour]="row % FH !== 0"
       style="grid-row: {{ row + 1 }}"
     ></div>
   }
@@ -88,6 +89,22 @@
           ($index === 0 && currentTimeRow() !== null
             ? currentTimeRow()!
             : endOfDayColRowStart())
+      }}"
+    ></div>
+  }
+
+  <!-- Daily sleep period: 22:00–05:50 -->
+  @for (day of daysToShow(); track $index) {
+    <div
+      class="sleep-period sleep-period-morning"
+      aria-label="Período de sono, de 00:00 até 05:50"
+      style="grid-column: {{ $index + 2 }}; grid-row: 1 / {{ sleepMorningEndRow }}"
+    ></div>
+    <div
+      class="sleep-period sleep-period-evening"
+      aria-label="Período de sono, de 22:00 até 00:00"
+      style="grid-column: {{ $index + 2 }}; grid-row: {{ sleepEveningStartRow }} / {{
+        gridEndRow
       }}"
     ></div>
   }

@@ -1,0 +1,9 @@
+<canvas
+  #canvas
+  class="character-canvas"
+  width="64"
+  height="64"
+  role="img"
+  [class.ready]="isReady()"
+  [attr.aria-label]="species() + ' ' + appearance().gender + ' ' + characterClass()"
+></canvas>

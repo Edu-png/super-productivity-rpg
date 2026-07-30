@@ -355,7 +355,7 @@ describe('workContext selectors', () => {
   });
 
   describe('selectTimelineTasks', () => {
-    it('should not show done tasks', () => {
+    it('should keep done tasks visible in the timeline for completed styling', () => {
       const P = {
         id: 'P',
         subTaskIds: ['SUB1', 'SUB_S'],
@@ -379,11 +379,13 @@ describe('workContext selectors', () => {
       } as Partial<TaskCopy> as TaskCopy;
 
       const activeTaskMap = new Map([P, SUB1, SUB_S].map((t) => [t.id, t]));
-      const result = selectTimelineTasks.projector([SUB1.id, SUB_S.id], activeTaskMap);
-      expect(result).toEqual({
-        unPlanned: [],
-        planned: [],
-      } as any);
+      const result = selectTimelineTasks.projector(
+        [P.id, SUB1.id, SUB_S.id],
+        activeTaskMap,
+      );
+      expect(result.unPlanned.map((task) => task.id)).toEqual([P.id]);
+      expect(result.unPlanned[0].subTasks).toEqual([SUB1, SUB_S]);
+      expect(result.planned).toEqual([]);
     });
 
     it('should handle missing task entities gracefully (issue #6014)', () => {
@@ -445,6 +447,30 @@ describe('workContext selectors', () => {
 
       expect(result.planned.length).toBe(1);
       expect(result.planned[0].id).toBe('active');
+    });
+
+    it('should keep timed subtasks nested inside their parent card', () => {
+      const parent = {
+        id: 'parent',
+        subTaskIds: ['focus-block'],
+        tagIds: [],
+        isDone: false,
+      } as Partial<TaskCopy> as TaskCopy;
+      const focusBlock = {
+        id: 'focus-block',
+        parentId: parent.id,
+        subTaskIds: [],
+        tagIds: [],
+        isDone: false,
+        dueWithTime: Date.now(),
+      } as Partial<TaskCopy> as TaskCopy;
+      const activeTaskMap = new Map([parent, focusBlock].map((task) => [task.id, task]));
+
+      const result = selectTimelineTasks.projector([parent.id], activeTaskMap);
+
+      expect(result.planned).toEqual([]);
+      expect(result.unPlanned).toHaveSize(1);
+      expect(result.unPlanned[0].subTasks).toEqual([focusBlock]);
     });
   });
 

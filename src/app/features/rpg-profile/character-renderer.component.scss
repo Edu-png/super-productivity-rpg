@@ -1,0 +1,53 @@
+:host {
+  display: grid;
+  place-items: center;
+  width: 224px;
+  height: 260px;
+}
+
+:host(.compact-host) {
+  width: 64px;
+  height: 102px;
+  overflow: hidden;
+}
+
+.character-canvas {
+  width: 256px;
+  height: 256px;
+  opacity: 0;
+  image-rendering: pixelated;
+  transition: opacity 120ms linear;
+}
+
+.character-canvas.ready {
+  opacity: 1;
+}
+
+:host(.compact-host) .character-canvas {
+  width: 96px;
+  height: 96px;
+}
+
+:host(.portrait-host) {
+  width: 120px;
+  height: 120px;
+  overflow: hidden;
+}
+
+:host(.portrait-host) .character-canvas {
+  width: 120px;
+  height: 120px;
+  transform: none;
+}
+
+:host(.header-icon-host) {
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+}
+
+:host(.header-icon-host) .character-canvas {
+  width: 38px;
+  height: 38px;
+  transform: none;
+}

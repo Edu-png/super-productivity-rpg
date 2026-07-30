@@ -80,4 +80,17 @@ export class FocusModeService {
   openOverlay(): void {
     this._store.dispatch(actions.showFocusOverlay());
   }
+
+  /** Starts a countdown immediately and opens the focus overlay. */
+  startCountdown(durationMs: number): void {
+    const duration = Math.max(60_000, Math.round(durationMs));
+    this._store.dispatch(
+      actions.setFocusModeMode({ mode: FocusModeMode.Countdown }),
+    );
+    this._store.dispatch(
+      actions.setFocusSessionDuration({ focusSessionDuration: duration }),
+    );
+    this._store.dispatch(actions.startFocusSession({ duration }));
+    this._store.dispatch(actions.showFocusOverlay());
+  }
 }

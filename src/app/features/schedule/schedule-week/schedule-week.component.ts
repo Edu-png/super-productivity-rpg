@@ -45,6 +45,12 @@ const ROW_HEIGHT_STEP_PX = 1;
 const MOBILE_ROW_HEIGHT_FACTOR = DEFAULT_MOBILE_ROW_HEIGHT_PX / DEFAULT_ROW_HEIGHT_PX;
 const TOUCH_DRAG_START_DELAY_MS = 75;
 
+const getScheduleGridRow = (hours: number, minutes = 0): number => {
+  const hourRows = hours * FH;
+  const minuteRows = Math.round(minutes / (60 / FH));
+  return hourRows + minuteRows + 1;
+};
+
 interface ScheduleTaskDataLike {
   id?: string;
   plannedForDay?: string;
@@ -111,8 +117,11 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly isDraggableSE = isDraggableSE;
   protected readonly touchDragStartDelayMs = TOUCH_DRAG_START_DELAY_MS;
 
-  rowsByNr = Array.from({ length: D_HOURS * FH }, (_, index) => index).filter(
+  hourRowsByNr = Array.from({ length: D_HOURS * FH }, (_, index) => index).filter(
     (_, index) => index % FH === 0,
+  );
+  halfHourRowsByNr = Array.from({ length: D_HOURS * FH }, (_, index) => index).filter(
+    (_, index) => index % (FH / 2) === 0,
   );
 
   times = computed(() => {
@@ -126,7 +135,7 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
       },
     );
 
-    return this.rowsByNr.map((_, hourIndex) => {
+    return this.hourRowsByNr.map((_, hourIndex) => {
       const date = new Date(2000, 0, 1, hourIndex, 0, 0);
       return formatter.format(date);
     });
@@ -158,6 +167,9 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
 
   endOfDayColRowStart = signal<number>(D_HOURS * 0.5 * FH);
   totalRows: number = D_HOURS * FH;
+  readonly sleepMorningEndRow = getScheduleGridRow(5, 50);
+  readonly sleepEveningStartRow = getScheduleGridRow(22);
+  readonly gridEndRow = this.totalRows + 1;
 
   safeEvents = computed(() => this.events() || []);
   safeBeyondBudget = computed(() => this.beyondBudget() || []);

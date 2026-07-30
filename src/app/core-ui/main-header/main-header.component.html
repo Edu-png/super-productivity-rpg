@@ -1,4 +1,5 @@
 <div class="wrapper">
+  <rpg-level-up-overlay />
   @if (isDataLoaded()) {
     <page-title></page-title>
 
@@ -34,6 +35,51 @@
         @if (isFocusButtonVisible()) {
           <focus-button></focus-button>
         }
+        <button
+          (click)="openWeeklySchedule()"
+          [attr.aria-label]="T.MH.SCHEDULE | translate"
+          [matTooltip]="T.MH.SCHEDULE | translate"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>calendar_view_week</mat-icon>
+        </button>
+        <button
+          (click)="openHabitTracker()"
+          aria-label="Abrir Habit Tracker"
+          matTooltip="Habit Tracker"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>heart_check</mat-icon>
+        </button>
+        <button
+          (click)="openAcademy()"
+          aria-label="Abrir Academia Arcana"
+          matTooltip="Academia Arcana"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>school</mat-icon>
+        </button>
+        <button
+          (click)="openArcaneLibrary()"
+          aria-label="Abrir Biblioteca Arcana"
+          matTooltip="Biblioteca Arcana"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>auto_stories</mat-icon>
+        </button>
+        <button
+          (click)="openRpgProfile()"
+          aria-label="Abrir Perfil RPG"
+          [matTooltip]="isRpgMusicPlaying() ? 'Perfil RPG • música ambiente ativa' : 'Perfil RPG'"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon [class.rpg-music-active]="isRpgMusicPlaying()">casino</mat-icon>
+        </button>
         @if (showDesktopButtons()) {
           @for (
             simpleCounter of enabledSimpleCounters();

@@ -69,6 +69,28 @@
   font-weight: normal;
 }
 
+:host.isFolder {
+  border-left: 3px solid var(--folder-color, var(--separator-color));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--folder-color, var(--separator-color)) 9%,
+    transparent
+  );
+
+  .folder-icon {
+    color: var(--folder-color, var(--sidenav-text));
+  }
+
+  &:hover {
+    background: color-mix(
+      in srgb,
+      var(--folder-color, var(--separator-color)) 15%,
+      transparent
+    );
+  }
+}
+
 @media (hover: hover) {
   :host:hover .task-count {
     display: none !important;

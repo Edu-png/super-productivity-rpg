@@ -355,6 +355,16 @@
   pointer-events: none;
 }
 
+.row.half-hour {
+  opacity: 0.45;
+}
+
+.sleep-period {
+  z-index: 0;
+  background: color-mix(in srgb, var(--text-color-muted) 9%, transparent);
+  pointer-events: none;
+}
+
 .current-time {
   border-top: 2px solid var(--c-accent);
   position: relative;

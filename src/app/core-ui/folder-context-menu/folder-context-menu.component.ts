@@ -41,6 +41,11 @@ export class FolderContextMenuComponent {
   readonly T = T;
   readonly MenuTreeKind = MenuTreeKind;
 
+  openMetrics(): void {
+    const cleanId = this._cleanFolderId(this.folderId);
+    void this._router.navigate(['/folder', cleanId, 'metrics']);
+  }
+
   editFolder(): void {
     const folder = this._loadFolder(this.folderId);
     if (!folder) return;

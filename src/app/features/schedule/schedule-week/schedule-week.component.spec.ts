@@ -96,6 +96,17 @@ describe('ScheduleWeekComponent', () => {
       fixture.nativeElement.querySelector('.over-budget-count')?.textContent.trim(),
     ).toBe('2');
   });
+
+  it('should shade the daily sleep period from 22:00 until 05:50', () => {
+    fixture.componentRef.setInput('daysToShow', ['2026-05-11']);
+    fixture.detectChanges();
+
+    const morning = fixture.nativeElement.querySelector('.sleep-period-morning');
+    const evening = fixture.nativeElement.querySelector('.sleep-period-evening');
+
+    expect(morning.style.gridRow).toBe('1 / 71');
+    expect(evening.style.gridRow).toBe('265 / 289');
+  });
 });
 
 @Component({

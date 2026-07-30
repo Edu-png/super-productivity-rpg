@@ -136,6 +136,7 @@ export class TaskService {
     select(selectCurrentTask),
     // NOTE: we can't use share here, as we need the last emitted value
   );
+  currentTask = toSignal(this.currentTask$, { initialValue: null });
 
   currentTaskParentOrCurrent$: Observable<Task | undefined> = this._store.pipe(
     select(selectCurrentTaskParentOrCurrent),
@@ -828,6 +829,58 @@ export class TaskService {
     }
 
     return task.id;
+  }
+
+  /**
+   * Materializes a focus plan as real subtasks. Real task entities are intentional:
+   * the schedule can render, reschedule, and drag every block independently.
+   */
+  reconcileFocusBlocks(parent: Task, blockCount: number, blockDuration: number): void {
+    const entities = this._taskEntities();
+    const existingBlocks = Object.values(entities)
+      .filter(
+        (task): task is Task =>
+          !!task && task.parentId === parent.id && task.focusBlockIndex !== undefined,
+      )
+      .sort((a, b) => (a.focusBlockIndex || 0) - (b.focusBlockIndex || 0));
+
+    const changesForIndex = (index: number): Partial<Task> => {
+      const startOffset = index * blockDuration;
+      return {
+        title: `[${index + 1}/${blockCount}] ${parent.title}`,
+        timeEstimate: blockDuration,
+        focusBlockIndex: index + 1,
+        focusBlockCount: blockCount,
+        focusBlockDuration: blockDuration,
+        ...(parent.dueWithTime
+          ? {
+              dueWithTime: parent.dueWithTime + startOffset,
+              dueDay: null,
+            }
+          : {
+              // Repeat-task instances can be visible in Today's list without a
+              // persisted dueDay. Materialized blocks still need an explicit day
+              // so the planner renders each one as an independent draggable task.
+              dueDay: parent.dueDay || this._dateService.todayStr(),
+              dueWithTime: null,
+            }),
+      };
+    };
+
+    for (let index = 0; index < blockCount; index++) {
+      const existing = existingBlocks[index];
+      const changes = changesForIndex(index);
+      if (existing) {
+        this.update(existing.id, changes);
+      } else {
+        this.addSubTaskTo(parent.id, changes);
+      }
+    }
+
+    const obsoleteIds = existingBlocks.slice(blockCount).map((task) => task.id);
+    if (obsoleteIds.length) {
+      this.removeMultipleTasks(obsoleteIds);
+    }
   }
 
   /**

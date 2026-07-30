@@ -1,0 +1,219 @@
+<section class="constellation-shell">
+  <header class="constellation-title">
+    <div>
+      <small>MAPA CELESTIAL</small>
+      <h2>Constelações do Destino</h2>
+      <p>Trace sua própria build de produtividade entre as estrelas.</p>
+    </div>
+    <button
+      type="button"
+      class="camera-reset"
+      (click)="resetCamera()"
+    >
+      <mat-icon>center_focus_strong</mat-icon>
+      Centralizar
+    </button>
+  </header>
+
+  <div class="constellation-layout">
+    <div
+      class="star-viewport"
+      [class]="'zoom-' + zoomLevel()"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointercancel)="onPointerUp()"
+      (wheel)="onWheel($event)"
+    >
+      <div class="nebula nebula-one"></div>
+      <div class="nebula nebula-two"></div>
+      <div
+        class="star-map"
+        [style.transform]="transform()"
+      >
+        <svg
+          class="star-connections"
+          viewBox="0 0 3200 2400"
+          aria-hidden="true"
+        >
+          @for (connection of connections; track connection.from.id + connection.to.id) {
+            <path
+              [attr.d]="connectionPath(connection)"
+              [class.active]="connectionState(connection.from, connection.to) === 'active'"
+              [class.available]="connectionState(connection.from, connection.to) === 'available'"
+              [class.main-path]="isMainConnection(connection)"
+              [class.hybrid-path]="isHybridConnection(connection)"
+              [style.--path-color]="constellationColor(connection.to)"
+              [style.--path-color-from]="constellationColor(connection.from)"
+            />
+          }
+        </svg>
+
+        @for (constellation of constellations; track constellation.id) {
+          <div
+            class="constellation-label"
+            [class]="'label-' + constellation.id"
+            [style.left.px]="regionLabelPositions[constellation.id].x"
+            [style.top.px]="regionLabelPositions[constellation.id].y"
+            [style.color]="constellation.color"
+          >
+            <mat-icon>{{ constellation.icon }}</mat-icon>
+            <span>
+              <strong>{{ constellation.name }}</strong>
+              <small>{{ constellation.specialty }}</small>
+            </span>
+          </div>
+        }
+
+        @for (star of stars; track star.id) {
+          <button
+            type="button"
+            class="star-node"
+            [class]="
+              'rarity-' +
+              star.rarity +
+              ' type-' +
+              (star.nodeType || 'medium') +
+              ' state-' +
+              starState(star) +
+              (profile.state().lastUnlockedStarId === star.id ? ' last-unlocked' : '')
+            "
+            [class.selected]="selectedStar?.id === star.id"
+            [style.left.px]="star.position.x"
+            [style.top.px]="star.position.y"
+            [style.--star-color]="constellationColor(star)"
+            (mouseenter)="selectStar(star)"
+            (focus)="selectStar(star)"
+            (click)="unlock(star)"
+          >
+            <span class="star-halo"></span>
+            <span class="star-glyph"
+              ><mat-icon>{{ star.icon }}</mat-icon></span
+            >
+            @if (star.maxLevel > 1) {
+              <span class="star-rank">{{ starRank(star) }}/{{ star.maxLevel }}</span>
+            }
+            <strong>{{ star.name }}</strong>
+          </button>
+        }
+      </div>
+      <div class="map-help">
+        <span><mat-icon>pan_tool</mat-icon> Arraste para explorar</span>
+        <span><mat-icon>zoom_in</mat-icon> Role para ampliar</span>
+      </div>
+    </div>
+
+    <aside class="celestial-panel">
+      <div class="player-summary">
+        <small>AVENTUREIRO</small>
+        <strong>Nível {{ profile.level() }}</strong>
+        <div class="xp-bar">
+          <i [style.width.%]="profile.levelProgress()"></i>
+        </div>
+        <span>{{ profile.totalXp() }} XP</span>
+      </div>
+
+      <div class="star-points">
+        <mat-icon>auto_awesome</mat-icon>
+        <span>Star Points</span>
+        <strong>{{ profile.availableSkillPoints() }}</strong>
+      </div>
+
+      <dl>
+        <div>
+          <dt>Bônus de XP</dt>
+          <dd>
+            +{{ profile.constellationBonuses().xpMultiplier * 100 | number: '1.0-1' }}%
+          </dd>
+        </div>
+        <div>
+          <dt>Bônus de ouro</dt>
+          <dd>
+            +{{ profile.constellationBonuses().goldMultiplier * 100 | number: '1.0-1' }}%
+          </dd>
+        </div>
+        <div>
+          <dt>Sorte</dt>
+          <dd>{{ profile.constellationBonuses().luck }}</dd>
+        </div>
+        <div>
+          <dt>Drop raro</dt>
+          <dd>+{{ profile.constellationBonuses().rareDrop * 100 | number: '1.0-1' }}%</dd>
+        </div>
+        <div>
+          <dt>Itens encontrados</dt>
+          <dd>{{ profile.state().inventory.length }}</dd>
+        </div>
+        <div>
+          <dt>Talentos comprados</dt>
+          <dd>{{ profile.purchasedTalents() }}</dd>
+        </div>
+      </dl>
+
+      @if (selectedStar; as star) {
+        <article
+          class="star-details"
+          [style.--detail-color]="constellationColor(star)"
+        >
+          <header>
+            <mat-icon>{{ star.icon }}</mat-icon>
+            <div>
+              <small>{{ star.constellation }} · {{ star.rarity }}</small>
+              <h3>{{ star.name }}</h3>
+            </div>
+          </header>
+          <p>{{ star.description }}</p>
+          <blockquote>{{ star.lore }}</blockquote>
+          <dl>
+            <div>
+              <dt>Nível</dt>
+              <dd>{{ starRank(star) }}/{{ star.maxLevel }}</dd>
+            </div>
+            <div>
+              <dt>Bônus atual</dt>
+              <dd>{{ effectSummary(star) }}</dd>
+            </div>
+            <div>
+              <dt>Próximo bônus</dt>
+              <dd>{{ effectSummary(star, true) }}</dd>
+            </div>
+            <div>
+              <dt>Pré-requisito</dt>
+              <dd>{{ prerequisiteNames(star) }}</dd>
+            </div>
+            <div>
+              <dt>Custo</dt>
+              <dd>{{ star.cost }} pontos</dd>
+            </div>
+            @if (star.requiredLevel) {
+              <div>
+                <dt>Nível exigido</dt>
+                <dd>{{ star.requiredLevel }}</dd>
+              </div>
+            }
+          </dl>
+          <button
+            type="button"
+            class="unlock-button"
+            [disabled]="!profile.canUnlockStar(star.id)"
+            (click)="unlock(star)"
+          >
+            <mat-icon>auto_awesome</mat-icon>
+            {{
+              starRank(star) >= star.maxLevel
+                ? 'Talento dominado'
+                : profile.canUnlockStar(star.id)
+                  ? 'Desbloquear estrela'
+                  : 'Caminho bloqueado'
+            }}
+          </button>
+        </article>
+      } @else {
+        <div class="selection-hint">
+          <mat-icon>flare</mat-icon>
+          <p>Selecione uma estrela para conhecer seu poder e seus requisitos.</p>
+        </div>
+      }
+    </aside>
+  </div>
+</section>

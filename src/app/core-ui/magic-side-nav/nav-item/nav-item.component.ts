@@ -65,6 +65,10 @@ import { PluginIconComponent } from '../../../plugins/ui/plugin-icon/plugin-icon
     '[class.isHidden]': 'isHidden()',
     // eslint-disable-next-line @typescript-eslint/naming-convention
     '[class.variant-nav]': "variant() === 'nav'",
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    '[class.isFolder]': "mode() === 'folder'",
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    '[style.--folder-color]': 'folderColor()',
   },
   standalone: true,
 })
@@ -101,6 +105,7 @@ export class NavItemComponent {
   // Folder inputs
 
   folderId = input<string | null>(null);
+  folderColor = input<string | null>(null);
   treeKind = input<MenuTreeKind>(MenuTreeKind.PROJECT);
   // Variant styling to integrate into magic-side-nav without deep selectors
   showMoreButton = input<boolean>(true);

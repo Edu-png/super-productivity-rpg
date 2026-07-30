@@ -40,11 +40,31 @@ import { Router } from '@angular/router';
 import { Log } from '../../../core/log';
 
 const EXPAND_ANIMATION_RESET_DELAY_MS = 250;
+const FOLDER_COLORS = [
+  '#66d9b3',
+  '#5fa8ff',
+  '#b388ff',
+  '#ff6f91',
+  '#ffb74d',
+  '#4dd0e1',
+  '#a1887f',
+  '#81c784',
+] as const;
 
 export const getProjectVisibilityIconColor = (project: Project): string | null =>
   isSingleEmoji(project.icon || DEFAULT_PROJECT_ICON)
     ? null
     : (project.theme?.primary ?? null);
+
+export const getFolderColor = (folderId: string): string => {
+  let hash = 0;
+  for (const char of folderId) {
+    hash *= 31;
+    hash += char.charCodeAt(0);
+    hash >>>= 0;
+  }
+  return FOLDER_COLORS[hash % FOLDER_COLORS.length];
+};
 
 @Component({
   selector: 'nav-list-tree',
@@ -84,6 +104,7 @@ export class NavListTreeComponent implements OnDestroy {
   readonly DEFAULT_PROJECT_ICON = DEFAULT_PROJECT_ICON;
   readonly isSingleEmoji = isSingleEmoji;
   readonly getProjectVisibilityIconColor = getProjectVisibilityIconColor;
+  readonly getFolderColor = getFolderColor;
   readonly MenuTreeKind = MenuTreeKind;
 
   // Access to service methods and data for visibility menu (includes Inbox for unhiding)

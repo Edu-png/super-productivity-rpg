@@ -36,6 +36,15 @@ export const APP_ROUTES: Routes = [
     loadChildren: () =>
       import('./routes/context.routes').then((m) => m.PROJECT_CHILD_ROUTES),
   },
+  {
+    path: 'folder/:folderId/metrics',
+    loadComponent: () =>
+      import('./pages/metric-page/metric-page.component').then(
+        (m) => m.MetricPageComponent,
+      ),
+    data: { page: 'metrics' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
   // Standalone pages — all import from same barrel so they share one chunk
   {
     path: 'config',
@@ -88,6 +97,31 @@ export const APP_ROUTES: Routes = [
     loadComponent: () =>
       import('./routes/pages.routes').then((m) => m.HabitPageComponent),
     data: { page: 'habits' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
+    path: 'profile',
+    loadComponent: () =>
+      import('./routes/pages.routes').then((m) => m.RpgProfileComponent),
+    data: { page: 'profile' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
+    path: 'academy',
+    loadComponent: () =>
+      import(
+        './features/academy-arcana/ui/academy-arcana-page.component'
+      ).then((m) => m.AcademyArcanaPageComponent),
+    data: { page: 'academy' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
+    path: 'library',
+    loadComponent: () =>
+      import(
+        './features/arcane-library/ui/arcane-library-page.component'
+      ).then((m) => m.ArcaneLibraryPageComponent),
+    data: { page: 'library' },
     canActivate: [FocusOverlayOpenGuard],
   },
   {

@@ -5,7 +5,9 @@ import {
 } from '../features/tasks/store/task.actions';
 import {
   hideFocusOverlay,
+  setFocusModeMode,
   showFocusOverlay,
+  startFocusSession,
 } from '../features/focus-mode/store/focus-mode.actions';
 import { setActiveWorkContext } from '../features/work-context/store/work-context.actions';
 import { updateGlobalConfigSection } from '../features/config/store/global-config.actions';
@@ -35,7 +37,8 @@ export const ALLOWED_PLUGIN_ACTIONS = [
   // Focus Mode
   showFocusOverlay,
   hideFocusOverlay,
-  // startFocusSession,
+  setFocusModeMode,
+  startFocusSession,
   // cancelFocusSession,
   // pauseFocusSession,
   // completeFocusSession,

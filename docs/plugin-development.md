@@ -514,6 +514,29 @@ PluginAPI.registerHook(PluginAPI.Hooks.ACTION, (action) => {
 });
 ```
 
+#### Starting a Focus Session
+
+Plugins can react to `currentTaskChange` and use the controlled action bridge to
+open focus mode and start a session with a custom duration:
+
+```javascript
+PluginAPI.registerHook('currentTaskChange', ({ current }) => {
+  if (!current?.timeEstimate) return;
+
+  PluginAPI.dispatchAction({
+    type: '[FocusMode] Set Mode',
+    mode: 'Countdown',
+  });
+  PluginAPI.dispatchAction({ type: '[FocusMode] Show Overlay' });
+  PluginAPI.dispatchAction({
+    type: '[FocusMode] Start Session',
+    duration: current.timeEstimate,
+  });
+});
+```
+
+`duration` is measured in milliseconds. A duration of `0` starts Flowtime.
+
 ### Data Persistence
 
 You can persist data that will also be synced via the `persistDataSynced` and

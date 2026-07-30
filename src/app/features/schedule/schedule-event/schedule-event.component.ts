@@ -12,13 +12,15 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { hasLinkHints, RenderLinksPipe } from '../../../ui/pipes/render-links.pipe';
 import { CdkDrag } from '@angular/cdk/drag-drop';
 import { ScheduleEvent, ScheduleFromCalendarEvent } from '../schedule.model';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
-import { delay, first } from 'rxjs/operators';
+import { delay, first, switchMap } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { selectProjectById } from '../../project/store/project.selectors';
 import { getClockStringFromHours } from '../../../util/get-clock-string-from-hours';
@@ -136,6 +138,25 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
     }
     return undefined;
   });
+  readonly taskWithSubTasks = toSignal(
+    toObservable(this.task).pipe(
+      switchMap((task) =>
+        task
+          ? this._store.select(selectTaskByIdWithSubTaskData, { id: task.id })
+          : of(undefined),
+      ),
+    ),
+    { initialValue: undefined },
+  );
+  readonly visibleSubTasks = computed(
+    () => this.taskWithSubTasks()?.subTasks.slice(0, 3) ?? [],
+  );
+  readonly remainingSubTaskCount = computed(() =>
+    Math.max(
+      0,
+      (this.taskWithSubTasks()?.subTasks.length ?? 0) - this.visibleSubTasks().length,
+    ),
+  );
 
   readonly title = computed(() => {
     const evt = this.se();
@@ -237,6 +258,14 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
       addClass += ' is-beyond-budget';
     }
 
+    if (this.task()?.isDone) {
+      addClass += ' is-done';
+    }
+
+    if (this.visibleSubTasks().length) {
+      addClass += ' has-subtasks';
+    }
+
     return evt.type + '  ' + addClass;
   });
 
@@ -332,6 +361,10 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
     return isDraggableSE(evt) ? T_ID_PREFIX + (evt.data as any).id : '';
   });
 
+  readonly isTrackingThisTask = computed(
+    () => !!this.task() && this._taskService.currentTaskId() === this.task()?.id,
+  );
+
   readonly icoType = computed<
     | 'REPEAT'
     | 'FLOW'
@@ -377,8 +410,7 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
     const evt = this.se();
 
     if (t) {
-      // Use bottom panel on mobile, sidebar on desktop
-      this._taskService.setSelectedId(t.id);
+      this.openContextMenu(event);
     } else if (
       evt.type === SVEType.RepeatProjection ||
       evt.type === SVEType.RepeatProjectionSplit ||
@@ -457,6 +489,54 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
 
   openContextMenu(event: TouchEvent | MouseEvent): void {
     this.taskContextMenu()?.open(event);
+  }
+
+  toggleTaskTracking(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const task = this.task();
+    if (!task || task.isDone) return;
+    this._taskService.setCurrentId(this.isTrackingThisTask() ? null : task.id);
+  }
+
+  toggleSubTaskDone(event: MouseEvent, subTaskId: string, isDone: boolean): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const parentTask = this.taskWithSubTasks();
+    if (!parentTask) return;
+
+    const nextSubTaskDone = !isDone;
+    const areAllSubTasksDone = parentTask.subTasks.every((subTask) =>
+      subTask.id === subTaskId ? nextSubTaskDone : subTask.isDone,
+    );
+    const tasks = [
+      {
+        id: subTaskId,
+        changes: {
+          isDone: nextSubTaskDone,
+        },
+      },
+    ];
+
+    if (parentTask.isDone !== areAllSubTasksDone) {
+      tasks.push({
+        id: parentTask.id,
+        changes: {
+          isDone: areAllSubTasksDone,
+        },
+      });
+    }
+
+    this._store.dispatch(TaskSharedActions.updateTasks({ tasks }));
+  }
+
+  subTaskDurationLabel(timeEstimate: number): string {
+    const totalMinutes = Math.round(timeEstimate / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (!hours) return `${minutes} min`;
+    if (!minutes) return `${hours} h`;
+    return `${hours} h ${minutes} min`;
   }
 
   deleteTask(): void {

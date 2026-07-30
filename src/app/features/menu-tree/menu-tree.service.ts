@@ -243,6 +243,27 @@ export class MenuTreeService {
     return null;
   }
 
+  getProjectIdsForFolder(folderId: string): string[] {
+    const folder = this.findFolderInTree(folderId, this.projectTree());
+    if (!folder) {
+      return [];
+    }
+
+    const projectIds = new Set<string>();
+    const collect = (nodes: MenuTreeTreeNode[]): void => {
+      for (const node of nodes) {
+        if (node.k === MenuTreeKind.PROJECT) {
+          projectIds.add(node.id);
+        } else if (node.k === MenuTreeKind.FOLDER) {
+          collect(node.children);
+        }
+      }
+    };
+
+    collect(folder.children);
+    return [...projectIds];
+  }
+
   private _buildViewTree<T extends { id: string }>(options: {
     storedTree: MenuTreeTreeNode[];
     items: T[];

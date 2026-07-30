@@ -83,6 +83,7 @@ describe('FocusModeEffects', () => {
     taskServiceMock = {
       currentTaskId$: currentTaskId$.asObservable(),
       currentTaskId: jasmine.createSpy('currentTaskId').and.returnValue(null),
+      currentTask: jasmine.createSpy('currentTask').and.returnValue(null),
     };
 
     globalConfigServiceMock = {
@@ -1297,6 +1298,39 @@ describe('FocusModeEffects', () => {
       });
     });
 
+    it('should use the selected task focus block duration when tracking starts', (done) => {
+      store.overrideSelector(selectFocusModeConfig, {
+        autoStartFocusOnPlay: true,
+        isSkipPreparation: false,
+      });
+      store.overrideSelector(selectors.selectTimer, createMockTimer());
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Pomodoro);
+      store.overrideSelector(selectors.selectCurrentScreen, FocusScreen.Main);
+      store.overrideSelector(selectors.selectIsOverlayShown, false);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+      taskServiceMock.currentTask.and.returnValue({
+        id: 'task-with-blocks',
+        timeEstimate: 100 * 60 * 1000,
+        focusBlockDuration: 50 * 60 * 1000,
+        focusBlockCount: 2,
+      });
+
+      setTimeout(() => {
+        currentTaskId$.next('task-with-blocks');
+      }, 10);
+
+      effects.syncTrackingStartToSession$.pipe(take(1)).subscribe((action) => {
+        expect(action).toEqual(
+          actions.startFocusSession({
+            duration: 50 * 60 * 1000,
+          }),
+        );
+        done();
+      });
+    });
+
     // Bug #7384 fix preserved: when the user is inside the focus-mode overlay
     // and has opted into the preparation screen (`isShowPreparation` ON), the
     // effect must NOT auto-start the session — the user should click 'Start'
@@ -1376,6 +1410,38 @@ describe('FocusModeEffects', () => {
         subscription.unsubscribe();
         done();
       }, 50);
+    });
+
+    it('should immediately restart the timer with the new task duration when switching tasks', (done) => {
+      store.overrideSelector(selectFocusModeConfig, {
+        autoStartFocusOnPlay: true,
+        isSkipPreparation: false,
+      });
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({ isRunning: true, purpose: 'work' }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Pomodoro);
+      store.overrideSelector(selectors.selectCurrentScreen, FocusScreen.Main);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+      taskServiceMock.currentTask.and.returnValue({
+        id: 'task-2',
+        timeEstimate: 50 * 60 * 1000,
+      });
+
+      effects.syncTrackingStartToSession$.pipe(take(1)).subscribe((action) => {
+        expect(action).toEqual(
+          actions.startFocusSession({
+            duration: 50 * 60 * 1000,
+          }),
+        );
+        done();
+      });
+
+      currentTaskId$.next('task-1');
+      currentTaskId$.next('task-2');
     });
 
     it('should NOT dispatch when on SessionDone screen', (done) => {

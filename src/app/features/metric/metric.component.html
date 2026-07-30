@@ -6,7 +6,10 @@
     >
       <div class="metrics-header">
         <h1 class="mat-h1">
-          {{ metricsTitle() | translate }}
+          {{ metricsTitle() | translate
+          }}@if (folderName) {
+            <span>: {{ folderName }}</span>
+          }
         </h1>
         <share-button
           [payload]="sharePayload()"
@@ -67,9 +70,11 @@
     </section>
   }
 
-  <section class="heatmap-section">
-    <activity-heatmap></activity-heatmap>
-  </section>
+  @if (!isFolderMetrics) {
+    <section class="heatmap-section">
+      <activity-heatmap></activity-heatmap>
+    </section>
+  }
 
   @if (isShowingAllTasks()) {
     @if (metricService.hasData()) {

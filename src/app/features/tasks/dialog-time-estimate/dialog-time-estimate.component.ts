@@ -82,6 +82,7 @@ export class DialogTimeEstimateComponent implements AfterViewInit {
   task: Task;
   taskCopy: TaskCopy;
   timeSpentOnDayCopy: TimeSpentOnDayCopy;
+  focusBlockCount: number;
 
   constructor() {
     const _taskService = this._taskService;
@@ -91,6 +92,7 @@ export class DialogTimeEstimateComponent implements AfterViewInit {
     this._taskService = _taskService;
     this.taskCopy = createTaskCopy(this.task);
     this.timeSpentOnDayCopy = this.taskCopy.timeSpentOnDay || {};
+    this.focusBlockCount = this.task.focusBlockCount || 1;
   }
 
   ngAfterViewInit(): void {
@@ -100,13 +102,37 @@ export class DialogTimeEstimateComponent implements AfterViewInit {
   }
 
   submit(): void {
+    const focusBlockCount = Math.max(1, Math.floor(this.focusBlockCount || 1));
+    const enteredEstimate = this.taskCopy.timeEstimate;
+    const focusBlockDuration =
+      enteredEstimate ||
+      this.task.focusBlockDuration ||
+      (focusBlockCount > 1 ? this.timeSpentOnDayCopy[this.todayStr] || 0 : 0);
+    const isFocusBlockPlan =
+      focusBlockDuration > 0 && (focusBlockCount > 1 || !!this.task.focusBlockCount);
     this._taskService.update(this.taskCopy.id, {
-      timeEstimate: this.taskCopy.timeEstimate,
+      timeEstimate: focusBlockDuration,
       timeSpentOnDay: this.timeSpentOnDayCopy,
+      ...(isFocusBlockPlan
+        ? {
+            focusBlockCount,
+            focusBlockDuration,
+            dueDay: null,
+            dueWithTime: null,
+          }
+        : {}),
     });
+    if (isFocusBlockPlan) {
+      this._taskService.reconcileFocusBlocks(
+        this.task,
+        focusBlockCount,
+        focusBlockDuration,
+      );
+    }
     this._matDialogRef.close({
-      timeEstimate: this.taskCopy.timeEstimate,
+      timeEstimate: focusBlockDuration,
       timeSpentOnDay: this.timeSpentOnDayCopy,
+      focusBlockCount,
     });
   }
 

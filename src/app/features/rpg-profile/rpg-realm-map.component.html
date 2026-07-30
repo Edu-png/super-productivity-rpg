@@ -1,0 +1,65 @@
+<section class="realm-shell">
+  <header>
+    <div>
+      <span>REINOS DA VIDA</span>
+      <h2>Mapa da jornada</h2>
+      <p>
+        Clique no mapa ou use WASD para explorar. Cada novo reino exige mais
+        10.000 XP.
+      </p>
+    </div>
+    <div class="current-realm">
+      <mat-icon>{{ currentRealm().icon }}</mat-icon>
+      <span>Morando agora</span>
+      <strong>{{ currentRealm().name }}</strong>
+    </div>
+  </header>
+
+  <div
+    class="realm-map"
+    tabindex="0"
+    (keydown)="move($event)"
+    (click)="moveToClick($event)"
+  >
+    <div
+      class="map-player"
+      [style.left.%]="playerX()"
+      [style.top.%]="playerY()"
+      [class.walking]="isWalking()"
+    >
+      <character-renderer
+        [appearance]="profile.state().appearance"
+        [species]="profile.state().speciesId"
+        [characterClass]="profile.state().classId"
+        [equipment]="{}"
+      />
+    </div>
+    @for (realm of realms; track realm.id) {
+      <button
+        type="button"
+        class="realm-portal"
+        [class.current]="realm.id === profile.state().currentRealmId"
+        [class.locked]="profile.totalXp() < realm.requiredXp"
+        [style.left.%]="realm.position.x"
+        [style.top.%]="realm.position.y"
+        [style.--realm-color]="realm.color"
+        (click)="visitRealm($event, realm)"
+        [title]="realm.description"
+      >
+        <strong>{{ realm.shortName }}</strong>
+        @if (profile.totalXp() < realm.requiredXp) {
+          <span class="realm-lock">
+            <mat-icon>lock</mat-icon>
+            {{ formatXp(realm.requiredXp) }} XP
+          </span>
+          <i><span [style.width.%]="unlockProgress(realm.requiredXp)"></span></i>
+        } @else if (realm.id !== 'village') {
+          <small>+{{ realm.bonuses.xp * 100 }}% XP relacionado</small>
+        }
+      </button>
+    }
+    @if (travelMessage()) {
+      <div class="travel-message">{{ travelMessage() }}</div>
+    }
+  </div>
+</section>

@@ -20,7 +20,7 @@ import { MatTab, MatTabGroup } from '@angular/material/tabs';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { combineLatest, from, merge, Observable, Subject } from 'rxjs';
+import { combineLatest, firstValueFrom, from, merge, Observable, Subject } from 'rxjs';
 import {
   filter,
   first,
@@ -79,6 +79,11 @@ import {
 } from './simple-counter-summary-item/simple-counter-summary-item.component';
 import { MetricService } from '../../features/metric/metric.service';
 import { isWithinYesterdayMargin } from './is-include-yesterday.util';
+import { RpgProfileService } from '../../features/rpg-profile/rpg-profile.service';
+import {
+  DailyJourneyReport,
+  DailyJourneyReportComponent,
+} from './daily-journey-report.component';
 
 const FINISH_DAY_SYNC_WAIT_TIMEOUT_MS = 30000;
 export const FINISH_DAY_FINAL_SYNC_TIMEOUT_MS = SYNC_WAIT_TIMEOUT_MS;
@@ -109,6 +114,7 @@ export const FINISH_DAY_FINAL_SYNC_TIMEOUT_MS = SYNC_WAIT_TIMEOUT_MS;
     InlineMarkdownComponent,
     MatIconButton,
     SimpleCounterSummaryItemComponent,
+    DailyJourneyReportComponent,
   ],
   animations: [expandAnimation],
 })
@@ -131,6 +137,7 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly _metricService = inject(MetricService);
   private readonly _translateService = inject(TranslateService);
   private readonly _translateStore = inject(TranslateStore);
+  private readonly _rpgProfile = inject(RpgProfileService);
 
   T: typeof T = T;
   _onDestroy$ = new Subject<void>();
@@ -176,6 +183,7 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
   );
 
   isArchiveLoaded = signal(false);
+  readonly journeyReport = signal<DailyJourneyReport | null>(null);
 
   hasTasksForToday$: Observable<boolean> = this.tasksWorkedOnOrDoneOrRepeatableFlat$.pipe(
     map((tasks) => tasks && !!tasks.length),
@@ -340,7 +348,36 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
     window.clearInterval(this._celebrationIntervalId);
   }
 
-  async finishDay(): Promise<void> {
+  async finishDay(isReportConfirmed = false): Promise<void> {
+    if (!isReportConfirmed) {
+      const [tasks, productiveMs] = await Promise.all([
+        firstValueFrom(this.tasksWorkedOnOrDoneOrRepeatableFlat$),
+        firstValueFrom(this.timeWorked$),
+      ]);
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const state = this._rpgProfile.state();
+      const realm = state.realmProgress[state.currentRealmId];
+      this.journeyReport.set({
+        date: new Date().toLocaleDateString('pt-BR', {
+          weekday: 'long',
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        productiveMs: productiveMs || 0,
+        completedTasks: tasks.filter((task) => task.isDone).length,
+        totalTasks: tasks.length,
+        xpEarned: Object.values(state.xpLedger)
+          .filter((entry) => entry.earnedAt >= startOfDay.getTime())
+          .reduce((sum, entry) => sum + entry.xp, 0),
+        coinBalance: this._rpgProfile.coins(),
+        petName: state.pet.name,
+        petXp: state.pet.xp,
+        bossDamage: realm?.bossDamage ?? 0,
+      });
+      return;
+    }
     try {
       await this._beforeFinishDayService.executeActions();
       // Wait for any ongoing sync to complete before archiving to avoid DB lock errors.
@@ -397,6 +434,11 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
         this._router.navigate(['/active/tasks']);
       });
     }
+  }
+
+  confirmJourneyReport(): void {
+    this.journeyReport.set(null);
+    void this.finishDay(true);
   }
 
   updateWorkStart(ev: string): void {
