@@ -47,3 +47,14 @@ export const alertDialog = (message: string): void => {
   window.alert(message);
   restoreFocusAfterNativeDialog(previouslyFocusedElement);
 };
+
+/**
+ * Wrapper around native prompt() that fixes Electron focus bug.
+ * Use this instead of window.prompt() or prompt().
+ */
+export const promptDialog = (message: string, defaultValue?: string): string | null => {
+  const previouslyFocusedElement = document.activeElement as HTMLElement | null;
+  const result = window.prompt(message, defaultValue);
+  restoreFocusAfterNativeDialog(previouslyFocusedElement);
+  return result;
+};

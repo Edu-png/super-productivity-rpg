@@ -257,6 +257,40 @@
   &.unscheduled {
     color: #696273;
   }
+
+  &.manual {
+    color: #7fd4ff;
+  }
+}
+
+.habit-time-input {
+  min-width: 90px;
+  padding: 3px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: #14121f;
+  color: #fff;
+  font: 700 12px/1 monospace;
+}
+
+.edit-time,
+.clear-time {
+  opacity: 0.38;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
 }
 
 .repeat-badge {
@@ -278,7 +312,10 @@
 
 .remove {
   opacity: 0.38;
-  &:hover { opacity: 1; color: #ef6675; }
+  &:hover {
+    opacity: 1;
+    color: #ef6675;
+  }
 }
 
 .empty-state {
@@ -320,9 +357,15 @@
   text-align: left;
   cursor: pointer;
 
-  &:hover { background: rgba(125, 109, 255, 0.1); }
-  &.outside { opacity: 0.28; }
-  &.complete { background: rgba(56, 180, 111, 0.11); }
+  &:hover {
+    background: rgba(125, 109, 255, 0.1);
+  }
+  &.outside {
+    opacity: 0.28;
+  }
+  &.complete {
+    background: rgba(56, 180, 111, 0.11);
+  }
 
   strong {
     display: block;
@@ -346,7 +389,9 @@
     height: 6px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.14);
-    &.done { background: #55c88a; }
+    &.done {
+      background: #55c88a;
+    }
   }
 }
 
@@ -370,7 +415,10 @@
 
   header {
     justify-content: space-between;
-    h2 { margin: 3px 0; font-size: 25px; }
+    h2 {
+      margin: 3px 0;
+      font-size: 25px;
+    }
   }
 
   > p {
@@ -402,6 +450,54 @@
   margin-top: 14px;
 }
 
+.manual-linker {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0;
+  padding: 13px;
+  border: 1px solid #705932;
+  background: rgba(0, 0, 0, 0.18);
+
+  label {
+    display: grid;
+    gap: 5px;
+    font-size: 11px;
+    opacity: 0.86;
+  }
+
+  input,
+  select {
+    width: 100%;
+    min-height: 39px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: inherit;
+    background: #10101b;
+  }
+
+  small {
+    color: #d8ba77;
+  }
+}
+
+.manual-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    border: 1px solid #d2a03a;
+    color: #ffe49c;
+    background: #721925;
+    cursor: pointer;
+  }
+}
+
 .candidate {
   width: 100%;
   gap: 12px;
@@ -413,13 +509,30 @@
   text-align: left;
   cursor: pointer;
 
-  > span:last-child { flex: 1; }
-  strong, small { display: block; }
-  small { margin-top: 4px; opacity: 0.5; }
-  small mat-icon { width: 13px; height: 13px; font-size: 13px; vertical-align: -2px; }
+  > span:last-child {
+    flex: 1;
+  }
+  strong,
+  small {
+    display: block;
+  }
+  small {
+    margin-top: 4px;
+    opacity: 0.5;
+  }
+  small mat-icon {
+    width: 13px;
+    height: 13px;
+    font-size: 13px;
+    vertical-align: -2px;
+  }
 
-  &:hover { background: rgba(255, 255, 255, 0.04); }
-  &.selected { background: rgba(81, 186, 128, 0.09); }
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  &.selected {
+    background: rgba(81, 186, 128, 0.09);
+  }
 }
 
 .candidate-check {
@@ -444,10 +557,21 @@
 }
 
 @media (max-width: 720px) {
-  .page-header { align-items: flex-start; flex-direction: column; }
-  .calendar-day { min-height: 78px; padding: 5px; }
-  .calendar-day strong { margin-top: 10px; font-size: 13px; }
-  .repeat-badge { display: none; }
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .calendar-day {
+    min-height: 78px;
+    padding: 5px;
+  }
+  .calendar-day strong {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .repeat-badge {
+    display: none;
+  }
 }
 
 /* RPG skin shared with Academia Arcana and Perfil RPG. */

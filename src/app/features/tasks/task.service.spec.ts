@@ -29,6 +29,7 @@ import { signal } from '@angular/core';
 import { DeletedTaskIssueSidecarService } from '../issue/two-way-sync/deleted-task-issue-sidecar.service';
 import { TaskTimeSyncService } from './task-time-sync.service';
 import { selectTaskEntities } from './store/task.selectors';
+import { updateTaskRepeatCfgs } from '../task-repeat-cfg/store/task-repeat-cfg.actions';
 
 describe('TaskService', () => {
   let service: TaskService;
@@ -717,6 +718,21 @@ describe('TaskService', () => {
 
       expect(() => service.moveToProject(subtask, 'new-project')).toThrowError(
         'Wrong task model',
+      );
+    });
+
+    it('should move the repeat template to the same project', () => {
+      const task = createMockTaskWithSubTasks(
+        createMockTask('task-1', { repeatCfgId: 'repeat-1' }),
+      );
+
+      service.moveToProject(task, 'new-project');
+
+      expect(store.dispatch).toHaveBeenCalledWith(
+        updateTaskRepeatCfgs({
+          ids: ['repeat-1'],
+          changes: { projectId: 'new-project' },
+        }),
       );
     });
   });

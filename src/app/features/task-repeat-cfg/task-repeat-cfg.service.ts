@@ -328,8 +328,16 @@ export class TaskRepeatCfgService {
       }),
     ];
 
-    // Schedule if given
-    if (isValidSplitTime(taskRepeatCfg.startTime) && taskRepeatCfg.remindAt) {
+    // Schedule if given - a configured startTime alone must be enough to keep
+    // the instance at its slot; remindAt only controls whether a *notification*
+    // also fires, it must not gate whether the task gets a due time at all.
+    // Requiring both meant any repeat cfg with a startTime but no reminder
+    // picked (a very normal combination - lots of routine tasks don't need a
+    // popup) lost its scheduled time the moment its real instance for the day
+    // was created, silently falling back to an unscheduled "flow" task while
+    // every other (still-projected, not yet materialized) day kept showing it
+    // correctly at its time.
+    if (isValidSplitTime(taskRepeatCfg.startTime)) {
       // NOTE: schedule tasks against the computed repeat day to avoid mismatched due dates.
       const dateTime = getDateTimeFromClockString(
         taskRepeatCfg.startTime as string,
@@ -339,7 +347,9 @@ export class TaskRepeatCfgService {
         TaskSharedActions.scheduleTaskWithTime({
           task: taskWithTargetDates,
           dueWithTime: dateTime,
-          remindAt: remindOptionToMilliseconds(dateTime, taskRepeatCfg.remindAt),
+          remindAt: taskRepeatCfg.remindAt
+            ? remindOptionToMilliseconds(dateTime, taskRepeatCfg.remindAt)
+            : undefined,
           isMoveToBacklog: false,
           // Only keep in today list if scheduled for today (#5594)
           isSkipAutoRemoveFromToday: this._dateService.isToday(dateTime),

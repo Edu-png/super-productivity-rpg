@@ -113,6 +113,17 @@ export const COMPACTION_THRESHOLD = 500;
 export const MAX_COMPACTION_FAILURES = 3;
 
 /**
+ * Minimum time to wait between compaction attempts once one has failed
+ * (milliseconds). Without this, a persistently failing compaction (e.g. a
+ * state large enough to keep hitting COMPACTION_TIMEOUT_MS) gets retried on
+ * literally every subsequent operation write — since the in-memory counter
+ * that gates retries is only reset on success — burning CPU/IndexedDB time
+ * on every keystroke-triggered write and repeatedly re-showing the failure
+ * snackbar. Default: 1 minute.
+ */
+export const COMPACTION_RETRY_COOLDOWN_MS = 60 * 1000;
+
+/**
  * Retention window for synced operations during compaction (milliseconds).
  * Operations older than this that have been synced will be deleted.
  * Default: 7 days

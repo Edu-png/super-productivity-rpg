@@ -1,0 +1,267 @@
+{
+  "activeCharacterId": "cd569f37-c96a-4d99-b290-92456daa240d",
+  "characters": {
+    "cd569f37-c96a-4d99-b290-92456daa240d": {
+      "id": "cd569f37-c96a-4d99-b290-92456daa240d",
+      "createdAt": 1785371247974,
+      "displayName": "Player",
+      "speciesId": "elf",
+      "appearance": {
+        "gender": "male",
+        "bodyType": "standard",
+        "faceType": "square",
+        "skinColor": "#a96f4b",
+        "eyeColor": "#4aa3df",
+        "hairStyle": "short",
+        "hairColor": "#c8c5bd",
+        "hairSize": "medium",
+        "beard": "none",
+        "beardColor": "#2b1712",
+        "beardSize": "medium",
+        "mustache": "none",
+        "accessory": "none",
+        "eyebrows": "straight",
+        "eyeStyle": "round",
+        "noseStyle": "small",
+        "mouthStyle": "neutral",
+        "marking": "none",
+        "clothingColor": "#315a9c",
+        "armorColor": "#8f98a3",
+        "detailColor": "#d8a62f",
+        "capeColor": "#7f2431",
+        "accessoryColor": "#3d9d8b"
+      },
+      "avatarDataUrl": null,
+      "attributeRatings": {
+        "health": 8,
+        "intelligence": 6,
+        "social": 2,
+        "finance": 4,
+        "discipline": 9
+      },
+      "projectAttributes": {},
+      "xpLedger": {
+        "NuzDSHgon1uA4m2sjrBX_": {
+          "taskId": "NuzDSHgon1uA4m2sjrBX_",
+          "projectId": "INBOX_PROJECT",
+          "xp": 5,
+          "earnedAt": 1785371365556
+        },
+        "DogCzs2ToGKnnP3Xl-C6A": {
+          "taskId": "DogCzs2ToGKnnP3Xl-C6A",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 20,
+          "earnedAt": 1785375125709
+        },
+        "P2v2adT0jCkx7-wbfAHx3": {
+          "taskId": "P2v2adT0jCkx7-wbfAHx3",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 20,
+          "earnedAt": 1785375151157
+        },
+        "HZ8pg1MOv3jArzJPNMzT6": {
+          "taskId": "HZ8pg1MOv3jArzJPNMzT6",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 250,
+          "earnedAt": 1785375178395
+        },
+        "eAEPmFjXC3mjT8jvA2yMa": {
+          "taskId": "eAEPmFjXC3mjT8jvA2yMa",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 50,
+          "earnedAt": 1785375335560
+        },
+        "ztiiH30vNXhdXvoLQpZz-": {
+          "taskId": "ztiiH30vNXhdXvoLQpZz-",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 50,
+          "earnedAt": 1785375336174
+        },
+        "EVVrEW2B_5WQFdw4s_ffN": {
+          "taskId": "EVVrEW2B_5WQFdw4s_ffN",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 50,
+          "earnedAt": 1785375337040
+        },
+        "jm5gKQFVAd6dw-wIo8jr0": {
+          "taskId": "jm5gKQFVAd6dw-wIo8jr0",
+          "projectId": "BYn9Pco366IDyztrk6FN_",
+          "xp": 50,
+          "earnedAt": 1785375337650
+        },
+        "n3w1fSKyc7JM8Q451Hkt0": {
+          "taskId": "n3w1fSKyc7JM8Q451Hkt0",
+          "projectId": "INBOX_PROJECT",
+          "xp": 30,
+          "earnedAt": 1785378746219
+        }
+      },
+      "rewards": [
+        {
+          "id": "f2edc625-e7f7-4380-9f4e-3c6d026e9e36",
+          "title": "asas",
+          "cost": 10,
+          "purchasedCount": 0
+        }
+      ],
+      "coinsSpent": 0,
+      "classId": "mage",
+      "subclassId": "none",
+      "selectedTitleId": "veteran",
+      "claimedDailyQuests": {
+        "2026-07-29:first-task": 1785371365662,
+        "2026-07-29:perfect-day": 1785371365662,
+        "2026-07-29:focus-hour": 1785373455154
+      },
+      "questBonusXp": 480,
+      "questBonusCoins": 34,
+      "penalties": [],
+      "inventory": [
+        {
+          "id": "active-pet-companion",
+          "name": "Lobinho · Lobo Lunar",
+          "icon": "dark_mode",
+          "imageUrl": "assets/rpg/pets/evolutions/wolf-egg.png",
+          "description": "Mascote egg, nível desconhecido e 1 dias de v�nculo.",
+          "rarity": "common",
+          "slot": "pet",
+          "power": null,
+          "obtainedAt": 1785371247974,
+          "source": "starter"
+        },
+        {
+          "id": "starter-ring-of-power",
+          "name": "Anel do Poder",
+          "icon": "radio_button_checked",
+          "imageUrl": "assets/rpg/items/ring-of-power.png",
+          "rarity": "common",
+          "slot": "ringLeft",
+          "power": 2,
+          "stats": { "power": 2, "luck": 1, "xpMultiplier": 0.02 },
+          "obtainedAt": 0,
+          "source": "starter"
+        },
+        {
+          "id": "69c3698f-284d-40e6-ae98-49fa3e5d0add",
+          "name": "Roupa simples de viajante",
+          "icon": "checkroom",
+          "imageUrl": "assets/rpg/generated-items/traveler-tunic.png",
+          "rarity": "common",
+          "requiredClass": "mage",
+          "slot": "chest",
+          "power": 0,
+          "obtainedAt": 1785371247974,
+          "source": "starter"
+        },
+        {
+          "id": "ad88fba3-fe9a-4d6d-929f-9eb1fd7fe3f8",
+          "name": "Grimório de aprendiz",
+          "icon": "menu_book",
+          "imageUrl": "assets/rpg/generated-items/apprentice-grimoire.png",
+          "rarity": "common",
+          "requiredClass": "mage",
+          "slot": "mainHand",
+          "power": 0,
+          "obtainedAt": 1785371247974,
+          "source": "starter"
+        },
+        {
+          "id": "20242bc3-cec3-464b-a9aa-8f8a76772b77",
+          "name": "Relíquia do Destino",
+          "icon": "auto_awesome",
+          "imageUrl": "assets/rpg/generated-items/violet-relic.png",
+          "rarity": "rare",
+          "requiredClass": "mage",
+          "requiredLevel": 4,
+          "slot": "relic",
+          "power": 4,
+          "obtainedAt": 1785375337760,
+          "source": "weekly-boss"
+        }
+      ],
+      "equippedItems": {
+        "chest": "69c3698f-284d-40e6-ae98-49fa3e5d0add",
+        "mainHand": "ad88fba3-fe9a-4d6d-929f-9eb1fd7fe3f8"
+      },
+      "lastRewardedLevel": 4,
+      "weeklyBossClaims": { "2026-07-27": 1785375337760 },
+      "skills": { "discipline-spark": 1 },
+      "skillPointsSpent": 1,
+      "lastUnlockedStarId": "discipline-spark",
+      "pet": {
+        "name": "Lobinho",
+        "xp": 525,
+        "type": "wolf",
+        "createdAt": 1785371332438,
+        "boundAt": 1785371332439
+      },
+      "campaigns": [],
+      "annualGoals": [],
+      "monthlyMedalConfigs": {},
+      "trophyClaims": {},
+      "overflowItems": [],
+      "currentRealmId": "village",
+      "realmProgress": {
+        "library": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378374941
+        },
+        "digital-city": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378371717
+        },
+        "castle": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378373287
+        },
+        "dragon-cave": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378370406
+        },
+        "serene-temple": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378368543
+        },
+        "village": {
+          "steps": 0,
+          "bossDamage": 0,
+          "timeSpentMs": 0,
+          "visitedAt": 1785378792291
+        }
+      },
+      "projectRealms": {
+        "uSEwKYBlkDH68aISJdLiv": "castle",
+        "IykDMii780soc_MlYj4iP": "dragon-cave"
+      }
+    }
+  },
+  "processedTaskIds": {
+    "BchxJpPlX31-7wMFjkvHF": "main-character",
+    "uuV-oRG_m8ZmZMwGXTr1D": "main-character",
+    "sHhvcKIxQmNVB7vgjm-Vo": "main-character",
+    "emPnSgo891eB235acIE4I": "main-character",
+    "dBVW6fxeWDdI6wBYRFnGM": "main-character",
+    "3myaKKEKtEOXmPokanxxk": "main-character",
+    "cal_xPTC742R03O2wSmQ-D43D_7b9laj28h5i7aptek8gi2ef7jo@google.com_2026-07-28T05:15:00": "main-character",
+    "VyAAG_KSzzJlrLsSZCTGo": "main-character",
+    "NuzDSHgon1uA4m2sjrBX_": "de7291ab-9436-438b-9ca8-f49837145078",
+    "DogCzs2ToGKnnP3Xl-C6A": "de7291ab-9436-438b-9ca8-f49837145078",
+    "P2v2adT0jCkx7-wbfAHx3": "de7291ab-9436-438b-9ca8-f49837145078",
+    "HZ8pg1MOv3jArzJPNMzT6": "de7291ab-9436-438b-9ca8-f49837145078",
+    "eAEPmFjXC3mjT8jvA2yMa": "de7291ab-9436-438b-9ca8-f49837145078",
+    "ztiiH30vNXhdXvoLQpZz-": "de7291ab-9436-438b-9ca8-f49837145078",
+    "EVVrEW2B_5WQFdw4s_ffN": "de7291ab-9436-438b-9ca8-f49837145078",
+    "jm5gKQFVAd6dw-wIo8jr0": "de7291ab-9436-438b-9ca8-f49837145078",
+    "n3w1fSKyc7JM8Q451Hkt0": "de7291ab-9436-438b-9ca8-f49837145078"
+  }
+}

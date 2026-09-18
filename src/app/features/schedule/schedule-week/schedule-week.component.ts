@@ -97,6 +97,13 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
   workStartEnd = input<{ workStartRow: number; workEndRow: number } | null>(null);
   currentTimeRow = input<number | null>(null);
   todayDateStr = input<string | undefined>(undefined);
+  // Grid column for whichever displayed day is today - not always the first
+  // column (e.g. week view starts on Monday, which often isn't today).
+  todayGridColumn = computed(() => {
+    const todayStr = this.todayDateStr();
+    const index = todayStr ? this.daysToShow().indexOf(todayStr) : -1;
+    return index === -1 ? 2 : index + 2;
+  });
   isCtrlPressed = signal<boolean>(false);
   isTaskDragActive = input<boolean>(false);
   scheduleRowHeightPx = signal<number>(readStoredScheduleRowHeight());

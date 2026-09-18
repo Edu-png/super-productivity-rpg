@@ -3,7 +3,7 @@ import {
   TaskWithPlannedForDayIndication,
 } from '../../tasks/task.model';
 import { SVETask } from '../schedule.model';
-import { getTimeLeftForTask } from '../../../util/get-time-left-for-task';
+import { getScheduleDurationForTask } from '../../../util/get-time-left-for-task';
 import { SVEType } from '../schedule.const';
 
 export const createScheduleViewEntriesForNormalTasks = (
@@ -21,7 +21,7 @@ export const createScheduleViewEntriesForNormalTasks = (
 
     if (typeof lastTime === 'number') {
       if (prevTask) {
-        time = lastTime + getTimeLeftForTask(prevTask);
+        time = lastTime + getScheduleDurationForTask(prevTask);
       } else {
         throw new Error('Something weird happened');
       }
@@ -36,7 +36,7 @@ export const createScheduleViewEntriesForNormalTasks = (
         : SVEType.Task,
       start: time,
       data: task,
-      duration: getTimeLeftForTask(task),
+      duration: getScheduleDurationForTask(task),
     });
 
     lastTime = time;

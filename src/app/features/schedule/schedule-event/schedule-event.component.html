@@ -60,6 +60,33 @@
     <div class="time-badge">{{ scheduledClockStr() }}</div>
   }
 
+  @if (overageLabel(); as overageLabel) {
+    <div
+      class="overage-badge"
+      [matTooltip]="T.F.SCHEDULE.OVERAGE_TOOLTIP | translate"
+    >
+      {{ overageLabel }}
+    </div>
+  }
+
+  @if (underageLabel(); as underageLabel) {
+    <div
+      class="underage-badge"
+      [matTooltip]="T.F.SCHEDULE.UNDERAGE_TOOLTIP | translate"
+    >
+      {{ underageLabel }}
+    </div>
+  }
+
+  @if (isFailedTask()) {
+    <div
+      class="failed-badge"
+      [matTooltip]="T.F.SCHEDULE.FAILED_TOOLTIP | translate"
+    >
+      <mat-icon inline="true">close</mat-icon>
+    </div>
+  }
+
   @if (task(); as task) {
     <button
       class="task-play-btn"
@@ -97,7 +124,7 @@
       se().type === SVEType.RepeatProjectionSplitContinued ||
       se().type === SVEType.RepeatProjectionSplitContinuedLast
     ) {
-      ...
+      <span class="continued-title">↳ {{ title() }}</span>
       <!-- -->
     } @else {
       @if (titleHasLinks()) {

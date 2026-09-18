@@ -318,15 +318,23 @@ describe('ScheduleComponent', () => {
       expect(newDate?.getHours()).toBe(0); // Normalized to midnight
     });
 
-    it('should not navigate backward when already viewing today', () => {
+    it('should navigate backward even when already viewing today', () => {
       // Arrange - viewing today (null selected date)
       component['_selectedDate'].set(null);
+      const daysShown = component.daysToShow().length;
+      const expected = new Date();
+      expected.setDate(expected.getDate() - daysShown);
+      expected.setHours(0, 0, 0, 0);
 
       // Act
       component.goToPreviousPeriod();
 
-      // Assert - prev nav is disabled when today is in view
-      expect(component['_selectedDate']()).toBeNull();
+      // Assert - past days must stay reachable so completed history is visible
+      const d = component['_selectedDate']();
+      expect(d).not.toBeNull();
+      expect(d?.getFullYear()).toBe(expected.getFullYear());
+      expect(d?.getMonth()).toBe(expected.getMonth());
+      expect(d?.getDate()).toBe(expected.getDate());
     });
 
     it('should go to previous month in month view', () => {

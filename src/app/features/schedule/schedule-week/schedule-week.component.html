@@ -72,7 +72,7 @@
       class="col"
       [attr.data-day]="day"
       style="grid-column: {{ $index + 2 }}; grid-row: 1 / span {{
-        ($index === 0 && currentTimeRow() !== null
+        (day === todayDateStr() && currentTimeRow() !== null
           ? currentTimeRow()!
           : endOfDayColRowStart()) - 1
       }}"
@@ -81,12 +81,12 @@
       class="col end-of-day"
       [attr.data-day]="day"
       style="grid-column: {{ $index + 2 }}; grid-row: {{
-        $index === 0 && currentTimeRow() !== null
+        day === todayDateStr() && currentTimeRow() !== null
           ? currentTimeRow()!
           : endOfDayColRowStart()
       }} / span {{
         totalRows -
-          ($index === 0 && currentTimeRow() !== null
+          (day === todayDateStr() && currentTimeRow() !== null
             ? currentTimeRow()!
             : endOfDayColRowStart())
       }}"
@@ -130,7 +130,9 @@
     <div
       id="current-time"
       class="current-time"
-      style="grid-column: 2;  grid-row: {{ currentTimeRow() }} / span 1"
+      style="grid-column: {{ todayGridColumn() }};  grid-row: {{
+        currentTimeRow()
+      }} / span 1"
     >
       <div class="circle"></div>
     </div>

@@ -35,9 +35,16 @@
             [portrait]="true"
             [headerIcon]="true"
           />
-          <span><b>{{ character.displayName }}</b><small>{{ character.speciesId }} · {{ character.classId }}</small></span>
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
           <mat-icon>
-            {{ selectedCharacterIds().includes(character.id) ? 'check_circle' : 'add_circle' }}
+            {{
+              selectedCharacterIds().includes(character.id)
+                ? 'check_circle'
+                : 'add_circle'
+            }}
           </mat-icon>
         </button>
       }
@@ -62,13 +69,28 @@
   @if (view() === 'day') {
     <section class="daily-card">
       <div class="date-navigation">
-        <button mat-icon-button (click)="previousDay()"><mat-icon>chevron_left</mat-icon></button>
+        <button
+          mat-icon-button
+          (click)="previousDay()"
+        >
+          <mat-icon>chevron_left</mat-icon>
+        </button>
         <div>
           <span>{{ selectedDateLabel() }}</span>
           <strong>{{ completionRate(selectedDateKey()) }}%</strong>
         </div>
-        <button mat-icon-button (click)="nextDay()"><mat-icon>chevron_right</mat-icon></button>
-        <button mat-stroked-button (click)="today()">Hoje</button>
+        <button
+          mat-icon-button
+          (click)="nextDay()"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+        <button
+          mat-stroked-button
+          (click)="today()"
+        >
+          Hoje
+        </button>
       </div>
 
       <div class="progress">
@@ -91,9 +113,44 @@
                 {{ tracker.isComplete(habit.id, selectedDateKey()) ? 'check' : '' }}
               </mat-icon>
             </button>
-            <time class="habit-time" [class.unscheduled]="!tracker.scheduledTime(habit.id, selectedDateKey())">
-              {{ tracker.scheduledTime(habit.id, selectedDateKey()) || '--:--' }}
-            </time>
+            @if (editingTimeHabitId() === habit.id) {
+              <input
+                type="time"
+                class="habit-time-input"
+                [value]="
+                  habit.manualTime || tracker.scheduledTime(habit.id, selectedDateKey())
+                "
+                (change)="saveManualTime(habit.id, $any($event.target).value)"
+                (blur)="saveManualTime(habit.id, $any($event.target).value)"
+              />
+              @if (habit.manualTime) {
+                <button
+                  type="button"
+                  class="clear-time"
+                  title="Voltar a puxar do planejamento diário"
+                  (click)="clearManualTime(habit.id)"
+                >
+                  <mat-icon>restart_alt</mat-icon>
+                </button>
+              }
+            } @else {
+              <time
+                class="habit-time"
+                [class.unscheduled]="!tracker.scheduledTime(habit.id, selectedDateKey())"
+                [class.manual]="habit.manualTime"
+                title="Clique no lápis para editar o horário"
+              >
+                {{ tracker.scheduledTime(habit.id, selectedDateKey()) || '--:--' }}
+              </time>
+              <button
+                type="button"
+                class="edit-time"
+                title="Editar horário"
+                (click)="startEditTime(habit.id)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+            }
             <mat-icon class="habit-icon">{{ habit.icon }}</mat-icon>
             <div>
               <strong>{{ habit.title }}</strong>
@@ -122,7 +179,11 @@
             <mat-icon>playlist_add_check</mat-icon>
             <h2>Escolha as tarefas que formarão sua rotina</h2>
             <p>Você pode vincular tarefas recorrentes ou tarefas pelo título.</p>
-            <button mat-flat-button color="primary" (click)="editorOpen.set(true)">
+            <button
+              mat-flat-button
+              color="primary"
+              (click)="editorOpen.set(true)"
+            >
               Configurar hábitos
             </button>
           </div>
@@ -132,13 +193,31 @@
   } @else {
     <section class="month-card">
       <div class="month-navigation">
-        <button mat-icon-button (click)="previousMonth()"><mat-icon>chevron_left</mat-icon></button>
+        <button
+          mat-icon-button
+          (click)="previousMonth()"
+        >
+          <mat-icon>chevron_left</mat-icon>
+        </button>
         <h2>{{ monthLabel() }}</h2>
-        <button mat-icon-button (click)="nextMonth()"><mat-icon>chevron_right</mat-icon></button>
-        <button mat-stroked-button (click)="today()">Hoje</button>
+        <button
+          mat-icon-button
+          (click)="nextMonth()"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+        <button
+          mat-stroked-button
+          (click)="today()"
+        >
+          Hoje
+        </button>
       </div>
       <div class="weekday-row">
-        @for (weekday of ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']; track weekday) {
+        @for (
+          weekday of ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+          track weekday
+        ) {
           <span>{{ weekday }}</span>
         }
       </div>
@@ -147,13 +226,15 @@
           <button
             class="calendar-day"
             [class.outside]="!day.inMonth"
-            [class.complete]="completionRate(day.key) === 100 && visibleHabits().length"
+            [class.complete]="
+              completionRate(day.key) === 100 && activeHabits(day.key).length
+            "
             (click)="selectCalendarDay(day)"
           >
             <span class="day-number">{{ day.date.getDate() }}</span>
             <strong>{{ completionRate(day.key) }}%</strong>
             <div class="mini-habits">
-              @for (habit of visibleHabits(); track habit.id) {
+              @for (habit of activeHabits(day.key); track habit.id) {
                 <i [class.done]="tracker.isComplete(habit.id, day.key)"></i>
               }
             </div>
@@ -164,19 +245,68 @@
   }
 
   @if (editorOpen()) {
-    <div class="editor-backdrop" (click)="editorOpen.set(false)">
-      <aside class="habit-editor" (click)="$event.stopPropagation()">
+    <div
+      class="editor-backdrop"
+      (click)="editorOpen.set(false)"
+    >
+      <aside
+        class="habit-editor"
+        (click)="$event.stopPropagation()"
+      >
         <header>
           <div>
             <span class="eyebrow">AUTOMAÇÃO</span>
             <h2>Vincular tarefas</h2>
           </div>
-          <button mat-icon-button (click)="editorOpen.set(false)"><mat-icon>close</mat-icon></button>
+          <button
+            mat-icon-button
+            (click)="editorOpen.set(false)"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
         </header>
         <p>
           Tarefas recorrentes acompanham todas as suas instâncias. As demais são
           reconhecidas pelo mesmo título.
         </p>
+        <section class="manual-linker">
+          <span class="eyebrow">VÍNCULO MANUAL</span>
+          <div class="manual-create">
+            <input
+              type="text"
+              placeholder="Ex.: Academia/Cardio"
+              [ngModel]="manualHabitName()"
+              (ngModelChange)="manualHabitName.set($event)"
+              (keyup.enter)="createManualHabit()"
+            />
+            <button
+              type="button"
+              (click)="createManualHabit()"
+            >
+              <mat-icon>add_link</mat-icon> Criar
+            </button>
+          </div>
+          <label>
+            Hábito que receberá as tarefas
+            <select
+              [ngModel]="manualHabitId()"
+              (ngModelChange)="manualHabitId.set($event || null)"
+            >
+              <option [ngValue]="null">Selecione um hábito manual</option>
+              @for (
+                habit of tracker.habitsForCharacters(selectedCharacterIds());
+                track habit.id
+              ) {
+                <option [value]="habit.id">{{ habit.title }}</option>
+              }
+            </select>
+          </label>
+          @if (manualHabitId()) {
+            <small
+              >Clique nas tarefas abaixo para adicionar ou remover deste hábito.</small
+            >
+          }
+        </section>
         <label class="search">
           <mat-icon>search</mat-icon>
           <input
@@ -188,22 +318,46 @@
         </label>
         <div class="candidate-list">
           @for (task of filteredCandidates(); track task.id) {
-            <button
-              class="candidate"
-              [class.selected]="tracker.isLinked(task, selectedCharacterIds())"
-              (click)="toggleTask(task)"
-            >
-              <span class="candidate-check">
-                <mat-icon>{{ tracker.isLinked(task, selectedCharacterIds()) ? 'check' : 'add' }}</mat-icon>
-              </span>
-              <span>
-                <strong>{{ task.title }}</strong>
-                <small>
-                  <mat-icon>{{ task.repeatCfgId ? 'repeat' : 'title' }}</mat-icon>
-                  {{ task.repeatCfgId ? 'Todas as instâncias recorrentes' : 'Vincular pelo título' }}
-                </small>
-              </span>
-            </button>
+            @if (manualHabitId()) {
+              <button
+                class="candidate"
+                [class.selected]="tracker.isTaskLinkedToHabit(manualHabitId()!, task)"
+                (click)="toggleManualLink(task)"
+              >
+                <span class="candidate-check">
+                  <mat-icon>{{
+                    tracker.isTaskLinkedToHabit(manualHabitId()!, task) ? 'check' : 'add'
+                  }}</mat-icon>
+                </span>
+                <span>
+                  <strong>{{ task.title }}</strong>
+                  <small><mat-icon>link</mat-icon> Associar manualmente</small>
+                </span>
+              </button>
+            } @else {
+              <button
+                class="candidate"
+                [class.selected]="tracker.isLinked(task, selectedCharacterIds())"
+                (click)="toggleTask(task)"
+              >
+                <span class="candidate-check">
+                  <mat-icon>{{
+                    tracker.isLinked(task, selectedCharacterIds()) ? 'check' : 'add'
+                  }}</mat-icon>
+                </span>
+                <span>
+                  <strong>{{ task.title }}</strong>
+                  <small>
+                    <mat-icon>{{ task.repeatCfgId ? 'repeat' : 'title' }}</mat-icon>
+                    {{
+                      task.repeatCfgId
+                        ? 'Todas as instâncias recorrentes'
+                        : 'Vincular pelo título'
+                    }}
+                  </small>
+                </span>
+              </button>
+            }
           } @empty {
             <div class="no-results">Nenhuma tarefa encontrada.</div>
           }

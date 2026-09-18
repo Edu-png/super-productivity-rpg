@@ -10,6 +10,9 @@ import {
 } from '../schedule.model';
 import { createScheduleDays } from './create-schedule-days';
 import { createBlockedBlocksByDayMap } from './create-blocked-blocks-by-day-map';
+import { clockStringFromDate } from '../../../ui/duration/clock-string-from-date';
+
+const WEEKDAY_ONLY_ROUTINE_TITLES = new Set(['trabalhar', 'estudar dados']);
 
 export const mapToScheduleDays = (
   now: number,
@@ -74,9 +77,20 @@ export const mapToScheduleDays = (
     (task) => !(typeof task.dueWithTime === 'number'),
   ) as TaskWithoutReminder[];
 
+  const normalizedRepeatCfgs = normalizeRoutineRepeatCfgs(
+    [...scheduledTaskRepeatCfgs, ...unScheduledTaskRepeatCfgs],
+    scheduledTasks,
+  );
+  const normalizedScheduledTaskRepeatCfgs = normalizedRepeatCfgs.filter(
+    (cfg) => !!cfg.startTime,
+  );
+  const normalizedUnscheduledTaskRepeatCfgs = normalizedRepeatCfgs.filter(
+    (cfg) => !cfg.startTime,
+  );
+
   const blockerBlocksDayMap = createBlockedBlocksByDayMap(
     scheduledTasks,
-    scheduledTaskRepeatCfgs,
+    normalizedScheduledTaskRepeatCfgs,
     calenderWithItems,
     workStartEndCfg,
     lunchBreakCfg,
@@ -87,7 +101,7 @@ export const mapToScheduleDays = (
 
   const v = createScheduleDays(
     nonScheduledTasks,
-    unScheduledTaskRepeatCfgs,
+    normalizedUnscheduledTaskRepeatCfgs,
     dayDates,
     plannerDayMap,
     blockerBlocksDayMap,
@@ -97,6 +111,61 @@ export const mapToScheduleDays = (
   );
 
   return v;
+};
+
+const normalizeRoutineRepeatCfgs = (
+  repeatCfgs: TaskRepeatCfg[],
+  scheduledTasks: TaskWithDueTime[],
+): TaskRepeatCfg[] => {
+  const concreteTaskByRepeatCfgId = new Map<string, TaskWithDueTime>();
+
+  scheduledTasks.forEach((task) => {
+    if (!task.repeatCfgId) {
+      return;
+    }
+
+    const current = concreteTaskByRepeatCfgId.get(task.repeatCfgId);
+    if (!current || task.dueWithTime < current.dueWithTime) {
+      concreteTaskByRepeatCfgId.set(task.repeatCfgId, task);
+    }
+  });
+
+  return repeatCfgs.map((cfg) => {
+    const concreteTask = concreteTaskByRepeatCfgId.get(cfg.id);
+    const title = (cfg.title ?? concreteTask?.title ?? '').trim().toLocaleLowerCase();
+    const isWeekdayOnlyRoutine = WEEKDAY_ONLY_ROUTINE_TITLES.has(title);
+    const inheritedStartTime =
+      cfg.startTime ??
+      (concreteTask ? clockStringFromDate(concreteTask.dueWithTime) : undefined);
+    const inheritedProjectId = concreteTask?.projectId ?? cfg.projectId;
+
+    if (
+      !isWeekdayOnlyRoutine &&
+      inheritedStartTime === cfg.startTime &&
+      inheritedProjectId === cfg.projectId
+    ) {
+      return cfg;
+    }
+
+    return {
+      ...cfg,
+      startTime: inheritedStartTime,
+      projectId: inheritedProjectId,
+      ...(isWeekdayOnlyRoutine
+        ? {
+            quickSetting: 'MONDAY_TO_FRIDAY' as const,
+            repeatCycle: 'WEEKLY' as const,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+          }
+        : {}),
+    };
+  });
 };
 
 const resortTasksWithCurrentFirst = (currentId: string, tasks: Task[]): Task[] => {

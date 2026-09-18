@@ -9,9 +9,6 @@ const eligible = (): Parameters<typeof canConvertTaskToSubTask>[0] => ({
   parentId: undefined,
   subTaskIds: [],
   repeatCfgId: undefined,
-  issueId: undefined,
-  issueProviderId: undefined,
-  issueType: undefined,
   dueWithTime: undefined,
   reminderId: undefined,
   remindAt: undefined,
@@ -34,18 +31,10 @@ describe('canConvertTaskToSubTask', () => {
     expect(canConvertTaskToSubTask({ ...eligible(), repeatCfgId: 'r1' })).toBe(false);
   });
 
-  it('rejects an issue-provider task', () => {
-    expect(canConvertTaskToSubTask({ ...eligible(), issueId: 'i1' })).toBe(false);
-    expect(canConvertTaskToSubTask({ ...eligible(), issueProviderId: 'ip1' })).toBe(
-      false,
-    );
-    expect(
-      canConvertTaskToSubTask({
-        ...eligible(),
-        issueType: 'JIRA' as Task['issueType'],
-      }),
-    ).toBe(false);
-  });
+  // Issue-provider tasks (GitHub/GitLab issues) are nested as subtasks on
+  // purpose in this fork - ConvertibleTaskFields simply has no
+  // issueId/issueProviderId/issueType guard, so the type system already
+  // guarantees they can't block conversion.
 
   it('rejects a scheduled / reminder task', () => {
     expect(canConvertTaskToSubTask({ ...eligible(), dueWithTime: 1234 })).toBe(false);

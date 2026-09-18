@@ -11,15 +11,31 @@ import {
 } from '../domain/arcane-library.models';
 
 interface LibraryDb extends DBSchema {
-  books: { key: string; value: ArcaneBook; indexes: { 'by-profile': string; 'by-profile-status': [string, string] } };
-  logs: { key: string; value: ReadingLog; indexes: { 'by-profile-date': [string, string]; 'by-book-date': [string, string] } };
-  groups: { key: string; value: LibraryGroup; indexes: { 'by-profile-kind': [string, string] } };
-  aggregates: { key: string; value: ReadingDailyAggregate; indexes: { 'by-profile-date': [string, string] } };
+  books: {
+    key: string;
+    value: ArcaneBook;
+    indexes: { 'by-profile': string; 'by-profile-status': [string, string] };
+  };
+  logs: {
+    key: string;
+    value: ReadingLog;
+    indexes: { 'by-profile-date': [string, string]; 'by-book-date': [string, string] };
+  };
+  groups: {
+    key: string;
+    value: LibraryGroup;
+    indexes: { 'by-profile-kind': [string, string] };
+  };
+  aggregates: {
+    key: string;
+    value: ReadingDailyAggregate;
+    indexes: { 'by-profile-date': [string, string] };
+  };
   challenges: { key: string; value: ReadingChallenge; indexes: { 'by-profile': string } };
   settings: { key: string; value: LibrarySettings };
 }
 
-interface LibraryCloudSnapshot {
+export interface LibraryCloudSnapshot {
   books: ArcaneBook[];
   logs: ReadingLog[];
   groups: LibraryGroup[];
@@ -83,12 +99,50 @@ export class ArcaneLibraryRepository {
     }
     const [books, groups, aggregates, challenges, settings] = await Promise.all([
       db.getAllFromIndex('books', 'by-profile', profileId),
-      db.getAll('groups').then((rows) => rows.filter((row) => row.profileId === profileId)),
-      db.getAll('aggregates').then((rows) => rows.filter((row) => row.profileId === profileId)),
+      db
+        .getAll('groups')
+        .then((rows) => rows.filter((row) => row.profileId === profileId)),
+      db
+        .getAll('aggregates')
+        .then((rows) => rows.filter((row) => row.profileId === profileId)),
       db.getAllFromIndex('challenges', 'by-profile', profileId),
       db.get('settings', profileId),
     ]);
     return { books, groups, aggregates, challenges, settings };
+  }
+
+  async exportProfile(profileId: string): Promise<LibraryCloudSnapshot> {
+    const db = await this.db;
+    const [books, logs, groups, aggregates, challenges, settings] = await Promise.all([
+      db.getAllFromIndex('books', 'by-profile', profileId),
+      db.getAll('logs').then((rows) => rows.filter((row) => row.profileId === profileId)),
+      db
+        .getAll('groups')
+        .then((rows) => rows.filter((row) => row.profileId === profileId)),
+      db
+        .getAll('aggregates')
+        .then((rows) => rows.filter((row) => row.profileId === profileId)),
+      db.getAllFromIndex('challenges', 'by-profile', profileId),
+      db.get('settings', profileId),
+    ]);
+    return { books, logs, groups, aggregates, challenges, settings };
+  }
+
+  async importProfile(snapshot: LibraryCloudSnapshot): Promise<void> {
+    const db = await this.db;
+    const tx = db.transaction(
+      ['books', 'logs', 'groups', 'aggregates', 'challenges', 'settings'],
+      'readwrite',
+    );
+    await Promise.all([
+      ...snapshot.books.map((row) => tx.objectStore('books').put(row)),
+      ...snapshot.logs.map((row) => tx.objectStore('logs').put(row)),
+      ...snapshot.groups.map((row) => tx.objectStore('groups').put(row)),
+      ...snapshot.aggregates.map((row) => tx.objectStore('aggregates').put(row)),
+      ...snapshot.challenges.map((row) => tx.objectStore('challenges').put(row)),
+      ...(snapshot.settings ? [tx.objectStore('settings').put(snapshot.settings)] : []),
+    ]);
+    await tx.done;
   }
 
   async putBook(book: ArcaneBook): Promise<void> {
@@ -105,9 +159,21 @@ export class ArcaneLibraryRepository {
     await (await this.db).put('groups', group);
     this.queueCloudSave(group.profileId);
   }
+  async deleteGroup(id: string): Promise<void> {
+    const db = await this.db;
+    const group = await db.get('groups', id);
+    await db.delete('groups', id);
+    if (group) this.queueCloudSave(group.profileId);
+  }
   async putChallenge(challenge: ReadingChallenge): Promise<void> {
     await (await this.db).put('challenges', challenge);
     this.queueCloudSave(challenge.profileId);
+  }
+  async deleteChallenge(id: string): Promise<void> {
+    const db = await this.db;
+    const challenge = await db.get('challenges', id);
+    await db.delete('challenges', id);
+    if (challenge) this.queueCloudSave(challenge.profileId);
   }
   async putSettings(settings: LibrarySettings): Promise<void> {
     await (await this.db).put('settings', settings);
@@ -121,8 +187,15 @@ export class ArcaneLibraryRepository {
     const id = `${log.profileId}:${log.date}`;
     const store = tx.objectStore('aggregates');
     const aggregate = (await store.get(id)) ?? {
-      id, profileId: log.profileId, date: log.date, minutes: 0, pages: 0,
-      sessions: 0, xp: 0, gold: 0, bookMinutes: {},
+      id,
+      profileId: log.profileId,
+      date: log.date,
+      minutes: 0,
+      pages: 0,
+      sessions: 0,
+      xp: 0,
+      gold: 0,
+      bookMinutes: {},
     };
     const pages = Math.max(0, log.endPage - log.startPage);
     aggregate.minutes += log.minutes;
@@ -130,7 +203,8 @@ export class ArcaneLibraryRepository {
     aggregate.sessions++;
     aggregate.xp += log.xpEarned;
     aggregate.gold += log.goldEarned;
-    aggregate.bookMinutes[log.bookId] = (aggregate.bookMinutes[log.bookId] ?? 0) + log.minutes;
+    aggregate.bookMinutes[log.bookId] =
+      (aggregate.bookMinutes[log.bookId] ?? 0) + log.minutes;
     await store.put(aggregate);
     await tx.done;
     this.queueCloudSave(log.profileId);
@@ -139,7 +213,9 @@ export class ArcaneLibraryRepository {
 
   async listLogs(bookId: string): Promise<ReadingLog[]> {
     const rows = await (await this.db).getAll('logs');
-    return rows.filter((row) => row.bookId === bookId).sort((a, b) => b.startedAt - a.startedAt);
+    return rows
+      .filter((row) => row.bookId === bookId)
+      .sort((a, b) => b.startedAt - a.startedAt);
   }
 
   private queueCloudSave(profileId: string): void {
@@ -148,21 +224,22 @@ export class ArcaneLibraryRepository {
       profileId,
       setTimeout(async () => {
         const db = await this.db;
-        const [books, logs, groups, aggregates, challenges, settings] =
-          await Promise.all([
+        const [books, logs, groups, aggregates, challenges, settings] = await Promise.all(
+          [
             db.getAllFromIndex('books', 'by-profile', profileId),
-            db.getAll('logs').then((rows) =>
-              rows.filter((row) => row.profileId === profileId),
-            ),
-            db.getAll('groups').then((rows) =>
-              rows.filter((row) => row.profileId === profileId),
-            ),
-            db.getAll('aggregates').then((rows) =>
-              rows.filter((row) => row.profileId === profileId),
-            ),
+            db
+              .getAll('logs')
+              .then((rows) => rows.filter((row) => row.profileId === profileId)),
+            db
+              .getAll('groups')
+              .then((rows) => rows.filter((row) => row.profileId === profileId)),
+            db
+              .getAll('aggregates')
+              .then((rows) => rows.filter((row) => row.profileId === profileId)),
             db.getAllFromIndex('challenges', 'by-profile', profileId),
             db.get('settings', profileId),
-          ]);
+          ],
+        );
         await this.cloud.save('library', profileId, {
           books,
           logs,

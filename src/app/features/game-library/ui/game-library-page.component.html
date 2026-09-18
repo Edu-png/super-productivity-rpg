@@ -1,0 +1,972 @@
+<main class="game-library">
+  <header class="hero">
+    <div>
+      <small>SALÃO DOS JOGOS</small>
+      <h1>🎮 Arsenal de Jogos</h1>
+      <p>Cada sessão jogada fortalece sua jornada.</p>
+    </div>
+    <div class="goal">
+      <span>Meta {{ library.settings().annualGoal }} jogos</span
+      ><strong
+        >{{ library.finished().length }} / {{ library.settings().annualGoal }}</strong
+      ><progress
+        [value]="library.finished().length"
+        [max]="library.settings().annualGoal"
+      ></progress>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button
+      [class.active]="tab() === 'dashboard'"
+      (click)="tab.set('dashboard')"
+    >
+      <mat-icon>insights</mat-icon>Dashboard
+    </button>
+    <button
+      [class.active]="tab() === 'library'"
+      (click)="tab.set('library')"
+    >
+      <mat-icon>sports_esports</mat-icon>Biblioteca
+    </button>
+    <button
+      [class.active]="tab() === 'calendar'"
+      (click)="tab.set('calendar')"
+    >
+      <mat-icon>calendar_month</mat-icon>Calendário
+    </button>
+    <button
+      [class.active]="tab() === 'planning'"
+      (click)="tab.set('planning')"
+    >
+      <mat-icon>event_note</mat-icon>Planejamento
+    </button>
+    <button
+      [class.active]="tab() === 'challenges'"
+      (click)="tab.set('challenges')"
+    >
+      <mat-icon>military_tech</mat-icon>Desafios
+    </button>
+  </nav>
+  <section class="reward-character">
+    <div>
+      <small>HERÓI DOS JOGOS</small
+      ><strong>Sessões, XP e ouro serão registrados neste personagem</strong>
+    </div>
+    <div
+      class="character-cards"
+      role="radiogroup"
+      aria-label="Herói dos Jogos"
+    >
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="character.id === selectedCharacterId()"
+          [class.active]="character.id === selectedCharacterId()"
+          (click)="selectCharacter(character.id)"
+        >
+          <character-renderer
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
+          <mat-icon>{{
+            character.id === selectedCharacterId()
+              ? 'check_circle'
+              : 'radio_button_unchecked'
+          }}</mat-icon>
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (tab() === 'dashboard') {
+    <section class="stats">
+      <article>
+        <small>JOGADOS</small><strong>{{ library.finished().length }}</strong>
+      </article>
+      <article>
+        <small>JOGANDO</small><strong>{{ library.playing().length }}</strong>
+      </article>
+      <article>
+        <small>WISHLIST</small><strong>{{ library.wishlist().length }}</strong>
+      </article>
+      <article>
+        <small>HORAS JOGADAS</small
+        ><strong>{{ (library.totalMinutes() / 60).toFixed(1) }}h</strong>
+      </article>
+      <article>
+        <small>DIAS QUE JOGOU</small><strong>{{ playingDaysCount() }}</strong>
+      </article>
+    </section>
+    <section class="panel heat-panel">
+      <header>
+        <div>
+          <small>CONSTÂNCIA ANUAL</small>
+          <h2>Mapa de jogo · {{ annualDays()[0]?.date.slice(0, 4) }}</h2>
+        </div>
+        <span>Quanto mais escuro, mais tempo jogando.</span>
+      </header>
+      <div class="heatmap">
+        @for (day of annualDays(); track day.date) {
+          <i
+            [class]="'level-' + heatLevel(day.minutes)"
+            [title]="day.date + ' · ' + day.minutes + ' min'"
+          ></i>
+        }
+      </div>
+      <footer>
+        Menos <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i
+        ><i class="level-3"></i><i class="level-4"></i> Mais
+      </footer>
+    </section>
+    <section class="panel monthly-playtime-panel">
+      <header>
+        <div>
+          <small>HISTÓRICO DE JOGO</small>
+          <h2>Tempo jogado por mês</h2>
+        </div>
+        <span>Minutos registrados</span>
+      </header>
+      <div class="monthly-playtime-chart">
+        @for (month of monthlyPlaytimeHistory(); track month.key) {
+          <div class="month-column">
+            <div class="month-bar-track">
+              <i [style.height.%]="month.height"></i><b>{{ month.minutes }}</b>
+            </div>
+            <span>{{ month.label }}</span>
+          </div>
+        } @empty {
+          <p>Nenhum tempo de jogo registrado.</p>
+        }
+      </div>
+    </section>
+    <section class="dashboard-grid">
+      <article class="panel">
+        <small>GÊNEROS</small>
+        <h2>Jogos por gênero</h2>
+        @for (genre of genres(); track genre) {
+          <div class="bar">
+            <span>{{ genre }}</span>
+            <div class="absolute-bar"><i [style.width.%]="genreBarWidth(genre)"></i></div>
+            <b>{{ genreCount(genre) }}</b>
+          </div>
+        }
+      </article>
+      <article class="panel">
+        <small>JOGANDO AGORA</small>
+        <h2>Jogos em andamento</h2>
+        @for (game of library.playing(); track game.id) {
+          <div
+            class="current-game"
+            (click)="editGame(game)"
+          >
+            <span [style.background]="game.color"></span>
+            <div>
+              <b>{{ game.title }}</b
+              ><small>{{ hoursPlayedLabel(game) }}h jogadas</small>
+            </div>
+            <button
+              type="button"
+              title="Registrar sessão"
+              (click)="startPlaySession(game, $event)"
+            >
+              <mat-icon>sports_esports</mat-icon>Registrar
+            </button>
+          </div>
+        } @empty {
+          <p>Nenhum jogo em andamento.</p>
+        }
+      </article>
+    </section>
+  }
+
+  @if (tab() === 'library') {
+    <section class="panel group-manager">
+      <div>
+        <small>COLEÇÕES</small>
+        <input
+          [(ngModel)]="collectionTitle"
+          placeholder="Nova coleção"
+        />
+        <button (click)="createCollection()">Criar</button>
+      </div>
+      <div>
+        <small>PRATELEIRAS</small>
+        <select [(ngModel)]="shelfCollectionId">
+          <option value="">Sem coleção</option>
+          @for (
+            group of library.groups().filter((g) => g.kind === 'collection');
+            track group.id
+          ) {
+            <option [value]="group.id">{{ group.title }}</option>
+          }
+        </select>
+        <input
+          [(ngModel)]="shelfTitle"
+          placeholder="Nova prateleira"
+        />
+        <button (click)="createShelf()">Criar</button>
+      </div>
+      <div class="collection-browser">
+        <button
+          class="collection-chip"
+          [class.active]="!selectedCollectionId()"
+          (click)="selectCollection(null)"
+        >
+          <mat-icon>videogame_asset</mat-icon
+          ><span
+            ><b>Biblioteca completa</b
+            ><small>{{ library.games().length }} jogo(s)</small></span
+          >
+        </button>
+        @for (
+          collection of library.groups().filter((g) => g.kind === 'collection');
+          track collection.id
+        ) {
+          <button
+            class="collection-chip"
+            [class.active]="selectedCollectionId() === collection.id"
+            (click)="selectCollection(collection.id)"
+            [style.--group-color]="collection.color"
+          >
+            @if (collection.coverDataUrl) {
+              <img
+                class="collection-emblem"
+                [src]="collection.coverDataUrl"
+                [alt]="collection.title"
+              />
+            } @else {
+              <mat-icon>collections_bookmark</mat-icon>
+            }
+            <span
+              ><b>{{ collection.title }}</b
+              ><small>{{ collectionGamesCount(collection.id) }} jogo(s)</small></span
+            ><mat-icon
+              class="delete-group"
+              title="Excluir coleção"
+              (click)="deleteCollection($event, collection.id)"
+              >delete</mat-icon
+            >
+          </button>
+        }
+      </div>
+      @if (selectedCollectionId(); as collectionId) {
+        <div class="shelf-browser">
+          <span>Prateleiras desta coleção</span>
+          <button
+            [class.active]="!selectedShelfId()"
+            (click)="selectShelf(null)"
+          >
+            Todas
+          </button>
+          @for (shelf of shelvesForCollection(collectionId); track shelf.id) {
+            <button
+              [class.active]="selectedShelfId() === shelf.id"
+              (click)="selectShelf(shelf.id)"
+            >
+              <mat-icon>bookmarks</mat-icon>{{ shelf.title }}
+            </button>
+          } @empty {
+            <small>Nenhuma prateleira criada nesta coleção.</small>
+          }
+        </div>
+      }
+    </section>
+    <section class="panel creator">
+      <input
+        [(ngModel)]="newTitle"
+        placeholder="Título do jogo"
+      /><input
+        [(ngModel)]="newDeveloper"
+        placeholder="Desenvolvedora"
+      />
+      <select [(ngModel)]="newCollectionId">
+        <option value="">Sem coleção</option>
+        @for (
+          collection of library.groups().filter((g) => g.kind === 'collection');
+          track collection.id
+        ) {
+          <option [value]="collection.id">{{ collection.title }}</option>
+        }
+      </select>
+      <select [(ngModel)]="newStatus">
+        <option value="wishlist">Wishlist</option>
+        <option value="planned">Planejado</option>
+        <option value="playing">Jogando</option>
+        <option value="finished">Concluído</option>
+      </select>
+      <button
+        class="gold"
+        (click)="createGame()"
+      >
+        Adicionar jogo
+      </button>
+    </section>
+    <section class="library-tools panel">
+      <div class="views">
+        @for (view of ['gallery', 'list', 'table', 'shelf', 'timeline']; track view) {
+          <button
+            [class.active]="library.settings().view === view"
+            (click)="setView($any(view))"
+          >
+            <mat-icon>{{
+              view === 'gallery'
+                ? 'grid_view'
+                : view === 'table'
+                  ? 'table_rows'
+                  : view === 'timeline'
+                    ? 'timeline'
+                    : 'view_list'
+            }}</mat-icon>
+          </button>
+        }
+      </div>
+      <label class="game-search"
+        ><mat-icon>search</mat-icon
+        ><input
+          placeholder="Pesquisar por título ou desenvolvedora"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+      /></label>
+      <select
+        [(ngModel)]="library.settings().filters.genre"
+        (change)="persistFilters()"
+      >
+        <option value="">Todos os gêneros</option>
+        @for (genre of genres(); track genre) {
+          <option [value]="genre">{{ genre }}</option>
+        }
+      </select>
+      <select
+        [(ngModel)]="library.settings().filters.platform"
+        (change)="persistFilters()"
+      >
+        <option value="">Todas as plataformas</option>
+        @for (platform of platformOptions; track platform) {
+          <option [value]="platform">{{ platformLabel(platform) }}</option>
+        }
+      </select>
+      <label
+        ><input
+          type="checkbox"
+          [(ngModel)]="library.settings().filters.favorite"
+          (change)="persistFilters()"
+        />
+        Favoritos</label
+      >
+    </section>
+    <section class="library-section wishlist-section">
+      <header>
+        <div>
+          <small>LISTA DE DESEJOS</small>
+          <h2>Wishlist</h2>
+          <span class="drag-hint">Arraste um jogo para mudar sua categoria</span>
+        </div>
+        <strong>{{ visibleWishlistGames().length }}</strong>
+      </header>
+      <div
+        [class]="'game-grid ' + library.settings().view"
+        (dragover)="allowGameDrop($event)"
+        (drop)="dropGameOnStatus($event, 'wishlist')"
+      >
+        @for (game of visibleWishlistGames(); track game.id) {
+          <article
+            class="game-card"
+            draggable="true"
+            (dragstart)="dragGame($event, game)"
+            (click)="editGame(game)"
+            [style.--game-color]="game.color"
+          >
+            <div class="cover">
+              @if (game.coverDataUrl) {
+                <img
+                  [src]="game.coverDataUrl"
+                  [alt]="game.title"
+                />
+              } @else {
+                <mat-icon>sports_esports</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, game)"
+              /></label>
+            </div>
+            <div class="game-info">
+              <small>Wishlist · {{ game.platforms.map(platformLabel).join(', ') }}</small>
+              <h3>{{ game.title }}</h3>
+              <p>{{ game.developer || 'Desenvolvedora não informada' }}</p>
+              <span>{{ game.plannedMonth || 'Sem mês' }}</span>
+            </div>
+            <button
+              class="gear"
+              (click)="editGame(game, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
+          </article>
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>bookmark_border</mat-icon>
+            <h2>Sua wishlist está vazia</h2>
+            <p>Arraste um jogo para cá para adicioná-lo à lista.</p>
+          </div>
+        }
+      </div>
+    </section>
+    <section class="library-section">
+      <header>
+        <div>
+          <small>PARTIDAS ATUAIS</small>
+          <h2>Jogos em progresso</h2>
+          <span class="drag-hint">Solte aqui para começar a jogar</span>
+        </div>
+        <strong>{{ inProgressGames().length }}</strong>
+      </header>
+      <div
+        [class]="'game-grid ' + library.settings().view"
+        (dragover)="allowGameDrop($event)"
+        (drop)="dropGameOnStatus($event, 'playing')"
+      >
+        @for (game of inProgressGames(); track game.id) {
+          <article
+            class="game-card"
+            draggable="true"
+            (dragstart)="dragGame($event, game)"
+            (click)="editGame(game)"
+            [style.--game-color]="game.color"
+          >
+            <div class="cover">
+              @if (game.coverDataUrl) {
+                <img
+                  [src]="game.coverDataUrl"
+                  [alt]="game.title"
+                />
+              } @else {
+                <mat-icon>sports_esports</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, game)"
+              /></label>
+            </div>
+            <div class="game-info">
+              <small
+                >Em progresso · {{ game.platforms.map(platformLabel).join(', ') }}</small
+              >
+              <h3>{{ game.title }}</h3>
+              <p>{{ game.developer || 'Desenvolvedora não informada' }}</p>
+              <progress
+                [value]="game.completionPercent"
+                [max]="100"
+              ></progress
+              ><span>{{ game.completionPercent }}% concluído</span>
+              <span>{{ hoursPlayedLabel(game) }}h jogadas</span>
+              @if (playingDays(game); as days) {
+                <b class="play-time"
+                  ><mat-icon>schedule</mat-icon>{{ days }} dia(s) jogando</b
+                >
+              }
+            </div>
+            <button
+              class="log-game"
+              title="Registrar sessão de jogo"
+              (click)="startPlaySession(game, $event)"
+            >
+              <mat-icon>edit_note</mat-icon>Registrar sessão
+            </button>
+            <button
+              class="gear"
+              (click)="editGame(game, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
+          </article>
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>sports_esports</mat-icon>
+            <h2>Nenhum jogo em progresso</h2>
+            <p>Inicie um jogo da sua wishlist para ele aparecer aqui.</p>
+          </div>
+        }
+      </div>
+    </section>
+    <section class="library-section completed">
+      <header>
+        <div>
+          <small>ARQUIVO CONCLUÍDO</small>
+          <h2>Jogos concluídos</h2>
+          <span class="drag-hint">Solte aqui para marcar como concluído</span>
+        </div>
+        <strong>{{ completedGames().length }}</strong>
+      </header>
+      <div
+        [class]="'game-grid ' + library.settings().view"
+        (dragover)="allowGameDrop($event)"
+        (drop)="dropGameOnStatus($event, 'finished')"
+      >
+        @for (game of completedGames(); track game.id) {
+          <article
+            class="game-card"
+            draggable="true"
+            (dragstart)="dragGame($event, game)"
+            (click)="editGame(game)"
+            [style.--game-color]="game.color"
+          >
+            <div class="cover">
+              @if (game.coverDataUrl) {
+                <img
+                  [src]="game.coverDataUrl"
+                  [alt]="game.title"
+                />
+              } @else {
+                <mat-icon>sports_esports</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, game)"
+              /></label>
+            </div>
+            <div class="game-info">
+              <small
+                >Concluído · {{ game.platforms.map(platformLabel).join(', ') }}</small
+              >
+              <h3>{{ game.title }}</h3>
+              <p>{{ game.developer || 'Desenvolvedora não informada' }}</p>
+              <progress
+                [value]="game.completionPercent"
+                [max]="100"
+              ></progress
+              ><span>{{ hoursPlayedLabel(game) }}h jogadas</span>
+              @if (playingDays(game); as days) {
+                <b class="play-time done"
+                  ><mat-icon>event_available</mat-icon>Concluído em {{ days }} dia(s)</b
+                >
+              }
+            </div>
+            <button
+              class="gear"
+              (click)="editGame(game, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
+          </article>
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>workspace_premium</mat-icon>
+            <h2>Nenhum jogo concluído ainda</h2>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (tab() === 'calendar') {
+    <section class="panel">
+      <header>
+        <div>
+          <small>REGISTRO DOS ARAUTOS</small>
+          <h2>Calendário de jogo · {{ calendarLabel() }}</h2>
+        </div>
+        <nav class="month-nav">
+          <button (click)="previousCalendarMonth()">‹</button
+          ><button (click)="resetCalendarMonth()">Hoje</button
+          ><button (click)="nextCalendarMonth()">›</button>
+        </nav>
+      </header>
+      <div class="calendar-weekdays">
+        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span
+        ><span>Sex</span><span>Sáb</span>
+      </div>
+      <div class="calendar-grid">
+        @for (day of calendarDays(); track day.key) {
+          <article
+            [class.studied]="day.minutes"
+            [class.outside]="!day.currentMonth"
+            [class.today]="day.today"
+            (click)="openCalendarDayLog(day)"
+          >
+            <b>{{ day.day }}</b>
+            @if (day.minutes) {
+              <div class="play-event">
+                <strong>{{ day.minutes }} min jogados</strong>
+                @for (game of day.games; track game.id) {
+                  <span class="calendar-game"
+                    ><i [style.background]="game.color"></i>{{ game.title }}
+                    <small>{{ game.minutes }} min</small></span
+                  >
+                }
+              </div>
+            } @else {
+              <span>Sem sessão</span>
+            }
+          </article>
+        }
+      </div>
+    </section>
+  }
+
+  @if (tab() === 'planning') {
+    <section class="panel">
+      <header>
+        <div>
+          <small>BALANCEAMENTO ANUAL</small>
+          <h2>Wishlist por mês</h2>
+        </div>
+        <span>Média: {{ monthlyAverage().toFixed(1) }} jogos/mês</span>
+      </header>
+      <div class="months">
+        @for (month of monthlyPlan(); track month.key) {
+          <article
+            [class]="planLoad(month.count)"
+            (dragover)="allowGameDrop($event)"
+            (drop)="dropGame($event, month.key)"
+          >
+            <header>
+              <div>
+                <h3>{{ month.label }}</h3>
+                <strong>{{ month.count }} jogo(s) planejado(s)</strong>
+              </div>
+              <small>{{ month.games.length }} jogo(s)</small>
+            </header>
+            <div class="planned-games">
+              @for (game of month.games; track game.id) {
+                <button
+                  draggable="true"
+                  (dragstart)="dragGame($event, game)"
+                  (click)="editGame(game)"
+                >
+                  <div class="planned-cover">
+                    @if (game.coverDataUrl) {
+                      <img
+                        [src]="game.coverDataUrl"
+                        [alt]="game.title"
+                      />
+                    } @else {
+                      <mat-icon>sports_esports</mat-icon>
+                    }
+                  </div>
+                  <span
+                    ><b>{{ game.title }}</b
+                    ><small>{{
+                      game.developer || 'Desenvolvedora não informada'
+                    }}</small></span
+                  >
+                  @if (game.status === 'finished') {
+                    <b class="read-seal">JOGADO</b>
+                  }
+                  <mat-icon class="planned-settings">settings</mat-icon>
+                </button>
+              } @empty {
+                <div class="month-empty">
+                  <mat-icon>event_available</mat-icon>Arraste jogos para cá
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  }
+
+  @if (tab() === 'challenges') {
+    <section class="panel creator">
+      <input
+        [(ngModel)]="challengeTitle"
+        placeholder="Nome do desafio"
+      /><select [(ngModel)]="challengeMetric">
+        <option value="games">Jogos</option>
+        <option value="minutes">Minutos</option>
+        <option value="streak">Dias seguidos</option></select
+      ><input
+        type="number"
+        [(ngModel)]="challengeTarget"
+      /><button
+        class="gold"
+        (click)="library.addChallenge(challengeTitle, challengeMetric, challengeTarget)"
+      >
+        Criar desafio
+      </button>
+    </section>
+    <section class="challenge-grid">
+      @for (challenge of library.challenges(); track challenge.id) {
+        <article class="panel">
+          <button
+            class="delete-challenge"
+            title="Excluir desafio"
+            (click)="library.removeChallenge(challenge.id)"
+          >
+            <mat-icon>delete</mat-icon></button
+          ><mat-icon>workspace_premium</mat-icon>
+          <h3>{{ challenge.title }}</h3>
+          <progress
+            [value]="challenge.progress"
+            [max]="challenge.target"
+          ></progress
+          ><span>{{ challenge.progress }}/{{ challenge.target }}</span
+          ><b>+{{ challenge.xpReward }} XP · +{{ challenge.goldReward }} ouro</b>
+        </article>
+      }
+    </section>
+  }
+
+  @if (calendarPickerDate(); as pickDate) {
+    <div
+      class="modal-backdrop"
+      (click)="calendarPickerDate.set(null)"
+    >
+      <section
+        class="session-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="calendarPickerDate.set(null)"
+        >
+          ×</button
+        ><small>REGISTRAR SESSÃO</small>
+        <h2>{{ pickDate }}</h2>
+        <div class="log-form">
+          <label
+            >Jogo<select
+              (change)="pickGameForCalendarDay($any($event.target).value, pickDate)"
+            >
+              <option
+                value=""
+                disabled
+                selected
+              >
+                Selecione um jogo...
+              </option>
+              @for (game of library.games(); track game.id) {
+                <option [value]="game.id">{{ game.title }}</option>
+              }
+            </select></label
+          >
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (selectedGame(); as game) {
+    <div
+      class="modal-backdrop"
+      (click)="selectedGame.set(null)"
+    >
+      <section
+        class="session-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="selectedGame.set(null)"
+        >
+          ×</button
+        ><small>SESSÃO DE JOGO</small>
+        <h2>{{ game.title }}</h2>
+        <p>{{ game.developer }}</p>
+        <div class="log-form">
+          <label
+            >Data<input
+              type="date"
+              [(ngModel)]="sessionDate"
+              [max]="today" /></label
+          ><label
+            >Minutos jogados<input
+              type="number"
+              min="1"
+              [(ngModel)]="sessionMinutes" /></label
+          ><label
+            >Progresso atual (%)<input
+              type="number"
+              min="0"
+              max="100"
+              [(ngModel)]="sessionPercent" /></label
+          ><textarea
+            [(ngModel)]="sessionNotes"
+            placeholder="Observações sobre a sessão..."
+            class="wide"
+          ></textarea
+          ><button
+            class="gold wide"
+            (click)="saveSession()"
+          >
+            Concluir sessão e receber XP
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (editingGame(); as game) {
+    <div
+      class="modal-backdrop"
+      (click)="editingGame.set(null)"
+    >
+      <section
+        class="session-modal editor"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="editingGame.set(null)"
+        >
+          ×</button
+        ><small>FICHA DO JOGO</small>
+        <h2>Editar jogo</h2>
+        <div class="edit-grid">
+          <label>Título<input [(ngModel)]="game.title" /></label
+          ><label>Desenvolvedora<input [(ngModel)]="game.developer" /></label
+          ><label>Idioma<input [(ngModel)]="game.language" /></label
+          ><label
+            >Status<select
+              [ngModel]="game.status"
+              (ngModelChange)="syncGameDates(game, $event)"
+            >
+              <option value="wishlist">Wishlist</option>
+              <option value="planned">Planejado</option>
+              <option value="playing">Jogando</option>
+              <option value="finished">Concluído</option>
+              <option value="abandoned">Abandonado</option>
+            </select></label
+          ><label
+            >Data de início<input
+              type="date"
+              [(ngModel)]="game.startedAt" /></label
+          ><label
+            >Data de conclusão<input
+              type="date"
+              [(ngModel)]="game.finishedAt"
+              [disabled]="game.status !== 'finished'" /></label
+          ><label
+            >Progresso (%)<input
+              type="number"
+              min="0"
+              max="100"
+              [(ngModel)]="game.completionPercent"
+          /></label>
+          <div class="duration-summary">
+            <mat-icon>date_range</mat-icon><span>Tempo jogando</span
+            ><strong>{{
+              playingDays(game) ? playingDays(game) + ' dia(s)' : 'Ainda não iniciado'
+            }}</strong>
+          </div>
+          <fieldset class="organization-fields wide">
+            <legend>Organização da biblioteca</legend>
+            <label
+              >Coleção<select
+                [ngModel]="game.collectionId || ''"
+                (ngModelChange)="gameCollectionChanged(game, $event)"
+              >
+                <option value="">Sem coleção</option>
+                @for (
+                  collection of library.groups().filter((g) => g.kind === 'collection');
+                  track collection.id
+                ) {
+                  <option [value]="collection.id">{{ collection.title }}</option>
+                }
+              </select></label
+            ><label
+              >Prateleira<select
+                [(ngModel)]="game.shelfId"
+                [disabled]="!game.collectionId"
+              >
+                <option [ngValue]="null">Sem prateleira</option>
+                @for (shelf of shelvesForCollection(game.collectionId); track shelf.id) {
+                  <option [value]="shelf.id">{{ shelf.title }}</option>
+                }
+              </select></label
+            >
+            <p>
+              O jogo continua na estante principal e também aparece dentro da coleção
+              escolhida.
+            </p>
+          </fieldset>
+          <label
+            >Mês planejado<input
+              type="month"
+              [(ngModel)]="game.plannedMonth" /></label
+          ><label
+            >Nota<input
+              type="number"
+              min="0"
+              max="5"
+              step=".5"
+              [(ngModel)]="game.rating"
+          /></label>
+          <fieldset class="genre-picker wide">
+            <legend>Gêneros · selecione um ou mais</legend>
+            @for (genre of genreOptions; track genre) {
+              <button
+                type="button"
+                [class.selected]="selectedGenres(game).includes(genre)"
+                (click)="toggleGenre(game, genre)"
+              >
+                <mat-icon>{{
+                  selectedGenres(game).includes(genre)
+                    ? 'check_box'
+                    : 'check_box_outline_blank'
+                }}</mat-icon
+                >{{ genre }}
+              </button>
+            }
+          </fieldset>
+          <fieldset class="genre-picker wide">
+            <legend>Plataformas · selecione uma ou mais</legend>
+            @for (platform of platformOptions; track platform) {
+              <button
+                type="button"
+                [class.selected]="game.platforms.includes(platform)"
+                (click)="togglePlatform(game, platform)"
+              >
+                <mat-icon>{{
+                  game.platforms.includes(platform)
+                    ? 'check_box'
+                    : 'check_box_outline_blank'
+                }}</mat-icon
+                >{{ platformLabel(platform) }}
+              </button>
+            }
+          </fieldset>
+          <p class="xp-explanation wide">
+            <mat-icon>auto_awesome</mat-icon>O XP é automático: cada sessão registrada
+            concede XP conforme o tempo jogado.
+          </p>
+          <label class="wide"
+            >Observações<textarea [(ngModel)]="game.notes"></textarea>
+          </label>
+        </div>
+        <footer>
+          <button
+            class="danger"
+            (click)="library.removeGame(game.id); editingGame.set(null)"
+          >
+            Excluir</button
+          ><button
+            class="gold"
+            (click)="saveGame()"
+          >
+            Salvar ficha
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+</main>

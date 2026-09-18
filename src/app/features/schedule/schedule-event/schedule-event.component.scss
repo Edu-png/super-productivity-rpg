@@ -66,13 +66,17 @@
   &.split-continued,
   &.split-continued-last {
     .title {
-      opacity: 0.4;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
+      opacity: 0.7;
+      min-width: 0;
+      line-height: 1;
       font-style: italic;
-      line-height: 0.4;
+    }
+
+    .continued-title {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
@@ -110,6 +114,24 @@
     }
   }
 
+  &.is-rpg-failed {
+    opacity: 0.55;
+    border-color: #b71c1c;
+    border-left-color: #b71c1c;
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, #b71c1c 20%, var(--schedule-event-bg)),
+      color-mix(in srgb, #b71c1c 20%, var(--schedule-event-bg)) 6px,
+      color-mix(in srgb, #b71c1c 10%, var(--schedule-event-bg)) 6px,
+      color-mix(in srgb, #b71c1c 10%, var(--schedule-event-bg)) 12px
+    );
+
+    .title-text {
+      text-decoration: line-through;
+      text-decoration-color: #b71c1c;
+    }
+  }
+
   &::before {
     content: '';
     position: absolute;
@@ -135,7 +157,13 @@
     border-style: dashed;
     border-left-style: solid;
     opacity: 0.7;
-    background: var(--schedule-event-bg);
+    // Future recurring instances keep their projected/dimmed appearance while
+    // still carrying the color of the project defined on the repeat config.
+    background: color-mix(
+      in srgb,
+      var(--project-color, var(--separator-color)) 14%,
+      var(--schedule-event-bg)
+    );
   }
 
   &.CalendarEvent {
@@ -263,6 +291,56 @@
 
   :host.very-short-event & {
     margin-top: -4px;
+  }
+}
+
+.overage-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+  z-index: 2;
+  padding: 1px 3px;
+  border-radius: var(--card-border-radius);
+  color: #fff;
+  background: #388e3c;
+}
+
+.underage-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+  z-index: 2;
+  padding: 1px 3px;
+  border-radius: var(--card-border-radius);
+  color: #fff;
+  background: #d32f2f;
+}
+
+.failed-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  z-index: 2;
+  border-radius: 50%;
+  color: #fff;
+  background: #b71c1c;
+  border: 1px solid #fff;
+
+  mat-icon {
+    font-size: 10px;
+    width: 10px;
+    height: 10px;
+    line-height: 10px;
   }
 }
 

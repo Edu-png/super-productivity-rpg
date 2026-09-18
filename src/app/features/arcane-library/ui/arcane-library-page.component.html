@@ -1,24 +1,88 @@
 <main class="arcane-library">
   <header class="hero">
-    <div><small>REINO DO CONHECIMENTO</small><h1>📚 Biblioteca Arcana</h1><p>Cada página lida fortalece sua jornada.</p></div>
-    <div class="goal"><span>Meta {{ library.settings().annualGoal }} livros</span><strong>{{ library.finished().length }} / {{ library.settings().annualGoal }}</strong><progress [value]="library.finished().length" [max]="library.settings().annualGoal"></progress></div>
+    <div>
+      <small>REINO DO CONHECIMENTO</small>
+      <h1>📚 Biblioteca Arcana</h1>
+      <p>Cada página lida fortalece sua jornada.</p>
+    </div>
+    <div class="goal">
+      <span>Meta {{ library.settings().annualGoal }} livros</span
+      ><strong
+        >{{ library.finished().length }} / {{ library.settings().annualGoal }}</strong
+      ><progress
+        [value]="library.finished().length"
+        [max]="library.settings().annualGoal"
+      ></progress>
+    </div>
   </header>
 
   <nav class="tabs">
-    <button [class.active]="tab()==='dashboard'" (click)="tab.set('dashboard')"><mat-icon>insights</mat-icon>Dashboard</button>
-    <button [class.active]="tab()==='library'" (click)="tab.set('library')"><mat-icon>auto_stories</mat-icon>Biblioteca</button>
-    <button [class.active]="tab()==='calendar'" (click)="tab.set('calendar')"><mat-icon>calendar_month</mat-icon>Calendário</button>
-    <button [class.active]="tab()==='planning'" (click)="tab.set('planning')"><mat-icon>event_note</mat-icon>Planejamento</button>
-    <button [class.active]="tab()==='challenges'" (click)="tab.set('challenges')"><mat-icon>military_tech</mat-icon>Desafios</button>
+    <button
+      [class.active]="tab() === 'dashboard'"
+      (click)="tab.set('dashboard')"
+    >
+      <mat-icon>insights</mat-icon>Dashboard
+    </button>
+    <button
+      [class.active]="tab() === 'library'"
+      (click)="tab.set('library')"
+    >
+      <mat-icon>auto_stories</mat-icon>Biblioteca
+    </button>
+    <button
+      [class.active]="tab() === 'calendar'"
+      (click)="tab.set('calendar')"
+    >
+      <mat-icon>calendar_month</mat-icon>Calendário
+    </button>
+    <button
+      [class.active]="tab() === 'planning'"
+      (click)="tab.set('planning')"
+    >
+      <mat-icon>event_note</mat-icon>Planejamento
+    </button>
+    <button
+      [class.active]="tab() === 'challenges'"
+      (click)="tab.set('challenges')"
+    >
+      <mat-icon>military_tech</mat-icon>Desafios
+    </button>
   </nav>
   <section class="reward-character">
-    <div><small>HERÓI DA BIBLIOTECA</small><strong>Leituras, XP e ouro serão registrados neste personagem</strong></div>
-    <div class="character-cards" role="radiogroup" aria-label="Herói da Biblioteca">
-      @for(character of profile.characters(); track character.id) {
-        <button type="button" role="radio" [attr.aria-checked]="character.id === selectedCharacterId()" [class.active]="character.id === selectedCharacterId()" (click)="selectCharacter(character.id)">
-          <character-renderer [appearance]="character.appearance" [species]="character.speciesId" [characterClass]="character.classId" [compact]="true" [portrait]="true" [headerIcon]="true" />
-          <span><b>{{ character.displayName }}</b><small>{{ character.speciesId }} · {{ character.classId }}</small></span>
-          <mat-icon>{{ character.id === selectedCharacterId() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+    <div>
+      <small>HERÓI DA BIBLIOTECA</small
+      ><strong>Leituras, XP e ouro serão registrados neste personagem</strong>
+    </div>
+    <div
+      class="character-cards"
+      role="radiogroup"
+      aria-label="Herói da Biblioteca"
+    >
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="character.id === selectedCharacterId()"
+          [class.active]="character.id === selectedCharacterId()"
+          (click)="selectCharacter(character.id)"
+        >
+          <character-renderer
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
+          <mat-icon>{{
+            character.id === selectedCharacterId()
+              ? 'check_circle'
+              : 'radio_button_unchecked'
+          }}</mat-icon>
         </button>
       }
     </div>
@@ -26,23 +90,167 @@
 
   @if (tab() === 'dashboard') {
     <section class="stats">
-      <article><small>LIDOS</small><strong>{{ library.finished().length }}</strong></article>
-      <article><small>EM ANDAMENTO</small><strong>{{ library.reading().length }}</strong></article>
-      <article><small>WISHLIST</small><strong>{{ library.wishlist().length }}</strong></article>
-      <article><small>PÁGINAS</small><strong>{{ library.totalPages() }}</strong></article>
-      <article><small>TEMPO LENDO</small><strong>{{ (library.totalMinutes()/60).toFixed(1) }}h</strong></article>
-      <article><small>SESSÕES</small><strong>{{ library.aggregates().length }}</strong></article>
+      <article>
+        <small>LIDOS</small><strong>{{ library.finished().length }}</strong>
+      </article>
+      <article>
+        <small>EM ANDAMENTO</small><strong>{{ library.reading().length }}</strong>
+      </article>
+      <article>
+        <small>WISHLIST</small><strong>{{ library.wishlist().length }}</strong>
+      </article>
+      <article>
+        <small>PÁGINAS</small><strong>{{ library.totalPages() }}</strong>
+      </article>
+      <article>
+        <small>TEMPO LENDO</small
+        ><strong>{{ (library.totalMinutes() / 60).toFixed(1) }}h</strong>
+      </article>
+      <article>
+        <small>DIAS QUE LI</small><strong>{{ readingDaysCount() }}</strong>
+      </article>
     </section>
     <section class="panel heat-panel">
-      <header><div><small>CONSTÂNCIA ANUAL</small><h2>Mapa de leitura · {{ annualDays()[0]?.date.slice(0,4) }}</h2></div><span>Quanto mais escuro, mais tempo lendo.</span></header>
+      <header>
+        <div>
+          <small>CONSTÂNCIA ANUAL</small>
+          <h2>Mapa de leitura · {{ annualDays()[0]?.date.slice(0, 4) }}</h2>
+        </div>
+        <span>Quanto mais escuro, mais tempo lendo.</span>
+      </header>
       <div class="heatmap">
-        @for (day of annualDays(); track day.date) { <i [class]="'level-'+heatLevel(day.minutes)" [title]="day.date + ' · ' + day.minutes + ' min'"></i> }
+        @for (day of annualDays(); track day.date) {
+          <i
+            [class]="'level-' + heatLevel(day.minutes)"
+            [title]="dayTooltip(day)"
+          ></i>
+        }
       </div>
-      <footer>Menos <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i> Mais</footer>
+      <footer>
+        Menos <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i
+        ><i class="level-3"></i><i class="level-4"></i> Mais
+      </footer>
+    </section>
+    <section class="panel monthly-reading-panel">
+      <header>
+        <div>
+          <small>HISTÓRICO DE LEITURA</small>
+          <h2>Tempo lido por mês</h2>
+        </div>
+        <span>Minutos registrados</span>
+      </header>
+      <div class="monthly-reading-chart">
+        @for (month of monthlyReadingHistory(); track month.key) {
+          <div class="month-column">
+            <div class="month-bar-track">
+              <i [style.height.%]="month.height"></i><b>{{ month.minutes }}</b>
+            </div>
+            <span>{{ month.label }}</span>
+          </div>
+        } @empty {
+          <p>Nenhum tempo de leitura registrado.</p>
+        }
+      </div>
+    </section>
+    <section class="panel speed-panel">
+      <header>
+        <div>
+          <small>RITMO DE LEITURA</small>
+          <h2>Velocidade média diária</h2>
+        </div>
+        <span
+          >Média geral: <b>{{ readingSpeedChart().mean.toFixed(2) }}</b> páginas/min</span
+        >
+      </header>
+      @if (readingSpeedChart().points.length) {
+        <div class="speed-legend">
+          <span class="above">Acima da média</span>
+          <span class="similar">Próxima da média (±10%)</span>
+          <span class="below">Abaixo da média</span>
+        </div>
+        <div class="speed-chart-scroll">
+          <svg
+            class="speed-chart"
+            viewBox="0 0 1000 250"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="Velocidade média de leitura por dia"
+          >
+            <line
+              x1="42"
+              y1="210"
+              x2="958"
+              y2="210"
+              class="axis"
+            ></line>
+            <line
+              x1="42"
+              [attr.y1]="readingSpeedChart().meanY"
+              x2="958"
+              [attr.y2]="readingSpeedChart().meanY"
+              class="mean-line"
+            ></line>
+            <polyline
+              [attr.points]="readingSpeedChart().polyline"
+              class="speed-line"
+            ></polyline>
+            @for (point of readingSpeedChart().points; track point.date) {
+              <circle
+                [attr.cx]="point.x"
+                [attr.cy]="point.y"
+                r="4.5"
+                [attr.class]="point.tone"
+              >
+                <title>
+                  {{ point.date }} · {{ point.pages }} páginas em {{ point.minutes }} min
+                  · {{ point.speed.toFixed(2) }} pág/min
+                </title>
+              </circle>
+            }
+          </svg>
+        </div>
+      } @else {
+        <p>Registre páginas e minutos para acompanhar sua velocidade.</p>
+      }
     </section>
     <section class="dashboard-grid">
-      <article class="panel"><small>GÊNEROS</small><h2>Livros por gênero</h2>@for (genre of genres(); track genre) { <div class="bar"><span>{{ genre }}</span><div class="absolute-bar"><i [style.width.%]="genreBarWidth(genre)"></i></div><b>{{ genreCount(genre) }}</b></div> }</article>
-      <article class="panel"><small>LEITURA ATUAL</small><h2>Tomos em andamento</h2>@for (book of library.reading(); track book.id) { <div class="current-book" (click)="editBook(book)"><span [style.background]="book.color"></span><div><b>{{ book.title }}</b><small>{{ book.currentPage }}/{{ book.pages }} páginas</small></div><strong>{{ progress(book) }}%</strong><button type="button" title="Registrar leitura" (click)="startReadingLog(book,$event)"><mat-icon>menu_book</mat-icon>Registrar</button></div> } @empty { <p>Nenhum livro em andamento.</p> }</article>
+      <article class="panel">
+        <small>GÊNEROS</small>
+        <h2>Livros por gênero</h2>
+        @for (genre of genres(); track genre) {
+          <div class="bar">
+            <span>{{ genre }}</span>
+            <div class="absolute-bar"><i [style.width.%]="genreBarWidth(genre)"></i></div>
+            <b>{{ genreCount(genre) }}</b>
+          </div>
+        }
+      </article>
+      <article class="panel">
+        <small>LEITURA ATUAL</small>
+        <h2>Tomos em andamento</h2>
+        @for (book of library.reading(); track book.id) {
+          <div
+            class="current-book"
+            (click)="editBook(book)"
+          >
+            <span [style.background]="book.color"></span>
+            <div>
+              <b>{{ book.title }}</b
+              ><small>{{ book.currentPage }}/{{ book.pages }} páginas</small>
+            </div>
+            <strong>{{ progress(book) }}%</strong
+            ><button
+              type="button"
+              title="Registrar leitura"
+              (click)="startReadingLog(book, $event)"
+            >
+              <mat-icon>menu_book</mat-icon>Registrar
+            </button>
+          </div>
+        } @empty {
+          <p>Nenhum livro em andamento.</p>
+        }
+      </article>
     </section>
   }
 
@@ -50,36 +258,80 @@
     <section class="panel group-manager">
       <div>
         <small>COLEÇÕES</small>
-        <input [(ngModel)]="collectionTitle" placeholder="Nova coleção">
+        <input
+          [(ngModel)]="collectionTitle"
+          placeholder="Nova coleção"
+        />
         <button (click)="createCollection()">Criar</button>
       </div>
       <div>
         <small>PRATELEIRAS</small>
         <select [(ngModel)]="shelfCollectionId">
           <option value="">Sem coleção</option>
-          @for(group of library.groups().filter(g => g.kind === 'collection'); track group.id) {
+          @for (
+            group of library.groups().filter((g) => g.kind === 'collection');
+            track group.id
+          ) {
             <option [value]="group.id">{{ group.title }}</option>
           }
         </select>
-        <input [(ngModel)]="shelfTitle" placeholder="Nova prateleira">
+        <input
+          [(ngModel)]="shelfTitle"
+          placeholder="Nova prateleira"
+        />
         <button (click)="createShelf()">Criar</button>
       </div>
       <div class="collection-browser">
-        <button class="collection-chip" [class.active]="!selectedCollectionId()" (click)="selectCollection(null)">
-          <mat-icon>library_books</mat-icon><span><b>Biblioteca completa</b><small>{{ library.books().length }} livro(s)</small></span>
+        <button
+          class="collection-chip"
+          [class.active]="!selectedCollectionId()"
+          (click)="selectCollection(null)"
+        >
+          <mat-icon>library_books</mat-icon
+          ><span
+            ><b>Biblioteca completa</b
+            ><small>{{ library.books().length }} livro(s)</small></span
+          >
         </button>
-        @for(collection of library.groups().filter(g => g.kind === 'collection'); track collection.id) {
-          <button class="collection-chip" [class.active]="selectedCollectionId() === collection.id" (click)="selectCollection(collection.id)" [style.--group-color]="collection.color">
-            <mat-icon>collections_bookmark</mat-icon><span><b>{{ collection.title }}</b><small>{{ collectionBooksCount(collection.id) }} livro(s)</small></span>
+        @for (
+          collection of library.groups().filter((g) => g.kind === 'collection');
+          track collection.id
+        ) {
+          <button
+            class="collection-chip"
+            [class.active]="selectedCollectionId() === collection.id"
+            (click)="selectCollection(collection.id)"
+            [style.--group-color]="collection.color"
+          >
+            <mat-icon>collections_bookmark</mat-icon
+            ><span
+              ><b>{{ collection.title }}</b
+              ><small>{{ collectionBooksCount(collection.id) }} livro(s)</small></span
+            ><mat-icon
+              class="delete-group"
+              title="Excluir coleção"
+              (click)="deleteCollection($event, collection.id)"
+              >delete</mat-icon
+            >
           </button>
         }
       </div>
-      @if(selectedCollectionId(); as collectionId) {
+      @if (selectedCollectionId(); as collectionId) {
         <div class="shelf-browser">
           <span>Prateleiras desta coleção</span>
-          <button [class.active]="!selectedShelfId()" (click)="selectShelf(null)">Todas</button>
-          @for(shelf of shelvesForCollection(collectionId); track shelf.id) {
-            <button [class.active]="selectedShelfId() === shelf.id" (click)="selectShelf(shelf.id)"><mat-icon>bookmarks</mat-icon>{{ shelf.title }}</button>
+          <button
+            [class.active]="!selectedShelfId()"
+            (click)="selectShelf(null)"
+          >
+            Todas
+          </button>
+          @for (shelf of shelvesForCollection(collectionId); track shelf.id) {
+            <button
+              [class.active]="selectedShelfId() === shelf.id"
+              (click)="selectShelf(shelf.id)"
+            >
+              <mat-icon>bookmarks</mat-icon>{{ shelf.title }}
+            </button>
           } @empty {
             <small>Nenhuma prateleira criada nesta coleção.</small>
           }
@@ -87,65 +339,673 @@
       }
     </section>
     <section class="panel creator">
-      <input [(ngModel)]="newTitle" placeholder="Título do livro"><input [(ngModel)]="newAuthor" placeholder="Autor"><label class="pages-field"><span>Número de páginas</span><input type="number" min="0" [(ngModel)]="newPages"></label>
-      <select [(ngModel)]="newStatus"><option value="wishlist">Wishlist</option><option value="planned">Planejado</option><option value="reading">Lendo</option><option value="finished">Concluído</option></select>
-      <button class="gold" (click)="createBook()">Adicionar tomo</button>
+      <input
+        [(ngModel)]="newTitle"
+        placeholder="Título do livro"
+      /><input
+        [(ngModel)]="newAuthor"
+        placeholder="Autor"
+      /><label class="pages-field"
+        ><span>Número de páginas</span
+        ><input
+          type="number"
+          min="0"
+          [(ngModel)]="newPages"
+      /></label>
+      <select [(ngModel)]="newStatus">
+        <option value="wishlist">Wishlist</option>
+        <option value="planned">Planejado</option>
+        <option value="reading">Lendo</option>
+        <option value="finished">Concluído</option>
+      </select>
+      <button
+        class="gold"
+        (click)="createBook()"
+      >
+        Adicionar tomo
+      </button>
     </section>
     <section class="library-tools panel">
-      <div class="views">@for (view of ['gallery','list','table','shelf','timeline']; track view) { <button [class.active]="library.settings().view===view" (click)="setView($any(view))"><mat-icon>{{ view==='gallery'?'grid_view':view==='table'?'table_rows':view==='timeline'?'timeline':'view_list' }}</mat-icon></button> }</div>
-      <select [(ngModel)]="library.settings().filters.genre" (change)="persistFilters()"><option value="">Todos os gêneros</option>@for (genre of genres(); track genre) { <option [value]="genre">{{ genre }}</option> }</select>
-      <label><input type="checkbox" [(ngModel)]="library.settings().filters.favorite" (change)="persistFilters()"> Favoritos</label>
+      <div class="views">
+        @for (view of ['gallery', 'list', 'table', 'shelf', 'timeline']; track view) {
+          <button
+            [class.active]="library.settings().view === view"
+            (click)="setView($any(view))"
+          >
+            <mat-icon>{{
+              view === 'gallery'
+                ? 'grid_view'
+                : view === 'table'
+                  ? 'table_rows'
+                  : view === 'timeline'
+                    ? 'timeline'
+                    : 'view_list'
+            }}</mat-icon>
+          </button>
+        }
+      </div>
+      <label class="book-search"
+        ><mat-icon>search</mat-icon
+        ><input
+          placeholder="Pesquisar por título ou autor"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+      /></label>
+      <select
+        [(ngModel)]="library.settings().filters.genre"
+        (change)="persistFilters()"
+      >
+        <option value="">Todos os gêneros</option>
+        @for (genre of genres(); track genre) {
+          <option [value]="genre">{{ genre }}</option>
+        }
+      </select>
+      <label
+        ><input
+          type="checkbox"
+          [(ngModel)]="library.settings().filters.favorite"
+          (change)="persistFilters()"
+        />
+        Favoritos</label
+      >
+    </section>
+    <section class="library-section wishlist-section">
+      <header>
+        <div>
+          <small>LISTA DE DESEJOS</small>
+          <h2>Wishlist</h2>
+          <span class="drag-hint">Arraste um livro para mudar sua categoria</span>
+        </div>
+        <strong>{{ visibleWishlistBooks().length }}</strong>
+      </header>
+      <div
+        [class]="'book-grid ' + library.settings().view"
+        (dragover)="allowBookDrop($event)"
+        (drop)="dropBookOnStatus($event, 'wishlist')"
+      >
+        @for (book of visibleWishlistBooks(); track book.id) {
+          <article
+            class="book-card"
+            draggable="true"
+            (dragstart)="dragBook($event, book)"
+            (click)="editBook(book)"
+            [style.--book-color]="book.color"
+          >
+            <div class="cover">
+              @if (book.coverDataUrl) {
+                <img
+                  [src]="book.coverDataUrl"
+                  [alt]="book.title"
+                />
+              } @else {
+                <mat-icon>auto_stories</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, book)"
+              /></label>
+            </div>
+            <div class="book-info">
+              <small>Wishlist · {{ book.format }}</small>
+              <h3>{{ book.title }}</h3>
+              <p>{{ book.author || 'Autor não informado' }}</p>
+              <span>{{ book.plannedMonth || 'Sem mês' }} · {{ book.pages }} páginas</span>
+            </div>
+            <button
+              class="gear"
+              (click)="editBook(book, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
+          </article>
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>bookmark_border</mat-icon>
+            <h2>Sua wishlist está vazia</h2>
+            <p>Arraste um livro para cá para adicioná-lo à lista.</p>
+          </div>
+        }
+      </div>
     </section>
     <section class="library-section">
-      <header><div><small>LEITURAS ATUAIS</small><h2>Livros em progresso</h2></div><strong>{{ inProgressBooks().length }}</strong></header>
-      <div [class]="'book-grid '+library.settings().view">
+      <header>
+        <div>
+          <small>LEITURAS ATUAIS</small>
+          <h2>Livros em progresso</h2>
+          <span class="drag-hint">Solte aqui para começar a leitura</span>
+        </div>
+        <strong>{{ inProgressBooks().length }}</strong>
+      </header>
+      <div
+        [class]="'book-grid ' + library.settings().view"
+        (dragover)="allowBookDrop($event)"
+        (drop)="dropBookOnStatus($event, 'reading')"
+      >
         @for (book of inProgressBooks(); track book.id) {
-          <article class="book-card" (click)="editBook(book)" [style.--book-color]="book.color">
-            <div class="cover">@if(book.coverDataUrl){<img [src]="book.coverDataUrl" [alt]="book.title">}@else{<mat-icon>menu_book</mat-icon>}<label title="Adicionar capa"><mat-icon>add_a_photo</mat-icon><input type="file" accept="image/*" (change)="coverSelected($event, book)"></label></div>
-            <div class="book-info"><small>Em progresso · {{ book.format }}</small><h3>{{ book.title }}</h3><p>{{ book.author || 'Autor não informado' }}</p><progress [value]="book.currentPage" [max]="book.pages || 1"></progress><span>{{ progress(book) }}% · {{ book.currentPage }}/{{ book.pages }} páginas</span>@if(readingDays(book); as days){<b class="reading-time"><mat-icon>schedule</mat-icon>{{ days }} dia(s) lendo</b>}</div>
-            <button class="log-book" title="Registrar sessão de leitura" (click)="startReadingLog(book,$event)"><mat-icon>edit_note</mat-icon>Registrar leitura</button>
-            <button class="gear" (click)="editBook(book,$event)"><mat-icon>settings</mat-icon></button>
+          <article
+            class="book-card"
+            draggable="true"
+            (dragstart)="dragBook($event, book)"
+            (click)="editBook(book)"
+            [style.--book-color]="book.color"
+          >
+            <div class="cover">
+              @if (book.coverDataUrl) {
+                <img
+                  [src]="book.coverDataUrl"
+                  [alt]="book.title"
+                />
+              } @else {
+                <mat-icon>menu_book</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, book)"
+              /></label>
+            </div>
+            <div class="book-info">
+              <small>Em progresso · {{ book.format }}</small>
+              <h3>{{ book.title }}</h3>
+              <p>{{ book.author || 'Autor não informado' }}</p>
+              <progress
+                [value]="book.currentPage"
+                [max]="book.pages || 1"
+              ></progress
+              ><span
+                >{{ progress(book) }}% · {{ book.currentPage }}/{{
+                  book.pages
+                }}
+                páginas</span
+              >
+              @if (readingDays(book); as days) {
+                <b class="reading-time"
+                  ><mat-icon>schedule</mat-icon>{{ days }} dia(s) lendo</b
+                >
+              }
+            </div>
+            <button
+              class="log-book"
+              title="Registrar sessão de leitura"
+              (click)="startReadingLog(book, $event)"
+            >
+              <mat-icon>edit_note</mat-icon>Registrar leitura
+            </button>
+            <button
+              class="gear"
+              (click)="editBook(book, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
           </article>
-        } @empty { <div class="empty compact"><mat-icon>menu_book</mat-icon><h2>Nenhum livro em progresso</h2><p>Inicie um livro da sua wishlist para ele aparecer aqui.</p></div> }
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>menu_book</mat-icon>
+            <h2>Nenhum livro em progresso</h2>
+            <p>Inicie um livro da sua wishlist para ele aparecer aqui.</p>
+          </div>
+        }
       </div>
     </section>
     <section class="library-section completed">
-      <header><div><small>ARQUIVO CONCLUÍDO</small><h2>Livros concluídos</h2></div><strong>{{ completedBooks().length }}</strong></header>
-      <div [class]="'book-grid '+library.settings().view">
+      <header>
+        <div>
+          <small>ARQUIVO CONCLUÍDO</small>
+          <h2>Livros concluídos</h2>
+          <span class="drag-hint">Solte aqui para marcar como concluído</span>
+        </div>
+        <strong>{{ completedBooks().length }}</strong>
+      </header>
+      <div
+        [class]="'book-grid ' + library.settings().view"
+        (dragover)="allowBookDrop($event)"
+        (drop)="dropBookOnStatus($event, 'finished')"
+      >
         @for (book of completedBooks(); track book.id) {
-          <article class="book-card" (click)="editBook(book)" [style.--book-color]="book.color">
-            <div class="cover">@if(book.coverDataUrl){<img [src]="book.coverDataUrl" [alt]="book.title">}@else{<mat-icon>menu_book</mat-icon>}<label title="Adicionar capa"><mat-icon>add_a_photo</mat-icon><input type="file" accept="image/*" (change)="coverSelected($event, book)"></label></div>
-            <div class="book-info"><small>Concluído · {{ book.format }}</small><h3>{{ book.title }}</h3><p>{{ book.author || 'Autor não informado' }}</p><progress [value]="book.pages || 1" [max]="book.pages || 1"></progress><span>{{ book.pages }} páginas</span>@if(readingDays(book); as days){<b class="reading-time done"><mat-icon>event_available</mat-icon>Concluído em {{ days }} dia(s)</b>}</div>
-            <button class="gear" (click)="editBook(book,$event)"><mat-icon>settings</mat-icon></button>
+          <article
+            class="book-card"
+            draggable="true"
+            (dragstart)="dragBook($event, book)"
+            (click)="editBook(book)"
+            [style.--book-color]="book.color"
+          >
+            <div class="cover">
+              @if (book.coverDataUrl) {
+                <img
+                  [src]="book.coverDataUrl"
+                  [alt]="book.title"
+                />
+              } @else {
+                <mat-icon>menu_book</mat-icon>
+              }
+              <label title="Adicionar capa"
+                ><mat-icon>add_a_photo</mat-icon
+                ><input
+                  type="file"
+                  accept="image/*"
+                  (change)="coverSelected($event, book)"
+              /></label>
+            </div>
+            <div class="book-info">
+              <small>Concluído · {{ book.format }}</small>
+              <h3>{{ book.title }}</h3>
+              <p>{{ book.author || 'Autor não informado' }}</p>
+              <progress
+                [value]="book.pages || 1"
+                [max]="book.pages || 1"
+              ></progress
+              ><span>{{ book.pages }} páginas</span>
+              @if (readingDays(book); as days) {
+                <b class="reading-time done"
+                  ><mat-icon>event_available</mat-icon>Concluído em {{ days }} dia(s)</b
+                >
+              }
+            </div>
+            <button
+              class="gear"
+              (click)="editBook(book, $event)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
           </article>
-        } @empty { <div class="empty compact"><mat-icon>workspace_premium</mat-icon><h2>Nenhum livro concluído ainda</h2></div> }
+        } @empty {
+          <div class="empty compact">
+            <mat-icon>workspace_premium</mat-icon>
+            <h2>Nenhum livro concluído ainda</h2>
+          </div>
+        }
       </div>
     </section>
   }
 
   @if (tab() === 'calendar') {
-    <section class="panel"><header><div><small>REGISTRO DOS ESCRIBAS</small><h2>Calendário de leitura · {{ calendarLabel() }}</h2></div></header>
-      <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-      <div class="calendar-grid">@for(day of calendarDays(); track day.key){<article [class.studied]="day.minutes" [class.outside]="!day.currentMonth" [class.today]="day.today"><b>{{ day.day }}</b>@if(day.minutes){<div class="reading-event"><strong>{{ day.pages }} páginas · {{ day.minutes }} min</strong>@for(book of day.books;track book.id){<span class="calendar-book"><i [style.background]="book.color"></i>{{book.title}} <small>{{book.minutes}} min</small></span>}</div>}@else{<span>Sem leitura</span>}</article>}</div>
+    <section class="panel">
+      <header>
+        <div>
+          <small>REGISTRO DOS ESCRIBAS</small>
+          <h2>Calendário de leitura · {{ calendarLabel() }}</h2>
+        </div>
+        <nav class="month-nav">
+          <button (click)="previousCalendarMonth()">‹</button
+          ><button (click)="resetCalendarMonth()">Hoje</button
+          ><button (click)="nextCalendarMonth()">›</button>
+        </nav>
+      </header>
+      <div class="calendar-weekdays">
+        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span
+        ><span>Sex</span><span>Sáb</span>
+      </div>
+      <div class="calendar-grid">
+        @for (day of calendarDays(); track day.key) {
+          <article
+            [class.studied]="day.minutes"
+            [class.outside]="!day.currentMonth"
+            [class.today]="day.today"
+            (click)="openCalendarDayLog(day)"
+          >
+            <b>{{ day.day }}</b>
+            @if (day.minutes) {
+              <div class="reading-event">
+                <strong>{{ day.pages }} páginas · {{ day.minutes }} min</strong>
+                @for (book of day.books; track book.id) {
+                  <span class="calendar-book"
+                    ><i [style.background]="book.color"></i>{{ book.title }}
+                    <small>{{ book.minutes }} min</small></span
+                  >
+                }
+              </div>
+            } @else {
+              <span>Sem leitura</span>
+            }
+          </article>
+        }
+      </div>
     </section>
   }
 
   @if (tab() === 'planning') {
-    <section class="panel"><header><div><small>BALANCEAMENTO ANUAL</small><h2>Wishlist por mês</h2></div><span>Média: {{ monthlyAverage().toFixed(0) }} páginas/mês</span></header>
-      <div class="months">@for(month of monthlyPlan(); track month.key){<article [class]="planLoad(month.pages)"><header><div><h3>{{ month.label }}</h3><strong>{{ month.pages }} páginas planejadas</strong></div><small>{{ month.books.length }} livro(s)</small></header><div class="planned-books">@for(book of month.books;track book.id){<button (click)="editBook(book)"><div class="planned-cover">@if(book.coverDataUrl){<img [src]="book.coverDataUrl" [alt]="book.title">}@else{<mat-icon>menu_book</mat-icon>}</div><span><b>{{book.title}}</b><small>{{book.author || 'Autor não informado'}} · {{book.pages}} páginas</small></span><mat-icon class="planned-settings">settings</mat-icon></button>}@empty{<div class="month-empty"><mat-icon>event_available</mat-icon>Nenhum livro planejado</div>}</div></article>}</div>
+    <section class="panel">
+      <header>
+        <div>
+          <small>BALANCEAMENTO ANUAL</small>
+          <h2>Wishlist por mês</h2>
+        </div>
+        <span>Média: {{ monthlyAverage().toFixed(0) }} páginas/mês</span>
+      </header>
+      <div class="months">
+        @for (month of monthlyPlan(); track month.key) {
+          <article
+            [class]="planLoad(month.pages)"
+            (dragover)="allowBookDrop($event)"
+            (drop)="dropBook($event, month.key)"
+          >
+            <header>
+              <div>
+                <h3>{{ month.label }}</h3>
+                <strong>{{ month.pages }} páginas planejadas</strong>
+              </div>
+              <small>{{ month.books.length }} livro(s)</small>
+            </header>
+            <div class="planned-books">
+              @for (book of month.books; track book.id) {
+                <button
+                  draggable="true"
+                  (dragstart)="dragBook($event, book)"
+                  (click)="editBook(book)"
+                >
+                  <div class="planned-cover">
+                    @if (book.coverDataUrl) {
+                      <img
+                        [src]="book.coverDataUrl"
+                        [alt]="book.title"
+                      />
+                    } @else {
+                      <mat-icon>menu_book</mat-icon>
+                    }
+                  </div>
+                  <span
+                    ><b>{{ book.title }}</b
+                    ><small
+                      >{{ book.author || 'Autor não informado' }} ·
+                      {{ book.pages }} páginas</small
+                    ></span
+                  >
+                  @if (book.status === 'finished') {
+                    <b class="read-seal">LIDO</b>
+                  }
+                  <mat-icon class="planned-settings">settings</mat-icon>
+                </button>
+              } @empty {
+                <div class="month-empty">
+                  <mat-icon>event_available</mat-icon>Arraste livros para cá
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
     </section>
   }
 
   @if (tab() === 'challenges') {
-    <section class="panel creator"><input [(ngModel)]="challengeTitle" placeholder="Nome do desafio"><select [(ngModel)]="challengeMetric"><option value="books">Livros</option><option value="pages">Páginas</option><option value="minutes">Minutos</option><option value="streak">Dias seguidos</option></select><input type="number" [(ngModel)]="challengeTarget"><button class="gold" (click)="library.addChallenge(challengeTitle,challengeMetric,challengeTarget)">Criar desafio</button></section>
-    <section class="challenge-grid">@for(challenge of library.challenges();track challenge.id){<article class="panel"><mat-icon>workspace_premium</mat-icon><h3>{{ challenge.title }}</h3><progress [value]="challenge.progress" [max]="challenge.target"></progress><span>{{ challenge.progress }}/{{ challenge.target }}</span><b>+{{ challenge.xpReward }} XP · +{{ challenge.goldReward }} ouro</b></article>}</section>
+    <section class="panel creator">
+      <input
+        [(ngModel)]="challengeTitle"
+        placeholder="Nome do desafio"
+      /><select [(ngModel)]="challengeMetric">
+        <option value="books">Livros</option>
+        <option value="pages">Páginas</option>
+        <option value="minutes">Minutos</option>
+        <option value="streak">Dias seguidos</option></select
+      ><input
+        type="number"
+        [(ngModel)]="challengeTarget"
+      /><button
+        class="gold"
+        (click)="library.addChallenge(challengeTitle, challengeMetric, challengeTarget)"
+      >
+        Criar desafio
+      </button>
+    </section>
+    <section class="challenge-grid">
+      @for (challenge of library.challenges(); track challenge.id) {
+        <article class="panel">
+          <button
+            class="delete-challenge"
+            title="Excluir desafio"
+            (click)="library.removeChallenge(challenge.id)"
+          >
+            <mat-icon>delete</mat-icon></button
+          ><mat-icon>workspace_premium</mat-icon>
+          <h3>{{ challenge.title }}</h3>
+          <progress
+            [value]="challenge.progress"
+            [max]="challenge.target"
+          ></progress
+          ><span>{{ challenge.progress }}/{{ challenge.target }}</span
+          ><b>+{{ challenge.xpReward }} XP · +{{ challenge.goldReward }} ouro</b>
+        </article>
+      }
+    </section>
+  }
+
+  @if (calendarPickerDate(); as pickDate) {
+    <div
+      class="modal-backdrop"
+      (click)="calendarPickerDate.set(null)"
+    >
+      <section
+        class="reading-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="calendarPickerDate.set(null)"
+        >
+          ×</button
+        ><small>REGISTRAR LEITURA</small>
+        <h2>{{ pickDate }}</h2>
+        <div class="log-form">
+          <label
+            >Livro<select
+              (change)="pickBookForCalendarDay($any($event.target).value, pickDate)"
+            >
+              <option
+                value=""
+                disabled
+                selected
+              >
+                Selecione um livro...
+              </option>
+              @for (book of library.books(); track book.id) {
+                <option [value]="book.id">{{ book.title }}</option>
+              }
+            </select></label
+          >
+        </div>
+      </section>
+    </div>
   }
 
   @if (selectedBook(); as book) {
-    <div class="modal-backdrop" (click)="selectedBook.set(null)"><section class="reading-modal" (click)="$event.stopPropagation()"><button class="close" (click)="selectedBook.set(null)">×</button><small>SESSÃO DE LEITURA</small><h2>{{ book.title }}</h2><p>{{ book.author }}</p><div class="progress-big"><progress [value]="book.currentPage" [max]="book.pages||1"></progress><strong>{{ progress(book) }}%</strong></div><div class="log-form"><label>Minutos<input type="number" [(ngModel)]="logMinutes"></label><label>Página inicial<input type="number" [(ngModel)]="logStartPage"></label><label>Página final<input type="number" [(ngModel)]="logEndPage"></label><textarea [(ngModel)]="logNotes" placeholder="Observações, citações e trechos favoritos..."></textarea><button class="gold" (click)="saveLog()">Concluir sessão e receber XP</button></div></section></div>
+    <div
+      class="modal-backdrop"
+      (click)="selectedBook.set(null)"
+    >
+      <section
+        class="reading-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="selectedBook.set(null)"
+        >
+          ×</button
+        ><small>SESSÃO DE LEITURA</small>
+        <h2>{{ book.title }}</h2>
+        <p>{{ book.author }}</p>
+        <div class="progress-big">
+          <progress
+            [value]="book.currentPage"
+            [max]="book.pages || 1"
+          ></progress
+          ><strong>{{ progress(book) }}%</strong>
+        </div>
+        <div class="log-form">
+          <label
+            >Data<input
+              type="date"
+              [(ngModel)]="logDate"
+              [max]="today" /></label
+          ><label
+            >Minutos<input
+              type="number"
+              [(ngModel)]="logMinutes" /></label
+          ><label
+            >Página inicial<input
+              type="number"
+              [(ngModel)]="logStartPage" /></label
+          ><label
+            >Página final<input
+              type="number"
+              [(ngModel)]="logEndPage" /></label
+          ><textarea
+            [(ngModel)]="logNotes"
+            placeholder="Observações, citações e trechos favoritos..."
+          ></textarea
+          ><button
+            class="gold"
+            (click)="saveLog()"
+          >
+            Concluir sessão e receber XP
+          </button>
+        </div>
+      </section>
+    </div>
   }
 
   @if (editingBook(); as book) {
-    <div class="modal-backdrop" (click)="editingBook.set(null)"><section class="reading-modal editor" (click)="$event.stopPropagation()"><button class="close" (click)="editingBook.set(null)">×</button><small>FICHA DO TOMO</small><h2>Editar livro</h2><div class="edit-grid"><label>Título<input [(ngModel)]="book.title"></label><label>Autor<input [(ngModel)]="book.author"></label><label>Idioma<input [(ngModel)]="book.language"></label><label>Páginas<input type="number" [(ngModel)]="book.pages"></label><label>Página atual<input type="number" [(ngModel)]="book.currentPage"></label><label>Status<select [ngModel]="book.status" (ngModelChange)="syncBookDates(book,$event)"><option value="wishlist">Wishlist</option><option value="planned">Planejado</option><option value="reading">Lendo</option><option value="finished">Concluído</option><option value="abandoned">Abandonado</option></select></label><label>Data de início<input type="date" [(ngModel)]="book.startedAt"></label><label>Data de conclusão<input type="date" [(ngModel)]="book.finishedAt" [disabled]="book.status !== 'finished'"></label><div class="duration-summary"><mat-icon>date_range</mat-icon><span>Tempo de leitura</span><strong>{{ readingDays(book) ? readingDays(book) + ' dia(s)' : 'Ainda não iniciado' }}</strong></div><fieldset class="organization-fields wide"><legend>Organização da biblioteca</legend><label>Coleção<select [ngModel]="book.collectionId || ''" (ngModelChange)="bookCollectionChanged(book,$event)"><option value="">Sem coleção</option>@for(collection of library.groups().filter(g => g.kind === 'collection');track collection.id){<option [value]="collection.id">{{collection.title}}</option>}</select></label><label>Prateleira<select [(ngModel)]="book.shelfId" [disabled]="!book.collectionId"><option [ngValue]="null">Sem prateleira</option>@for(shelf of shelvesForCollection(book.collectionId);track shelf.id){<option [value]="shelf.id">{{shelf.title}}</option>}</select></label><p>O livro continua na estante principal e também aparece dentro da coleção escolhida.</p></fieldset><label>Mês planejado<input type="month" [(ngModel)]="book.plannedMonth"></label><label>Nota<input type="number" min="0" max="5" step=".5" [(ngModel)]="book.rating"></label><fieldset class="genre-picker wide"><legend>Gêneros · selecione um ou mais</legend>@for(genre of genreOptions;track genre){<button type="button" [class.selected]="selectedGenres(book).includes(genre)" (click)="toggleGenre(book,genre)"><mat-icon>{{selectedGenres(book).includes(genre)?'check_box':'check_box_outline_blank'}}</mat-icon>{{genre}}</button>}</fieldset><p class="xp-explanation wide"><mat-icon>auto_awesome</mat-icon>O XP é automático: cada página registrada concede 1 XP.</p><label class="wide">Observações<textarea [(ngModel)]="book.notes"></textarea></label></div><footer><button class="danger" (click)="library.removeBook(book.id);editingBook.set(null)">Excluir</button><button class="gold" (click)="saveBook()">Salvar ficha</button></footer></section></div>
+    <div
+      class="modal-backdrop"
+      (click)="editingBook.set(null)"
+    >
+      <section
+        class="reading-modal editor"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="close"
+          (click)="editingBook.set(null)"
+        >
+          ×</button
+        ><small>FICHA DO TOMO</small>
+        <h2>Editar livro</h2>
+        <div class="edit-grid">
+          <label>Título<input [(ngModel)]="book.title" /></label
+          ><label>Autor<input [(ngModel)]="book.author" /></label
+          ><label>Idioma<input [(ngModel)]="book.language" /></label
+          ><label
+            >Páginas<input
+              type="number"
+              [(ngModel)]="book.pages" /></label
+          ><label
+            >Página atual<input
+              type="number"
+              [(ngModel)]="book.currentPage" /></label
+          ><label
+            >Status<select
+              [ngModel]="book.status"
+              (ngModelChange)="syncBookDates(book, $event)"
+            >
+              <option value="wishlist">Wishlist</option>
+              <option value="planned">Planejado</option>
+              <option value="reading">Lendo</option>
+              <option value="finished">Concluído</option>
+              <option value="abandoned">Abandonado</option>
+            </select></label
+          ><label
+            >Data de início<input
+              type="date"
+              [(ngModel)]="book.startedAt" /></label
+          ><label
+            >Data de conclusão<input
+              type="date"
+              [(ngModel)]="book.finishedAt"
+              [disabled]="book.status !== 'finished'"
+          /></label>
+          <div class="duration-summary">
+            <mat-icon>date_range</mat-icon><span>Tempo de leitura</span
+            ><strong>{{
+              readingDays(book) ? readingDays(book) + ' dia(s)' : 'Ainda não iniciado'
+            }}</strong>
+          </div>
+          <fieldset class="organization-fields wide">
+            <legend>Organização da biblioteca</legend>
+            <label
+              >Coleção<select
+                [ngModel]="book.collectionId || ''"
+                (ngModelChange)="bookCollectionChanged(book, $event)"
+              >
+                <option value="">Sem coleção</option>
+                @for (
+                  collection of library.groups().filter((g) => g.kind === 'collection');
+                  track collection.id
+                ) {
+                  <option [value]="collection.id">{{ collection.title }}</option>
+                }
+              </select></label
+            ><label
+              >Prateleira<select
+                [(ngModel)]="book.shelfId"
+                [disabled]="!book.collectionId"
+              >
+                <option [ngValue]="null">Sem prateleira</option>
+                @for (shelf of shelvesForCollection(book.collectionId); track shelf.id) {
+                  <option [value]="shelf.id">{{ shelf.title }}</option>
+                }
+              </select></label
+            >
+            <p>
+              O livro continua na estante principal e também aparece dentro da coleção
+              escolhida.
+            </p>
+          </fieldset>
+          <label
+            >Mês planejado<input
+              type="month"
+              [(ngModel)]="book.plannedMonth" /></label
+          ><label
+            >Nota<input
+              type="number"
+              min="0"
+              max="5"
+              step=".5"
+              [(ngModel)]="book.rating"
+          /></label>
+          <fieldset class="genre-picker wide">
+            <legend>Gêneros · selecione um ou mais</legend>
+            @for (genre of genreOptions; track genre) {
+              <button
+                type="button"
+                [class.selected]="selectedGenres(book).includes(genre)"
+                (click)="toggleGenre(book, genre)"
+              >
+                <mat-icon>{{
+                  selectedGenres(book).includes(genre)
+                    ? 'check_box'
+                    : 'check_box_outline_blank'
+                }}</mat-icon
+                >{{ genre }}
+              </button>
+            }
+          </fieldset>
+          <p class="xp-explanation wide">
+            <mat-icon>auto_awesome</mat-icon>O XP é automático: cada página registrada
+            concede 1 XP.
+          </p>
+          <label class="wide"
+            >Observações<textarea [(ngModel)]="book.notes"></textarea>
+          </label>
+        </div>
+        <footer>
+          <button
+            class="danger"
+            (click)="library.removeBook(book.id); editingBook.set(null)"
+          >
+            Excluir</button
+          ><button
+            class="gold"
+            (click)="saveBook()"
+          >
+            Salvar ficha
+          </button>
+        </footer>
+      </section>
+    </div>
   }
 </main>

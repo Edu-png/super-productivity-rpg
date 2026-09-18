@@ -109,19 +109,37 @@ export const APP_ROUTES: Routes = [
   {
     path: 'academy',
     loadComponent: () =>
-      import(
-        './features/academy-arcana/ui/academy-arcana-page.component'
-      ).then((m) => m.AcademyArcanaPageComponent),
+      import('./features/academy-arcana/ui/academy-arcana-page.component').then(
+        (m) => m.AcademyArcanaPageComponent,
+      ),
     data: { page: 'academy' },
     canActivate: [FocusOverlayOpenGuard],
   },
   {
     path: 'library',
     loadComponent: () =>
-      import(
-        './features/arcane-library/ui/arcane-library-page.component'
-      ).then((m) => m.ArcaneLibraryPageComponent),
+      import('./features/arcane-library/ui/arcane-library-page.component').then(
+        (m) => m.ArcaneLibraryPageComponent,
+      ),
     data: { page: 'library' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
+    path: 'games',
+    loadComponent: () =>
+      import('./features/game-library/ui/game-library-page.component').then(
+        (m) => m.GameLibraryPageComponent,
+      ),
+    data: { page: 'games' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
+    path: 'nutrition',
+    loadComponent: () =>
+      import('./features/nutrition/ui/nutrition-page.component').then(
+        (m) => m.NutritionPageComponent,
+      ),
+    data: { page: 'nutrition' },
     canActivate: [FocusOverlayOpenGuard],
   },
   {

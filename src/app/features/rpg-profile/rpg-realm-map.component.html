@@ -4,8 +4,7 @@
       <span>REINOS DA VIDA</span>
       <h2>Mapa da jornada</h2>
       <p>
-        Clique no mapa ou use WASD para explorar. Cada novo reino exige mais
-        10.000 XP.
+        Clique no mapa ou use WASD para explorar. Cada novo reino exige mais 10.000 XP.
       </p>
     </div>
     <div class="current-realm">
@@ -17,6 +16,7 @@
 
   <div
     class="realm-map"
+    [style.background-image]="realmMapBackground"
     tabindex="0"
     (keydown)="move($event)"
     (click)="moveToClick($event)"
@@ -54,7 +54,16 @@
           </span>
           <i><span [style.width.%]="unlockProgress(realm.requiredXp)"></span></i>
         } @else if (realm.id !== 'village') {
-          <small>+{{ realm.bonuses.xp * 100 }}% XP relacionado</small>
+          <small>
+            +{{ realm.bonuses.xp * 100 }}% XP
+            @if (realm.bonuses.gold > 0) {
+              , +{{ realm.bonuses.gold * 100 }}% ouro
+            }
+            @if (realm.bonuses.rareDrop > 0) {
+              , +{{ realm.bonuses.rareDrop * 100 }}% drop raro
+            }
+            (tarefas do reino)
+          </small>
         }
       </button>
     }

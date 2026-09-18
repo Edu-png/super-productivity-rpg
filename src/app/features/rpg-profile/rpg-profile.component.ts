@@ -2,8 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
+  signal,
 } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { selectAllProjectsExceptInbox } from '../project/store/project.selectors';
@@ -29,6 +31,8 @@ import { InventoryPanelComponent } from './inventory-panel.component';
 import { TaskHabitService } from '../habit-tracker/task-habit.service';
 import { RpgRealmMapComponent } from './rpg-realm-map.component';
 import { RPG_REALMS } from './rpg-realms.data';
+import { RpgMusicService } from './rpg-music.service';
+import { RpgCharacterBackupService } from './rpg-character-backup.service';
 
 @Component({
   selector: 'rpg-profile',
@@ -49,7 +53,12 @@ import { RPG_REALMS } from './rpg-realms.data';
 })
 export class RpgProfileComponent implements OnInit {
   readonly profile = inject(RpgProfileService);
+  readonly music = inject(RpgMusicService);
+  private readonly _destroyRef = inject(DestroyRef);
   readonly habitTracker = inject(TaskHabitService);
+  private readonly _characterBackup = inject(RpgCharacterBackupService);
+  characterBackupMessage = '';
+  characterBackupBusy = false;
   private readonly _store = inject(Store);
   readonly projects = this._store.selectSignal(selectAllProjectsExceptInbox);
   readonly realms = RPG_REALMS;
@@ -59,6 +68,7 @@ export class RpgProfileComponent implements OnInit {
   rewardTitle = '';
   rewardCost = 10;
   shopMessage = '';
+  classChangeMessage = '';
   newCharacterName = '';
   newCharacterSpecies: RpgSpeciesId = 'human';
   newCharacterClass: RpgClassId = 'adventurer';
@@ -94,6 +104,16 @@ export class RpgProfileComponent implements OnInit {
   penaltyTitle = '';
   penaltyXp = 10;
   penaltyCoins = 1;
+  // The dungeon only lists penalties the player defined themselves - the ones
+  // markTaskAsFailed auto-creates for a task marked "not done" already fired
+  // (timesApplied: 1, no further action needed), so they'd otherwise show up
+  // asking to be "Aplicar"'d again for no reason. The title check catches
+  // entries created before sourceTaskId existed on the model.
+  manualPenalties = computed(() =>
+    this.profile
+      .state()
+      .penalties.filter((p) => !p.sourceTaskId && !p.title.startsWith('Não concluída: ')),
+  );
   petName = this.profile.state().pet.name;
   petType: RpgPetType = this.profile.state().pet.type;
   readonly petTypes: {
@@ -109,9 +129,24 @@ export class RpgProfileComponent implements OnInit {
       icon: 'local_fire_department',
       description: 'Poder e disciplina',
     },
-    { id: 'phoenix', name: 'Fênix Solar', icon: 'local_fire_department', description: 'Renovação e constância' },
-    { id: 'wolf', name: 'Lobo Lunar', icon: 'dark_mode', description: 'Lealdade e resistência' },
-    { id: 'griffin', name: 'Grifo Celestial', icon: 'flutter_dash', description: 'Sabedoria e ambição' },
+    {
+      id: 'phoenix',
+      name: 'Fênix Solar',
+      icon: 'local_fire_department',
+      description: 'Renovação e constância',
+    },
+    {
+      id: 'wolf',
+      name: 'Lobo Lunar',
+      icon: 'dark_mode',
+      description: 'Lealdade e resistência',
+    },
+    {
+      id: 'griffin',
+      name: 'Grifo Celestial',
+      icon: 'flutter_dash',
+      description: 'Sabedoria e ambição',
+    },
   ];
   campaignTitle = '';
   campaignBoss = '';
@@ -122,10 +157,19 @@ export class RpgProfileComponent implements OnInit {
   annualGoalTitle = '';
   annualGoalTarget = 100;
   annualGoalIconIndex = 1;
-  annualGoalHabitIds = new Set<string>();
+  // Signals (not plain fields) so this app's zoneless change detection
+  // reliably re-renders the checkbox picker after every toggle - a plain
+  // mutable Set field was the confirmed cause of clicks not visibly marking
+  // a habit as selected.
+  annualGoalHabitIds = signal(new Set<string>());
+  editingAnnualGoalId: string | null = null;
+  annualGoalEditTarget = 100;
+  annualGoalEditCredit = 0;
+  annualGoalEditHabitIds = signal(new Set<string>());
   editingMonthlyMedalId: string | null = null;
   monthlyMedalTarget = 80;
-  monthlyMedalHabitIds = new Set<string>();
+  monthlyMedalEditCredit = 0;
+  monthlyMedalHabitIds = signal(new Set<string>());
 
   readonly attributes: { id: RpgAttributeId; label: string; icon: string }[] = [
     { id: 'health', label: 'Saúde', icon: 'favorite' },
@@ -243,30 +287,150 @@ export class RpgProfileComponent implements OnInit {
       name: 'Desbravador',
       bonus: '+10% de XP das missões diárias.',
     },
-    { id: 'vanguard', classId: 'adventurer', name: 'Vanguarda', bonus: '+5% de XP em tarefas difíceis.' },
-    { id: 'trailblazer', classId: 'adventurer', name: 'Pioneiro', bonus: '+10% nas recompensas de campanha.' },
-    { id: 'battlemage', classId: 'mage', name: 'Mago de Batalha', bonus: '+12% de XP em sessões de foco.' },
-    { id: 'archmage', classId: 'mage', name: 'Arquimago', bonus: '+20% de XP em projetos concluídos.' },
-    { id: 'sentinel', classId: 'guardian', name: 'Sentinela', bonus: '+15% de resistência a penalidades.' },
-    { id: 'templar', classId: 'guardian', name: 'Templário', bonus: '+20% de Saúde e +5% de XP.' },
-    { id: 'artificer', classId: 'merchant', name: 'Artífice', bonus: '+10% de ouro e chance de item adicional.' },
-    { id: 'tycoon', classId: 'merchant', name: 'Magnata', bonus: '+25% de ouro em chefes semanais.' },
-    { id: 'beastmaster', classId: 'ranger', name: 'Mestre das Feras', bonus: '+15% de XP com mascote equipado.' },
-    { id: 'warden', classId: 'ranger', name: 'Guardião da Mata', bonus: '+10% de XP em streaks.' },
-    { id: 'berserker', classId: 'warrior', name: 'Berserker', bonus: '+15% de XP em tarefas difíceis.' },
-    { id: 'warlord', classId: 'warrior', name: 'Senhor da Guerra', bonus: '+20% de recompensa de chefes.' },
-    { id: 'oracle', classId: 'cleric', name: 'Oráculo', bonus: '+10% de XP em missões diárias.' },
-    { id: 'saint', classId: 'cleric', name: 'Santo', bonus: 'Reduz penalidades em mais 20%.' },
-    { id: 'assassin', classId: 'rogue', name: 'Assassino', bonus: '+10% de chance de drop raro.' },
-    { id: 'shadowmaster', classId: 'rogue', name: 'Mestre das Sombras', bonus: '+20% de XP na primeira tarefa do dia.' },
-    { id: 'minstrel', classId: 'bard', name: 'Menestrel', bonus: '+10% de ouro em streaks.' },
-    { id: 'virtuoso', classId: 'bard', name: 'Virtuoso', bonus: '+15% de XP ao concluir todas as missões diárias.' },
-    { id: 'reaper', classId: 'necromancer', name: 'Ceifador', bonus: '+15% de XP de chefes semanais.' },
-    { id: 'lich', classId: 'necromancer', name: 'Lich', bonus: '+25% de XP e drop em chefes.' },
-    { id: 'sniper', classId: 'archer', name: 'Atirador de Elite', bonus: '+15% de XP em tarefas no prazo.' },
-    { id: 'falconer', classId: 'archer', name: 'Falcoeiro', bonus: '+10% de XP com companheiro equipado.' },
-    { id: 'juggernaut', classId: 'barbarian', name: 'Colosso', bonus: '+20% de Saúde e resistência.' },
-    { id: 'chieftain', classId: 'barbarian', name: 'Chefe Tribal', bonus: '+20% de recompensa semanal.' },
+    {
+      id: 'vanguard',
+      classId: 'adventurer',
+      name: 'Vanguarda',
+      bonus: '+5% de XP em tarefas difíceis.',
+    },
+    {
+      id: 'trailblazer',
+      classId: 'adventurer',
+      name: 'Pioneiro',
+      bonus: '+10% nas recompensas de campanha.',
+    },
+    {
+      id: 'battlemage',
+      classId: 'mage',
+      name: 'Mago de Batalha',
+      bonus: '+12% de XP em sessões de foco.',
+    },
+    {
+      id: 'archmage',
+      classId: 'mage',
+      name: 'Arquimago',
+      bonus: '+20% de XP em projetos concluídos.',
+    },
+    {
+      id: 'sentinel',
+      classId: 'guardian',
+      name: 'Sentinela',
+      bonus: '+15% de resistência a penalidades.',
+    },
+    {
+      id: 'templar',
+      classId: 'guardian',
+      name: 'Templário',
+      bonus: '+20% de Saúde e +5% de XP.',
+    },
+    {
+      id: 'artificer',
+      classId: 'merchant',
+      name: 'Artífice',
+      bonus: '+10% de ouro e chance de item adicional.',
+    },
+    {
+      id: 'tycoon',
+      classId: 'merchant',
+      name: 'Magnata',
+      bonus: '+25% de ouro em chefes semanais.',
+    },
+    {
+      id: 'beastmaster',
+      classId: 'ranger',
+      name: 'Mestre das Feras',
+      bonus: '+15% de XP com mascote equipado.',
+    },
+    {
+      id: 'warden',
+      classId: 'ranger',
+      name: 'Guardião da Mata',
+      bonus: '+10% de XP em streaks.',
+    },
+    {
+      id: 'berserker',
+      classId: 'warrior',
+      name: 'Berserker',
+      bonus: '+15% de XP em tarefas difíceis.',
+    },
+    {
+      id: 'warlord',
+      classId: 'warrior',
+      name: 'Senhor da Guerra',
+      bonus: '+20% de recompensa de chefes.',
+    },
+    {
+      id: 'oracle',
+      classId: 'cleric',
+      name: 'Oráculo',
+      bonus: '+10% de XP em missões diárias.',
+    },
+    {
+      id: 'saint',
+      classId: 'cleric',
+      name: 'Santo',
+      bonus: 'Reduz penalidades em mais 20%.',
+    },
+    {
+      id: 'assassin',
+      classId: 'rogue',
+      name: 'Assassino',
+      bonus: '+10% de chance de drop raro.',
+    },
+    {
+      id: 'shadowmaster',
+      classId: 'rogue',
+      name: 'Mestre das Sombras',
+      bonus: '+20% de XP na primeira tarefa do dia.',
+    },
+    {
+      id: 'minstrel',
+      classId: 'bard',
+      name: 'Menestrel',
+      bonus: '+10% de ouro em streaks.',
+    },
+    {
+      id: 'virtuoso',
+      classId: 'bard',
+      name: 'Virtuoso',
+      bonus: '+15% de XP ao concluir todas as missões diárias.',
+    },
+    {
+      id: 'reaper',
+      classId: 'necromancer',
+      name: 'Ceifador',
+      bonus: '+15% de XP de chefes semanais.',
+    },
+    {
+      id: 'lich',
+      classId: 'necromancer',
+      name: 'Lich',
+      bonus: '+25% de XP e drop em chefes.',
+    },
+    {
+      id: 'sniper',
+      classId: 'archer',
+      name: 'Atirador de Elite',
+      bonus: '+15% de XP em tarefas no prazo.',
+    },
+    {
+      id: 'falconer',
+      classId: 'archer',
+      name: 'Falcoeiro',
+      bonus: '+10% de XP com companheiro equipado.',
+    },
+    {
+      id: 'juggernaut',
+      classId: 'barbarian',
+      name: 'Colosso',
+      bonus: '+20% de Saúde e resistência.',
+    },
+    {
+      id: 'chieftain',
+      classId: 'barbarian',
+      name: 'Chefe Tribal',
+      bonus: '+20% de recompensa semanal.',
+    },
   ];
   readonly availableSubclasses = computed(() =>
     this.subclasses.filter(
@@ -484,6 +648,12 @@ export class RpgProfileComponent implements OnInit {
 
   ngOnInit(): void {
     void this.profile.refresh();
+    this.music.start();
+    this._destroyRef.onDestroy(() => this.music.stop());
+  }
+
+  onMusicVolumeChange(value: string): void {
+    this.music.setVolume(Number(value));
   }
 
   saveIdentity(): void {
@@ -527,6 +697,51 @@ export class RpgProfileComponent implements OnInit {
     this.penaltyTitle = '';
   }
 
+  private static readonly PENALTY_ICON_RULES: Array<{
+    match: RegExp;
+    icon: string;
+    color: string;
+  }> = [
+    { match: /dieta|comida|fast.?food/i, icon: 'no_food', color: '#7a2d2d' },
+    { match: /dormi|sono|dormir/i, icon: 'bedtime', color: '#243a5e' },
+    {
+      match: /dinheiro|gastou|financ/i,
+      icon: 'account_balance_wallet',
+      color: '#6b5420',
+    },
+    { match: /academia|exerc[ií]cio|treino/i, icon: 'fitness_center', color: '#4a4030' },
+    { match: /ler|leitura/i, icon: 'menu_book', color: '#4a3620' },
+    { match: /estudar|estudo/i, icon: 'school', color: '#38304f' },
+    { match: /h[aá]bito/i, icon: 'block', color: '#5c1c24' },
+  ];
+  private static readonly REWARD_ICON_RULES: Array<{
+    match: RegExp;
+    icon: string;
+    color: string;
+  }> = [
+    { match: /filme|s[eé]rie|epis[oó]dio/i, icon: 'movie', color: '#5c1c24' },
+    { match: /presente|vale/i, icon: 'card_giftcard', color: '#1d5a4a' },
+    { match: /jogo|ps5|pc\b|game/i, icon: 'sports_esports', color: '#243a5e' },
+  ];
+
+  penaltyIcon(title: string): { icon: string; color: string } {
+    return (
+      RpgProfileComponent.PENALTY_ICON_RULES.find((rule) => rule.match.test(title)) ?? {
+        icon: 'block',
+        color: '#4a4460',
+      }
+    );
+  }
+
+  rewardIcon(title: string): { icon: string; color: string } {
+    return (
+      RpgProfileComponent.REWARD_ICON_RULES.find((rule) => rule.match.test(title)) ?? {
+        icon: 'redeem',
+        color: '#4a4460',
+      }
+    );
+  }
+
   onRewardImageSelected(rewardId: string, event: Event): void {
     this._readCardImage(event, (imageUrl) =>
       this.profile.setRewardImage(rewardId, imageUrl),
@@ -543,8 +758,8 @@ export class RpgProfileComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file?.type.startsWith('image/')) return;
-    if (file.size > 1_500_000) {
-      this.shopMessage = 'A imagem precisa ter no máximo 1,5 MB.';
+    if (file.size > 2_500_000) {
+      this.shopMessage = 'A imagem precisa ter no máximo 2,5 MB.';
       input.value = '';
       return;
     }
@@ -597,27 +812,60 @@ export class RpgProfileComponent implements OnInit {
   }
 
   toggleAnnualGoalHabit(habitId: string): void {
-    const next = new Set(this.annualGoalHabitIds);
+    const next = new Set(this.annualGoalHabitIds());
     if (next.has(habitId)) {
       next.delete(habitId);
     } else {
       next.add(habitId);
     }
-    this.annualGoalHabitIds = next;
+    this.annualGoalHabitIds.set(next);
   }
 
   createAnnualGoal(): void {
     this.profile.addAnnualGoal(
       this.annualGoalTitle,
-      [...this.annualGoalHabitIds],
+      [...this.annualGoalHabitIds()],
       this.annualGoalTarget,
       this.annualGoalIconIndex,
     );
     this.annualGoalTitle = '';
     this.annualGoalTarget = 100;
-    this.annualGoalHabitIds = new Set<string>();
+    this.annualGoalHabitIds.set(new Set<string>());
     this.annualGoalIconIndex =
       this.annualGoalIconIndex >= 12 ? 1 : this.annualGoalIconIndex + 1;
+  }
+
+  editAnnualGoal(goal: {
+    id: string;
+    habitIds: string[];
+    targetDays: number;
+    startingCredit?: number;
+  }): void {
+    if (this.editingAnnualGoalId === goal.id) {
+      this.editingAnnualGoalId = null;
+      return;
+    }
+    this.editingAnnualGoalId = goal.id;
+    this.annualGoalEditTarget = goal.targetDays;
+    this.annualGoalEditCredit = goal.startingCredit ?? 50;
+    this.annualGoalEditHabitIds.set(new Set(goal.habitIds));
+  }
+
+  toggleAnnualGoalEditHabit(habitId: string): void {
+    const next = new Set(this.annualGoalEditHabitIds());
+    next.has(habitId) ? next.delete(habitId) : next.add(habitId);
+    this.annualGoalEditHabitIds.set(next);
+  }
+
+  saveAnnualGoalEdit(): void {
+    if (!this.editingAnnualGoalId || !this.annualGoalEditHabitIds().size) return;
+    this.profile.updateAnnualGoal(
+      this.editingAnnualGoalId,
+      [...this.annualGoalEditHabitIds()],
+      this.annualGoalEditTarget,
+      this.annualGoalEditCredit,
+    );
+    this.editingAnnualGoalId = null;
   }
 
   unlockedMonthlyMedals(): number {
@@ -628,33 +876,31 @@ export class RpgProfileComponent implements OnInit {
     id: string;
     habitIds: string[];
     targetDays: number;
+    manualCredit?: number;
   }): void {
     if (this.editingMonthlyMedalId === medal.id) {
       this.editingMonthlyMedalId = null;
       return;
     }
-    const available = this.habitTracker.habitsForCharacters([
-      this.profile.state().id,
-    ]);
     this.editingMonthlyMedalId = medal.id;
     this.monthlyMedalTarget = medal.targetDays;
-    this.monthlyMedalHabitIds = new Set(
-      medal.habitIds.length ? medal.habitIds : available.map((habit) => habit.id),
-    );
+    this.monthlyMedalEditCredit = medal.manualCredit ?? 0;
+    this.monthlyMedalHabitIds.set(new Set(medal.habitIds));
   }
 
   toggleMonthlyMedalHabit(habitId: string): void {
-    const next = new Set(this.monthlyMedalHabitIds);
+    const next = new Set(this.monthlyMedalHabitIds());
     next.has(habitId) ? next.delete(habitId) : next.add(habitId);
-    this.monthlyMedalHabitIds = next;
+    this.monthlyMedalHabitIds.set(next);
   }
 
   saveMonthlyMedalConfig(): void {
-    if (!this.editingMonthlyMedalId || !this.monthlyMedalHabitIds.size) return;
+    if (!this.editingMonthlyMedalId || !this.monthlyMedalHabitIds().size) return;
     this.profile.updateMonthlyMedalConfig(
       this.editingMonthlyMedalId,
-      [...this.monthlyMedalHabitIds],
+      [...this.monthlyMedalHabitIds()],
       this.monthlyMedalTarget,
+      this.monthlyMedalEditCredit,
     );
     this.editingMonthlyMedalId = null;
   }
@@ -694,6 +940,53 @@ export class RpgProfileComponent implements OnInit {
       this.saveIdentity();
     };
     reader.readAsDataURL(file);
+  }
+
+  async downloadCharacterBackup(): Promise<void> {
+    this.characterBackupBusy = true;
+    this.characterBackupMessage = '';
+    try {
+      await this._characterBackup.downloadCharacter(this.profile.state().id);
+    } catch (err) {
+      this.characterBackupMessage =
+        err instanceof Error ? err.message : 'Não foi possível gerar o backup.';
+    } finally {
+      this.characterBackupBusy = false;
+    }
+  }
+
+  async onCharacterBackupFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.characterBackupBusy = true;
+    this.characterBackupMessage = '';
+    try {
+      await this._characterBackup.importCharacter(file);
+      this.characterBackupMessage = 'Personagem restaurado com sucesso.';
+    } catch (err) {
+      this.characterBackupMessage =
+        err instanceof Error ? err.message : 'Não foi possível restaurar esse arquivo.';
+    } finally {
+      this.characterBackupBusy = false;
+      input.value = '';
+    }
+  }
+
+  extraBackupDirMessage = '';
+
+  extraBackupDir(): string | null {
+    return this._characterBackup.extraBackupDir();
+  }
+
+  async chooseExtraBackupDir(): Promise<void> {
+    const result = await this._characterBackup.chooseExtraBackupDir();
+    this.extraBackupDirMessage = result.message;
+  }
+
+  clearExtraBackupDir(): void {
+    this._characterBackup.clearExtraBackupDir();
+    this.extraBackupDirMessage = 'Pasta extra removida.';
   }
 
   isVideoAvatar(value: string | null): boolean {
@@ -763,6 +1056,11 @@ export class RpgProfileComponent implements OnInit {
     }
   }
 
+  changeClassTo(value: string): void {
+    if (!value) return;
+    this.classChangeMessage = this.profile.changeClass(value as RpgClassId).message;
+  }
+
   classIcon(classId: RpgClassId): string {
     return this.classes.find((item) => item.id === classId)?.icon ?? 'explore';
   }
@@ -784,10 +1082,7 @@ export class RpgProfileComponent implements OnInit {
     label: string;
     days: ReturnType<RpgProfileService['disciplineDays']>;
   }[] {
-    const groups = new Map<
-      string,
-      ReturnType<RpgProfileService['disciplineDays']>
-    >();
+    const groups = new Map<string, ReturnType<RpgProfileService['disciplineDays']>>();
     for (const day of this.profile.disciplineDays()) {
       const key = day.date.slice(0, 7);
       const current = groups.get(key) ?? [];

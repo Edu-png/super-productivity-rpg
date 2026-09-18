@@ -114,6 +114,19 @@ export class UnknownSyncStateError extends Error {
   override name = 'UnknownSyncStateError';
 }
 
+/**
+ * Thrown by OperationWriteFlushService when the pending-write queue never
+ * drains (or a new capture keeps landing in the flush/lock-acquisition gap)
+ * within its bounded wait. This is expected — not a data-integrity problem —
+ * when the user is actively editing many things in quick succession, since
+ * dispatches keep refilling the queue faster than it can settle. Callers like
+ * compaction should treat this as "try again once things quiet down" rather
+ * than a real failure.
+ */
+export class WriteFlushTimeoutError extends Error {
+  override name = 'WriteFlushTimeoutError';
+}
+
 export class ForceUploadFailedError extends Error {
   override name = 'ForceUploadFailedError';
 }

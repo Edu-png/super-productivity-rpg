@@ -128,8 +128,19 @@ export class FocusModeEffects {
           ) {
             return of(actions.startFocusSession({ duration }));
           }
-          // If session is paused (purpose is 'work' but not running), resume it
+          // If session is paused (purpose is 'work' but not running), resume it -
+          // unless it's a Flowtime lap paused for a DIFFERENT task than the one
+          // just pressed play on (e.g. from the plain task-list play button,
+          // not the focus screen). Resuming would carry that stale elapsed
+          // count into the new task instead of starting its own lap at 0.
           if (timer.purpose === 'work' && !timer.isRunning) {
+            if (
+              mode === FocusModeMode.Flowtime &&
+              previousTaskId &&
+              previousTaskId !== currentTaskId
+            ) {
+              return of(actions.startFocusSession({ duration }));
+            }
             return of(actions.unPauseFocusSession());
           }
           // If break is active, handle based on state and cause
@@ -287,6 +298,8 @@ export class FocusModeEffects {
   // Only triggers when timer STOPS (isRunning becomes false) with elapsed >= duration
   // Guard: skip auto-completion when overtime is enabled (user pausing during overtime
   // should not trigger session completion)
+  // Countdown mode is excluded here - see autoRestartCountdownOnCompletion$ below,
+  // which loops a fresh lap instead of ending the session.
   detectSessionCompletion$ = createEffect(() =>
     this.store.select(selectors.selectTimer).pipe(
       skipWhileApplyingRemoteOps(),
@@ -304,10 +317,44 @@ export class FocusModeEffects {
           !timer.isRunning &&
           timer.elapsed >= timer.duration &&
           mode !== FocusModeMode.Flowtime &&
+          mode !== FocusModeMode.Countdown &&
           !_isOvertimeEnabled,
       ),
 
       map(() => actions.completeFocusSession({ isManual: false })),
+    ),
+  );
+
+  // Countdown mode never really "ends" on its own: if the estimate ran out
+  // and the user hasn't manually finished the task, that means the estimate
+  // was wrong, not that the work session is over. Instead of completing the
+  // session (which would stop tracking, log a completed session, and show
+  // the SessionDone screen), silently start a fresh lap of the same duration
+  // on the same task - it keeps looping until the user manually finishes,
+  // switches tasks, or exits to planning. Because completeFocusSession is
+  // never dispatched for these auto-laps, nothing gets logged as a
+  // completed focus session and the task's time estimate / schedule are
+  // never touched - only the live focus timer keeps going.
+  autoRestartCountdownOnCompletion$ = createEffect(() =>
+    this.store.select(selectors.selectTimer).pipe(
+      skipWhileApplyingRemoteOps(),
+      withLatestFrom(
+        this.store.select(selectors.selectMode),
+        this.store.select(selectors.selectIsOvertimeEnabled),
+      ),
+      distinctUntilChanged(
+        ([prevTimer], [currTimer]) => prevTimer.isRunning === currTimer.isRunning,
+      ),
+      filter(
+        ([timer, mode, _isOvertimeEnabled]) =>
+          timer.purpose === 'work' &&
+          !timer.isRunning &&
+          timer.elapsed >= timer.duration &&
+          mode === FocusModeMode.Countdown &&
+          !_isOvertimeEnabled,
+      ),
+      tap(() => this._notifyUser()),
+      map(([timer]) => actions.startFocusSession({ duration: timer.duration })),
     ),
   );
 
