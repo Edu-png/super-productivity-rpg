@@ -310,6 +310,15 @@ const handleConvertToSubTask = (
           tagIds: [],
           dueDay: undefined,
           modified: Date.now(),
+          // Becoming the parent's first subtask: reCalcTimesForParentIfParent
+          // below immediately overwrites the parent's timeEstimate with just
+          // this task's own, so floor it at whatever the parent's total
+          // already was - otherwise a task moved in with no estimate (or a
+          // smaller one than the parent used to represent) silently shrinks
+          // the block. A larger incoming estimate is left as-is.
+          ...(!(targetParent.subTaskIds?.length ?? 0) && targetParent.timeEstimate
+            ? { timeEstimate: Math.max(task.timeEstimate, targetParent.timeEstimate) }
+            : {}),
         },
       },
     ],

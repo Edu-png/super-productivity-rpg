@@ -57,14 +57,15 @@
   min-height: 520px;
   overflow: hidden;
   outline: 0;
-  background: #050b18 url('/assets/rpg/realms/realms-overworld-v1.png') center / cover
-    no-repeat;
+  background-color: #050b18;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   cursor: crosshair;
 
   &:focus {
     box-shadow: inset 0 0 0 2px #d79f35;
   }
-
 }
 
 .realm-portal {
@@ -131,7 +132,9 @@
   // The map coordinate is the hero's feet, not the center of the large
   // renderer canvas. This keeps click and keyboard movement on the same grid.
   transform: translate(-50%, -100%);
-  transition: left 500ms ease-in-out, top 500ms ease-in-out;
+  transition:
+    left 500ms ease-in-out,
+    top 500ms ease-in-out;
 
   character-renderer {
     position: absolute;

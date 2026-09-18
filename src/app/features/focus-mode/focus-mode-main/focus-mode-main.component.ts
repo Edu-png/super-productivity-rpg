@@ -35,6 +35,7 @@ import {
   unPauseFocusSession,
 } from '../store/focus-mode.actions';
 import { selectPausedTaskId } from '../store/focus-mode.selectors';
+import { unsetCurrentTask } from '../../tasks/store/task.actions';
 import { TaskSharedActions } from '../../../root-store/meta/task-shared.actions';
 import { SimpleCounterService } from '../../simple-counter/simple-counter.service';
 import { SimpleCounter } from '../../simple-counter/simple-counter.model';
@@ -412,7 +413,11 @@ export class FocusModeMainComponent {
 
     this._store.dispatch(completeTask());
 
-    const t = this.currentTask();
+    // Use displayedTask, not currentTask: a paused session (including a
+    // Countdown lap that just completed) dispatches unsetCurrentTask, so
+    // currentTask() reads null right when this fires - displayedTask() falls
+    // back to the paused task and resolves correctly either way.
+    const t = this.displayedTask();
     const id = t && t.id;
     if (id) {
       this._store.dispatch(
@@ -429,9 +434,39 @@ export class FocusModeMainComponent {
     }
 
     if (sessionRunning) {
+      // Pause the running timer before handing off to the next task - it
+      // must NOT keep ticking (and, in Countdown mode, auto-restarting laps
+      // indefinitely, see autoRestartCountdownOnCompletion$) against whatever
+      // task the user ends up picking. Picking a task only switches which
+      // task is tracked (switchToTask -> taskService.setCurrentId); starting
+      // a new session on it is a separate, explicit action (the play
+      // button), so nothing should auto-run until the user asks for it.
+      this._store.dispatch(pauseFocusSession({ pausedTaskId: id }));
       this.openTaskSelector();
     } else {
       this._store.dispatch(selectFocusTask());
+      // The session-running branch above clears the current task via
+      // pauseFocusSession's own effect (syncSessionPauseToTracking$), but
+      // that effect only fires while a work/break timer purpose is active -
+      // which isn't the case here (still on the Preparation screen, no
+      // session started yet). Without this, the just-finished task stayed
+      // "current" indefinitely and the Preparation screen kept showing it
+      // instead of the "select a task" CTA, across all 3 timer modes.
+      this._store.dispatch(unsetCurrentTask());
+    }
+
+    // Flowtime's elapsed count belongs to the task just finished - reset it
+    // unconditionally, after pausing (so pauseFocusSession's own elapsed
+    // capture above isn't disrupted). Whatever task becomes current next
+    // doesn't always go through the task selector's switchToTask() (e.g.
+    // isAutoStartNextTask can advance currentTaskId directly in the task
+    // reducer when the session wasn't running), so relying solely on
+    // switchToTask() missed that path and left the finished task's elapsed
+    // count carrying over into whatever comes next.
+    if (this.mode() === FocusModeMode.Flowtime) {
+      this._store.dispatch(
+        setFocusSessionDuration({ focusSessionDuration: 0, resetElapsed: true }),
+      );
     }
   }
 
@@ -468,6 +503,44 @@ export class FocusModeMainComponent {
 
   switchToTask(taskId: string): void {
     this.taskService.setCurrentId(taskId);
+
+    // Flowtime has no per-task duration to pull in, but its elapsed count
+    // still belongs to whichever task was being tracked before - reset it so
+    // the newly picked task starts counting from 0 instead of carrying over
+    // the finished task's accumulated time.
+    if (this.mode() === FocusModeMode.Flowtime) {
+      this._store.dispatch(
+        setFocusSessionDuration({ focusSessionDuration: 0, resetElapsed: true }),
+      );
+      return;
+    }
+
+    // Countdown's duration is a plain store field (timer.duration) - it does
+    // NOT auto-follow whichever task is currently tracked, so after finishing
+    // one task and picking another it was left showing the FINISHED task's
+    // leftover duration instead of the new task's own estimate. Pull the new
+    // task's estimate in explicitly so the next "play" starts a session sized
+    // for what's actually next, not a stale number from the task just left.
+    if (this.mode() !== FocusModeMode.Countdown) return;
+    this.taskService
+      .getByIdLive$(taskId)
+      .pipe(take(1))
+      .subscribe((task) => {
+        const estimate = task?.timeEstimate;
+        const duration =
+          estimate && estimate > 0
+            ? estimate
+            : (this._focusModeStorage.getLastCountdownDuration() ??
+              FOCUS_MODE_DEFAULTS.SESSION_DURATION);
+        // resetElapsed: true - the paused timer's elapsed belongs to the task
+        // just finished, not this one. Without clearing it, resuming would
+        // instantly read as already-past the new (often shorter) duration -
+        // completed on arrival, with the completion sound looping forever
+        // since every tick immediately re-triggers the same auto-restart.
+        this._store.dispatch(
+          setFocusSessionDuration({ focusSessionDuration: duration, resetElapsed: true }),
+        );
+      });
   }
 
   startSession(): void {

@@ -206,7 +206,12 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
   focusSessionDuration$ = this.focusSessionSummary$.pipe(map((summary) => summary.total));
 
   nrOfDoneTasks$: Observable<number> = this.tasksWorkedOnOrDoneOrRepeatableFlat$.pipe(
-    map((tasks) => tasks && tasks.filter((task) => !!task.isDone).length),
+    map(
+      (tasks) =>
+        tasks &&
+        tasks.filter((task) => !!task.isDone && !this._rpgProfile.isTaskFailed(task.id))
+          .length,
+    ),
   );
 
   totalNrOfTasks$: Observable<number> = this.tasksWorkedOnOrDoneOrRepeatableFlat$.pipe(
@@ -366,7 +371,9 @@ export class DailySummaryComponent implements OnInit, OnDestroy, AfterViewInit {
           year: 'numeric',
         }),
         productiveMs: productiveMs || 0,
-        completedTasks: tasks.filter((task) => task.isDone).length,
+        completedTasks: tasks.filter(
+          (task) => task.isDone && !this._rpgProfile.isTaskFailed(task.id),
+        ).length,
         totalTasks: tasks.length,
         xpEarned: Object.values(state.xpLedger)
           .filter((entry) => entry.earnedAt >= startOfDay.getTime())

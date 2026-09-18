@@ -58,6 +58,16 @@ export const startApp = (): void => {
 
   app.commandLine.appendSwitch('enable-speech-dispatcher');
 
+  // TEMPORARY RECOVERY AID (2026-08-01): a heavily uncompacted IndexedDB
+  // backing store (custom idb_cmp1 comparator, so it can't be compacted with
+  // a generic LevelDB tool - Chromium is the only thing that can rewrite it
+  // safely) made the first few post-crash boots hit the renderer's default
+  // V8 heap ceiling while reading/hydrating it (confirmed via
+  // render-process-gone reason 'oom', not just slow). Raising the heap limit
+  // gives that one hydration pass room to finish instead of being killed
+  // partway through. Remove once boots are fast/small again.
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
+
   // work around for #4375
   // https://github.com/super-productivity/super-productivity/issues/4375#issuecomment-2883838113
   // https://github.com/electron/electron/issues/46538#issuecomment-2808806722

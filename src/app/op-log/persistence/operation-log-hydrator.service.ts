@@ -89,6 +89,10 @@ export class OperationLogHydratorService {
   async hydrateStore(): Promise<void> {
     OpLog.normal('OperationLogHydratorService: Starting hydration...');
 
+    // ONE-TIME CLEANUP (2026-08-01, see _pruneDeadLifeRpgOpsOnce): must run
+    // before anything below reads the op log, since that read is what OOMs.
+    await this._pruneDeadLifeRpgOpsOnce();
+
     // Reset the per-run migration flag: hydrateStore() genuinely re-enters on
     // this root singleton whenever a plugin calls PluginAPI.reInitData()
     // (plugin-bridge.service.ts -> DataInitService.reInit()). A stale `true`
@@ -1168,6 +1172,29 @@ export class OperationLogHydratorService {
       window.ea.reloadMainWin();
     } else {
       window.location.reload();
+    }
+  }
+
+  // Removes dead `life-rpg:*` PLUGIN_USER_DATA ops left by the disabled
+  // CloudDomainSyncService (large backlog was OOM-crashing hydration).
+  // Reuses deleteOpsWhere's cursor delete, so this itself stays memory-safe.
+  private async _pruneDeadLifeRpgOpsOnce(): Promise<void> {
+    const FLAG = 'sp-pruned-dead-life-rpg-ops-2026-08-01-v1';
+    if (localStorage.getItem(FLAG)) return;
+    try {
+      OpLog.normal(
+        'OperationLogHydratorService: Pruning dead life-rpg ops (one-time)...',
+      );
+      await this.opLogStore.deleteOpsWhere(
+        (entry) =>
+          entry.op.entityType === 'PLUGIN_USER_DATA' &&
+          typeof entry.op.entityId === 'string' &&
+          entry.op.entityId.startsWith('life-rpg:'),
+      );
+      localStorage.setItem(FLAG, String(Date.now()));
+      OpLog.normal('OperationLogHydratorService: Dead life-rpg ops pruned.');
+    } catch (e) {
+      OpLog.err('OperationLogHydratorService: Failed to prune dead life-rpg ops', e);
     }
   }
 }

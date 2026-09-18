@@ -1,4 +1,7 @@
-<div class="rpg-page" [attr.data-realm]="profile.state().currentRealmId">
+<div
+  class="rpg-page"
+  [attr.data-realm]="profile.state().currentRealmId"
+>
   <nav
     class="party-bar card"
     aria-label="Personagens"
@@ -122,14 +125,32 @@
       <div class="identity-heading">
         <span class="eyebrow">FICHA DO HERÓI</span>
         <div class="hero-actions">
-          <button
-            type="button"
-            class="create-character-button"
-            (click)="showCharacterCreator = true"
+          <div
+            class="music-control"
+            [title]="
+              music.trackAvailable()
+                ? 'Volume da música do RPG'
+                : 'Nenhuma trilha encontrada em assets/rpg/bgm/theme.mp3'
+            "
           >
-            <mat-icon>person_add</mat-icon>
-            Criar personagem
-          </button>
+            <button
+              type="button"
+              class="music-toggle"
+              [attr.aria-label]="music.muted() ? 'Ativar música' : 'Silenciar música'"
+              (click)="music.toggleMuted()"
+            >
+              <mat-icon>{{ music.muted() ? 'volume_off' : 'volume_up' }}</mat-icon>
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              class="music-volume"
+              [value]="music.volume()"
+              (input)="onMusicVolumeChange($any($event.target).value)"
+              aria-label="Volume da música do RPG"
+            />
+          </div>
           @if (profile.characters().length > 1) {
             <button
               type="button"
@@ -202,11 +223,200 @@
             }
           </span>
         </div>
+        @if (profile.hasMasteredCurrentClass()) {
+          <div class="class-mastery">
+            <mat-icon>military_tech</mat-icon>
+            <span>Classe dominada! Todos os títulos foram conquistados.</span>
+            <select
+              aria-label="Trocar de classe"
+              (change)="
+                changeClassTo($any($event.target).value); $any($event.target).value = ''
+              "
+            >
+              <option value="">Trocar de classe...</option>
+              @for (class of classes; track class.id) {
+                @if (class.id !== profile.state().classId) {
+                  <option [value]="class.id">{{ class.name }}</option>
+                }
+              }
+            </select>
+            @if (classChangeMessage) {
+              <small>{{ classChangeMessage }}</small>
+            }
+          </div>
+        }
       </div>
     </div>
   </header>
 
+  <section class="card quest-card character-backup-card">
+    <h2><span>💾</span> Backup do personagem</h2>
+    <p class="titles-intro">
+      Backup completo de <b>{{ profile.state().displayName }}</b
+      >: ficha, atributos, inventário, estudos da Academia Arcana, leituras da biblioteca
+      e hábitos vinculados a ele. Cada personagem tem seu próprio arquivo - troque de
+      personagem na barra acima antes de baixar ou restaurar o de outro.
+    </p>
+    <div class="character-backup-actions">
+      <button
+        type="button"
+        mat-button
+        [disabled]="characterBackupBusy"
+        (click)="downloadCharacterBackup()"
+      >
+        <mat-icon>download</mat-icon> Baixar backup deste personagem
+      </button>
+      <label class="restore-character-button">
+        <mat-icon>upload</mat-icon> Restaurar personagem
+        <input
+          type="file"
+          accept="application/json"
+          [disabled]="characterBackupBusy"
+          (change)="onCharacterBackupFileSelected($event)"
+        />
+      </label>
+    </div>
+    @if (characterBackupMessage) {
+      <p class="shop-message">{{ characterBackupMessage }}</p>
+    }
+    <hr />
+    <p class="titles-intro">
+      Um backup de <b>todos</b> os seus personagens também é feito automaticamente, uma
+      vez por dia, ao abrir o app - guardado localmente (últimos 7 dias). Se quiser,
+      escolha abaixo uma pasta extra (por exemplo, dentro do Google Drive ou OneDrive já
+      instalado no seu PC) para receber uma cópia adicional; o próprio app de
+      sincronização cuida do envio.
+    </p>
+    <div class="character-backup-actions">
+      <button
+        type="button"
+        mat-button
+        (click)="chooseExtraBackupDir()"
+      >
+        <mat-icon>folder</mat-icon>
+        {{
+          extraBackupDir()
+            ? 'Trocar pasta extra de backup'
+            : 'Escolher pasta extra de backup (opcional)'
+        }}
+      </button>
+      @if (extraBackupDir()) {
+        <button
+          type="button"
+          mat-button
+          (click)="clearExtraBackupDir()"
+        >
+          <mat-icon>close</mat-icon> Remover pasta extra
+        </button>
+      }
+    </div>
+    @if (extraBackupDir()) {
+      <p class="shop-message">Pasta extra atual: {{ extraBackupDir() }}</p>
+    }
+    @if (extraBackupDirMessage) {
+      <p class="shop-message">{{ extraBackupDirMessage }}</p>
+    }
+  </section>
+
   <div class="dashboard-grid">
+    <section class="card quest-card titles-medals-card">
+      <h2><span>🎖</span> Títulos e medalhas</h2>
+
+      <p class="titles-intro">
+        Cada classe tem sua própria progressão de títulos, liberada a cada 20 níveis.
+        Alcançar o nível abre a porta - a missão de cada título é o que realmente o
+        conquista.
+      </p>
+
+      <div class="title-picker">
+        <button
+          type="button"
+          class="title-chip"
+          [class.active]="!profile.state().selectedTitleId"
+          (click)="profile.selectTitle(null)"
+        >
+          Aventureiro iniciante
+        </button>
+        @for (tier of profile.classTitleTiers(); track tier.id) {
+          <button
+            type="button"
+            class="title-chip"
+            [class.active]="profile.state().selectedTitleId === tier.id"
+            [class.locked]="!tier.isUnlocked"
+            [disabled]="!tier.isUnlocked"
+            (click)="profile.selectTitle(tier.id)"
+          >
+            @if (!tier.isUnlocked) {
+              <mat-icon>lock</mat-icon>
+            }
+            {{ tier.title }}
+          </button>
+        }
+      </div>
+
+      <ul class="title-quest-list">
+        @for (tier of profile.classTitleTiers(); track tier.id) {
+          <li [class.done]="tier.isUnlocked">
+            <div class="title-quest-heading">
+              <strong>{{ tier.title }}</strong>
+              <span>Nível {{ tier.level }}</span>
+            </div>
+            <small>{{ tier.questLabel }}</small>
+            @if (tier.isUnlocked) {
+              <b class="rpg-status-badge">CONQUISTADO</b>
+            } @else {
+              <div class="rpg-progress-bar">
+                <span [style.width.%]="tier.progress"></span>
+              </div>
+              <small>
+                {{ tier.current | number: '1.0-0' }}/{{ tier.target }}
+                @if (tier.isLevelLocked) {
+                  · precisa do nível {{ tier.level }}
+                }
+              </small>
+              <small>
+                {{ tier.achievementsCompleted }}/{{ tier.achievementsTotal }} conquistas
+                necessárias concluídas
+              </small>
+            }
+          </li>
+        }
+      </ul>
+
+      <p class="titles-intro">
+        Pré-requisito para o próximo título: complete as 10 conquistas abaixo ({{
+          profile.classTitleTiers()[profile.activeTierAchievementIndex()]
+            ?.achievementsCompleted ?? 0
+        }}/10).
+      </p>
+      <div class="achv-grid">
+        @for (achievement of profile.activeTierAchievements(); track achievement.id) {
+          <div
+            class="achv-card"
+            [class.unlocked]="achievement.isUnlocked"
+          >
+            <mat-icon>{{ achievement.icon }}</mat-icon>
+            <div>
+              <strong>{{ achievement.title }}</strong>
+              <small>{{ achievement.description }}</small>
+              @if (achievement.isUnlocked) {
+                <b class="rpg-status-badge">CONQUISTADA</b>
+              } @else {
+                <div class="rpg-progress-bar">
+                  <span [style.width.%]="achievement.progress"></span>
+                </div>
+                <small
+                  >{{ achievement.current | number: '1.0-0' }}/{{
+                    achievement.target
+                  }}</small
+                >
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
     <section class="card quest-card">
       <h2><span>⚔</span> Atributos</h2>
       <div class="radar-wrap">
@@ -289,8 +499,8 @@
         <strong>{{ profile.state().attributeRatings.discipline }}/10</strong>
       </div>
       <p class="hint">
-        Dê uma nota de 0 a 10 para cada atributo. A teia muda imediatamente.
-        Sua disciplina automática atual é {{ profile.discipline() | number: '1.0-1' }}%.
+        Dê uma nota de 0 a 10 para cada atributo. A teia muda imediatamente. Sua
+        disciplina automática atual é {{ profile.discipline() | number: '1.0-1' }}%.
       </p>
     </section>
 
@@ -323,63 +533,63 @@
     </section>
 
     <div class="quest-column">
-    <section class="card quest-card monthly-quest">
-      <h2><span>📅</span> Missão mensal</h2>
-      <div class="quest-streak">DESAFIO DO MÊS • jornada estilo Duolingo</div>
-      @for (quest of profile.monthlyQuests(); track quest.id) {
-        <article
-          class="daily-quest"
-          [class.complete]="quest.isComplete"
-        >
-          <mat-icon>{{ quest.icon }}</mat-icon>
-          <div>
-            <strong>{{ quest.title }}</strong>
-            <small>{{ quest.description }}</small>
-            <div class="quest-progress">
-              <span [style.width.%]="(quest.progress / quest.target) * 100"></span>
+      <section class="card quest-card monthly-quest">
+        <h2><span>📅</span> Missão mensal</h2>
+        <div class="quest-streak">DESAFIO DO MÊS • jornada estilo Duolingo</div>
+        @for (quest of profile.monthlyQuests(); track quest.id) {
+          <article
+            class="daily-quest"
+            [class.complete]="quest.isComplete"
+          >
+            <mat-icon>{{ quest.icon }}</mat-icon>
+            <div>
+              <strong>{{ quest.title }}</strong>
+              <small>{{ quest.description }}</small>
+              <div class="quest-progress">
+                <span [style.width.%]="(quest.progress / quest.target) * 100"></span>
+              </div>
+              <small>{{ quest.progress }}/{{ quest.target }}</small>
             </div>
-            <small>{{ quest.progress }}/{{ quest.target }}</small>
-          </div>
-          <div class="quest-reward">
-            <span>+{{ quest.rewardXp }} XP</span>
-            <span>+{{ quest.rewardCoins }} 🪙</span>
-            @if (quest.isClaimed) {
-              <b>RESGATADA</b>
-            }
-          </div>
-        </article>
-      }
-    </section>
+            <div class="quest-reward">
+              <span>+{{ quest.rewardXp }} XP</span>
+              <span>+{{ quest.rewardCoins }} 🪙</span>
+              @if (quest.isClaimed) {
+                <b>RESGATADA</b>
+              }
+            </div>
+          </article>
+        }
+      </section>
 
-    <section class="card quest-card weekly-boss">
-      <h2><span>♜</span> Chefe semanal</h2>
-      <div class="boss-scene">
-        <mat-icon>castle</mat-icon>
-        <div>
-          <strong>{{ profile.weeklyBoss().title }}</strong>
-          <small>
-            Acumule XP de tarefas nesta semana. Chefes sempre concedem um item raro ou
-            melhor.
-          </small>
+      <section class="card quest-card weekly-boss">
+        <h2><span>♜</span> Chefe semanal</h2>
+        <div class="boss-scene">
+          <mat-icon>castle</mat-icon>
+          <div>
+            <strong>{{ profile.weeklyBoss().title }}</strong>
+            <small>
+              Acumule XP de tarefas nesta semana. Chefes sempre concedem um item raro ou
+              melhor.
+            </small>
+          </div>
         </div>
-      </div>
-      <div class="boss-health">
-        <span [style.width.%]="profile.weeklyBoss().percentage"></span>
-      </div>
-      <div class="boss-meta">
-        <span
-          >{{ profile.weeklyBoss().progress }} /
-          {{ profile.weeklyBoss().target }} dano</span
-        >
-        <b>
-          @if (profile.weeklyBoss().isClaimed) {
-            DERROTADO
-          } @else {
-            +300 XP • +25 🪙 • DROP RARO
-          }
-        </b>
-      </div>
-    </section>
+        <div class="boss-health">
+          <span [style.width.%]="profile.weeklyBoss().percentage"></span>
+        </div>
+        <div class="boss-meta">
+          <span
+            >{{ profile.weeklyBoss().progress }} /
+            {{ profile.weeklyBoss().target }} dano</span
+          >
+          <b>
+            @if (profile.weeklyBoss().isClaimed) {
+              DERROTADO
+            } @else {
+              +300 XP • +25 🪙 • DROP RARO
+            }
+          </b>
+        </div>
+      </section>
     </div>
 
     <section class="card quest-card">
@@ -422,10 +632,11 @@
     <section class="card quest-card trophy-hall">
       <h2><span>🏛️</span> Salão de troféus</h2>
       <p class="trophy-intro">
-        Medalhas calculadas automaticamente pelos hábitos concluídos. Os meses exigem
-        pelo menos 80% de consistência e são entregues ao fechar o mês. Este salão e
-        suas recompensas pertencem somente a
-        <b>{{ profile.state().displayName }}</b>.
+        Medalhas calculadas automaticamente pelos hábitos concluídos. Os meses exigem pelo
+        menos 80% de consistência e são entregues ao fechar o mês. Este salão e suas
+        recompensas pertencem somente a
+        <b>{{ profile.state().displayName }}</b
+        >.
       </p>
 
       <div class="trophy-section-heading">
@@ -433,9 +644,7 @@
           <span>MEDALHAS DOS MESES</span>
           <h3>Jornada de {{ profile.monthlyMedals()[0].id.slice(0, 4) }}</h3>
         </div>
-        <strong>
-          {{ unlockedMonthlyMedals() }}/12
-        </strong>
+        <strong> {{ unlockedMonthlyMedals() }}/12 </strong>
       </div>
       <div class="trophy-grid monthly-trophies">
         @for (medal of profile.monthlyMedals(); track medal.id) {
@@ -454,29 +663,68 @@
               <mat-icon>settings</mat-icon>
             </button>
             <div class="trophy-art">
-              <img [src]="medal.imageUrl" [alt]="medal.title" />
-              @if (!medal.isUnlocked) {
+              <img
+                [src]="medal.imageUrl"
+                [alt]="medal.title"
+              />
+              @if (!medal.isUnlocked && !medal.hasEnded) {
                 <span class="trophy-lock"><mat-icon>lock</mat-icon></span>
+              } @else if (!medal.isUnlocked && medal.hasEnded) {
+                <span class="trophy-lock failed"><mat-icon>close</mat-icon></span>
               }
             </div>
             <div class="trophy-copy">
               <span class="trophy-month">
-                {{ ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'][medal.monthIndex] }}
+                {{
+                  [
+                    'JANEIRO',
+                    'FEVEREIRO',
+                    'MARÇO',
+                    'ABRIL',
+                    'MAIO',
+                    'JUNHO',
+                    'JULHO',
+                    'AGOSTO',
+                    'SETEMBRO',
+                    'OUTUBRO',
+                    'NOVEMBRO',
+                    'DEZEMBRO',
+                  ][medal.monthIndex]
+                }}
               </span>
               <h4>{{ medal.title }}</h4>
-              <small>{{ medal.completed }}/{{ medal.possible }} hábitos · {{ medal.percentage }}%</small>
+              @if (medal.description) {
+                <small class="monthly-description">{{ medal.description }}</small>
+              }
+              <small>
+                @if (medal.needsHabitSetup) {
+                  Associe um hábito nas configurações ⚙️ para acompanhar esta medalha.
+                } @else if (medal.metricType === 'currency') {
+                  R$ {{ medal.completedDays }} / R$ {{ medal.targetDays }} ·
+                  {{ medal.percentage }}%
+                } @else {
+                  {{ medal.completedDays }}/{{ medal.targetDays }} dias ·
+                  {{ medal.percentage }}%
+                }
+              </small>
               <small class="trophy-reward">
-                +{{ profile.trophyReward('monthly', medal.possible).xp }} XP ·
-                +{{ profile.trophyReward('monthly', medal.possible).gold }} ouro
+                +{{ profile.trophyReward('monthly', medal.possible).xp }} XP · +{{
+                  profile.trophyReward('monthly', medal.possible).gold
+                }}
+                ouro
               </small>
               <div class="trophy-progress">
                 <span [style.width.%]="medal.progressPercentage"></span>
               </div>
-              <small class="monthly-target">
-                Meta: {{ medal.completedDays }}/{{ medal.targetDays }} dias ·
-                {{ medal.habitIds.length || 'todos' }} hábitos selecionados
-              </small>
-              <b>{{ medal.isUnlocked ? 'CONQUISTADA' : 'EM PROGRESSO' }}</b>
+              <b>
+                @if (medal.isUnlocked) {
+                  CONQUISTADA
+                } @else if (medal.hasEnded) {
+                  NÃO CONCLUÍDA
+                } @else {
+                  EM PROGRESSO
+                }
+              </b>
             </div>
             @if (editingMonthlyMedalId === medal.id) {
               <div class="monthly-medal-editor">
@@ -492,19 +740,39 @@
                     dias
                   </span>
                 </label>
+                <label>
+                  Dias já cumpridos (crédito manual)
+                  <span>
+                    <input
+                      type="number"
+                      min="0"
+                      [(ngModel)]="monthlyMedalEditCredit"
+                    />
+                    dias
+                  </span>
+                </label>
                 <div class="monthly-habit-picker">
                   <strong>Hábitos acompanhados</strong>
+                  @if (!monthlyMedalHabitIds().size) {
+                    <small
+                      >Selecione ao menos um hábito para acompanhar esta medalha.</small
+                    >
+                  }
                   @for (
                     habit of habitTracker.habitsForCharacters([profile.state().id]);
                     track habit.id
                   ) {
                     <button
                       type="button"
-                      [class.selected]="monthlyMedalHabitIds.has(habit.id)"
+                      [class.selected]="monthlyMedalHabitIds().has(habit.id)"
                       (click)="toggleMonthlyMedalHabit(habit.id)"
                     >
                       <mat-icon>
-                        {{ monthlyMedalHabitIds.has(habit.id) ? 'check_box' : 'check_box_outline_blank' }}
+                        {{
+                          monthlyMedalHabitIds().has(habit.id)
+                            ? 'check_box'
+                            : 'check_box_outline_blank'
+                        }}
                       </mat-icon>
                       {{ habit.title }}
                     </button>
@@ -515,7 +783,7 @@
                 <button
                   type="button"
                   class="save-monthly-config"
-                  [disabled]="!monthlyMedalHabitIds.size"
+                  [disabled]="!monthlyMedalHabitIds().size"
                   (click)="saveMonthlyMedalConfig()"
                 >
                   Salvar configuração
@@ -535,22 +803,35 @@
 
       <div class="annual-goal-builder">
         <div class="goal-main-fields">
-          <input [(ngModel)]="annualGoalTitle" placeholder="Nome da meta anual" />
+          <input
+            [(ngModel)]="annualGoalTitle"
+            placeholder="Nome da meta anual"
+          />
           <label>
             Dias necessários
-            <input [(ngModel)]="annualGoalTarget" type="number" min="1" max="366" />
+            <input
+              [(ngModel)]="annualGoalTarget"
+              type="number"
+              min="1"
+              max="366"
+            />
           </label>
         </div>
         <div class="goal-habit-picker">
           <span>Hábitos que devem ser concluídos no dia</span>
           <div>
-            @for (habit of habitTracker.habitsForCharacters([profile.state().id]); track habit.id) {
+            @for (
+              habit of habitTracker.habitsForCharacters([profile.state().id]);
+              track habit.id
+            ) {
               <button
                 type="button"
-                [class.selected]="annualGoalHabitIds.has(habit.id)"
+                [class.selected]="annualGoalHabitIds().has(habit.id)"
                 (click)="toggleAnnualGoalHabit(habit.id)"
               >
-                <mat-icon>{{ annualGoalHabitIds.has(habit.id) ? 'check' : 'add' }}</mat-icon>
+                <mat-icon>{{
+                  annualGoalHabitIds().has(habit.id) ? 'check' : 'add'
+                }}</mat-icon>
                 {{ habit.title }}
               </button>
             } @empty {
@@ -561,14 +842,19 @@
         <div class="goal-icon-picker">
           <span>Ícone da conquista</span>
           <div>
-            @for (iconIndex of [1,2,3,4,5,6,7,8,9,10,11,12]; track iconIndex) {
+            @for (iconIndex of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track iconIndex) {
               <button
                 type="button"
                 [class.selected]="annualGoalIconIndex === iconIndex"
                 (click)="annualGoalIconIndex = iconIndex"
               >
                 <img
-                  [src]="'assets/rpg/trophies/annual-' + (iconIndex < 10 ? '0' : '') + iconIndex + '.png'"
+                  [src]="
+                    'assets/rpg/trophies/annual-' +
+                    (iconIndex < 10 ? '0' : '') +
+                    iconIndex +
+                    '.png'
+                  "
                   [alt]="'Ícone ' + iconIndex"
                 />
               </button>
@@ -578,7 +864,7 @@
         <button
           mat-flat-button
           color="primary"
-          [disabled]="!annualGoalTitle.trim() || !annualGoalHabitIds.size"
+          [disabled]="!annualGoalTitle.trim() || !annualGoalHabitIds().size"
           (click)="createAnnualGoal()"
         >
           <mat-icon>add</mat-icon>
@@ -591,10 +877,25 @@
           <article
             class="trophy-card annual"
             [class.unlocked]="profile.annualGoalProgress(goal).isUnlocked"
+            [class.editing]="editingAnnualGoalId === goal.id"
           >
+            <button
+              type="button"
+              mat-icon-button
+              class="monthly-medal-settings"
+              title="Editar meta e hábitos desta conquista"
+              (click)="editAnnualGoal(goal)"
+            >
+              <mat-icon>settings</mat-icon>
+            </button>
             <div class="trophy-art">
               <img
-                [src]="'assets/rpg/trophies/annual-' + (goal.iconIndex < 10 ? '0' : '') + goal.iconIndex + '.png'"
+                [src]="
+                  'assets/rpg/trophies/annual-' +
+                  (goal.iconIndex < 10 ? '0' : '') +
+                  goal.iconIndex +
+                  '.png'
+                "
                 [alt]="goal.title"
               />
               @if (!profile.annualGoalProgress(goal).isUnlocked) {
@@ -609,16 +910,88 @@
                 dias completos
               </small>
               <small class="trophy-reward">
-                +{{ profile.trophyReward('annual', goal.targetDays, goal.habitIds.length).xp }} XP ·
-                +{{ profile.trophyReward('annual', goal.targetDays, goal.habitIds.length).gold }} ouro
+                +{{
+                  profile.trophyReward('annual', goal.targetDays, goal.habitIds.length).xp
+                }}
+                XP · +{{
+                  profile.trophyReward('annual', goal.targetDays, goal.habitIds.length)
+                    .gold
+                }}
+                ouro
               </small>
               <div class="trophy-progress">
-                <span [style.width.%]="profile.annualGoalProgress(goal).percentage"></span>
+                <span
+                  [style.width.%]="profile.annualGoalProgress(goal).percentage"
+                ></span>
               </div>
               <b>
-                {{ profile.annualGoalProgress(goal).isUnlocked ? 'CONQUISTADA' : 'EM JORNADA' }}
+                {{
+                  profile.annualGoalProgress(goal).isUnlocked
+                    ? 'CONQUISTADA'
+                    : 'EM JORNADA'
+                }}
               </b>
             </div>
+            @if (editingAnnualGoalId === goal.id) {
+              <div class="monthly-medal-editor">
+                <label>
+                  Dias necessários
+                  <span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="366"
+                      [(ngModel)]="annualGoalEditTarget"
+                    />
+                    dias
+                  </span>
+                </label>
+                <label>
+                  Dias já cumpridos (crédito manual)
+                  <span>
+                    <input
+                      type="number"
+                      min="0"
+                      [(ngModel)]="annualGoalEditCredit"
+                    />
+                    dias
+                  </span>
+                </label>
+                <div class="monthly-habit-picker">
+                  <strong>Hábitos acompanhados</strong>
+                  @if (!annualGoalEditHabitIds().size) {
+                    <small>Selecione ao menos um hábito para acompanhar esta meta.</small>
+                  }
+                  @for (
+                    habit of habitTracker.habitsForCharacters([profile.state().id]);
+                    track habit.id
+                  ) {
+                    <button
+                      type="button"
+                      [class.selected]="annualGoalEditHabitIds().has(habit.id)"
+                      (click)="toggleAnnualGoalEditHabit(habit.id)"
+                    >
+                      <mat-icon>
+                        {{
+                          annualGoalEditHabitIds().has(habit.id)
+                            ? 'check_box'
+                            : 'check_box_outline_blank'
+                        }}
+                      </mat-icon>
+                      {{ habit.title }}
+                    </button>
+                  }
+                </div>
+                <button
+                  type="button"
+                  class="save-monthly-config"
+                  [disabled]="!annualGoalEditHabitIds().size"
+                  (click)="saveAnnualGoalEdit()"
+                >
+                  Salvar configuração
+                </button>
+              </div>
+            }
             <button
               mat-icon-button
               class="delete-goal"
@@ -655,11 +1028,28 @@
       <div class="reward-card-grid">
         @for (reward of profile.state().rewards; track reward.id) {
           <article class="reward-card">
+            <button
+              type="button"
+              mat-icon-button
+              class="card-delete"
+              aria-label="Excluir recompensa"
+              (click)="profile.removeReward(reward.id)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
             <label class="card-image-picker">
               @if (reward.imageUrl) {
-                <img [src]="reward.imageUrl" [alt]="reward.title" />
+                <img
+                  [src]="reward.imageUrl"
+                  [alt]="reward.title"
+                />
               } @else {
-                <mat-icon>add_photo_alternate</mat-icon>
+                <div
+                  class="icon-fallback"
+                  [style.background]="rewardIcon(reward.title).color"
+                >
+                  <mat-icon>{{ rewardIcon(reward.title).icon }}</mat-icon>
+                </div>
                 <span>Adicionar foto</span>
               }
               <input
@@ -669,19 +1059,23 @@
               />
             </label>
             <div class="card-copy">
-            <strong>{{ reward.title }}</strong>
-            @if (reward.purchasedCount) {
-              <small>Resgatada {{ reward.purchasedCount }}x</small>
-            }
+              <strong>{{ reward.title }}</strong>
+              @if (reward.purchasedCount) {
+                <small>Resgatada {{ reward.purchasedCount }}x</small>
+              }
+            </div>
+            <div class="stat-row">
+              <span class="stat-pill gold-pill"
+                ><mat-icon>paid</mat-icon> {{ reward.cost }}</span
+              >
             </div>
             <div class="card-actions">
-              <button mat-button (click)="buyReward(reward.id)">🪙 {{ reward.cost }}</button>
               <button
-                mat-icon-button
-                aria-label="Excluir recompensa"
-                (click)="profile.removeReward(reward.id)"
+                type="button"
+                class="apply-btn redeem-btn"
+                (click)="buyReward(reward.id)"
               >
-                <mat-icon>delete</mat-icon>
+                Resgatar
               </button>
             </div>
           </article>
@@ -729,13 +1123,30 @@
         </button>
       </div>
       <div class="penalty-card-grid">
-        @for (penalty of profile.state().penalties; track penalty.id) {
+        @for (penalty of manualPenalties(); track penalty.id) {
           <article class="penalty-card">
+            <button
+              type="button"
+              mat-icon-button
+              class="card-delete"
+              aria-label="Remover penalidade"
+              (click)="profile.removePenalty(penalty.id)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
             <label class="card-image-picker">
               @if (penalty.imageUrl) {
-                <img [src]="penalty.imageUrl" [alt]="penalty.title" />
+                <img
+                  [src]="penalty.imageUrl"
+                  [alt]="penalty.title"
+                />
               } @else {
-                <mat-icon>add_photo_alternate</mat-icon>
+                <div
+                  class="icon-fallback"
+                  [style.background]="penaltyIcon(penalty.title).color"
+                >
+                  <mat-icon>{{ penaltyIcon(penalty.title).icon }}</mat-icon>
+                </div>
                 <span>Adicionar foto</span>
               }
               <input
@@ -744,15 +1155,29 @@
                 (change)="onPenaltyImageSelected(penalty.id, $event)"
               />
             </label>
-            <strong>{{ penalty.title }}</strong>
-            <b>-{{ penalty.xpLoss }} XP<br />-{{ penalty.coinsLoss }} 🪙</b>
-            <button
-              mat-icon-button
-              aria-label="Remover penalidade"
-              (click)="profile.removePenalty(penalty.id)"
-            >
-              <mat-icon>delete</mat-icon>
-            </button>
+            <div class="card-copy">
+              <strong>{{ penalty.title }}</strong>
+              @if (penalty.timesApplied) {
+                <small>Registrada {{ penalty.timesApplied }}x</small>
+              }
+            </div>
+            <div class="stat-row">
+              <span class="stat-pill xp-pill">
+                <span class="pill-badge xp-badge">XP</span> -{{ penalty.xpLoss }}
+              </span>
+              <span class="stat-pill gold-pill"
+                ><mat-icon>paid</mat-icon> -{{ penalty.coinsLoss }}</span
+              >
+            </div>
+            <div class="card-actions">
+              <button
+                type="button"
+                class="apply-btn"
+                (click)="profile.applyPenalty(penalty.id)"
+              >
+                Aplicar
+              </button>
+            </div>
           </article>
         } @empty {
           <p class="empty">O calabouço está vazio.</p>
@@ -891,7 +1316,14 @@
         </div>
         <div class="pet-editor">
           <strong>{{ profile.state().pet.name }}</strong>
-          <span>{{ profile.petStage() }} · {{ profile.petAgeDays() }} dias de vínculo</span>
+          <span>
+            {{ profile.petStage() }}
+            @if (profile.petIsBound()) {
+              · {{ profile.petAgeDays() }} dias de vínculo
+            } @else {
+              · ainda não vinculado
+            }
+          </span>
           <small>{{ profile.state().pet.xp }} XP · nível {{ profile.petLevel() }}</small>
           @if (profile.petIsBound()) {
             <span class="pet-forever-bond">
@@ -994,43 +1426,43 @@
             </label>
           </div>
           <div class="campaign-content">
-          <button
-            class="delete-campaign"
-            mat-icon-button
-            type="button"
-            aria-label="Excluir campanha"
-            title="Excluir campanha"
-            (click)="deleteCampaign(campaign.id, campaign.title)"
-          >
-            <mat-icon>delete</mat-icon>
-          </button>
-          <h3>🎯 {{ campaign.title }}</h3>
-          @for (chapter of campaign.chapters; track chapter.id) {
-            <div class="campaign-chapter">
-              <span>{{ chapter.title }}</span>
-              <div>
-                <span
-                  [style.width.%]="
+            <button
+              class="delete-campaign"
+              mat-icon-button
+              type="button"
+              aria-label="Excluir campanha"
+              title="Excluir campanha"
+              (click)="deleteCampaign(campaign.id, campaign.title)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+            <h3>🎯 {{ campaign.title }}</h3>
+            @for (chapter of campaign.chapters; track chapter.id) {
+              <div class="campaign-chapter">
+                <span>{{ chapter.title }}</span>
+                <div>
+                  <span
+                    [style.width.%]="
+                      profile.campaignChapterProgress(
+                        chapter.projectId,
+                        chapter.targetCompletedTasks
+                      )
+                    "
+                  ></span>
+                </div>
+                <small>
+                  {{
                     profile.campaignChapterProgress(
                       chapter.projectId,
                       chapter.targetCompletedTasks
-                    )
-                  "
-                ></span>
+                    ) | number: '1.0-0'
+                  }}%
+                </small>
               </div>
-              <small>
-                {{
-                  profile.campaignChapterProgress(
-                    chapter.projectId,
-                    chapter.targetCompletedTasks
-                  ) | number: '1.0-0'
-                }}%
-              </small>
-            </div>
-          } @empty {
-            <p class="empty">Adicione capítulos ligados aos seus projetos.</p>
-          }
-          <strong class="final-boss">♛ Boss final: {{ campaign.finalBoss }}</strong>
+            } @empty {
+              <p class="empty">Adicione capítulos ligados aos seus projetos.</p>
+            }
+            <strong class="final-boss">♛ Boss final: {{ campaign.finalBoss }}</strong>
           </div>
         </article>
       }
@@ -1053,9 +1485,27 @@
             ></line>
             <line
               x1="35"
-              y1="110"
+              y1="65"
               x2="605"
-              y2="110"
+              y2="65"
+            ></line>
+            <line
+              x1="35"
+              y1="95"
+              x2="605"
+              y2="95"
+            ></line>
+            <line
+              x1="35"
+              y1="125"
+              x2="605"
+              y2="125"
+            ></line>
+            <line
+              x1="35"
+              y1="155"
+              x2="605"
+              y2="155"
             ></line>
             <line
               x1="35"
@@ -1071,9 +1521,27 @@
             </text>
             <text
               x="10"
-              y="115"
+              y="70"
             >
-              50%
+              80%
+            </text>
+            <text
+              x="10"
+              y="100"
+            >
+              60%
+            </text>
+            <text
+              x="10"
+              y="130"
+            >
+              40%
+            </text>
+            <text
+              x="10"
+              y="160"
+            >
+              20%
             </text>
             <text
               x="18"
@@ -1086,7 +1554,7 @@
               <circle
                 [attr.cx]="disciplineChartX(index, disciplineChartDays().length)"
                 [attr.cy]="disciplineChartY(day.percentage)"
-                r="5"
+                r="3"
               ></circle>
               <text
                 class="date-label"
@@ -1139,8 +1607,14 @@
           class="expand-discipline"
           (click)="showAllDisciplineHistory = !showAllDisciplineHistory"
         >
-          <mat-icon>{{ showAllDisciplineHistory ? 'expand_less' : 'expand_more' }}</mat-icon>
-          {{ showAllDisciplineHistory ? 'Mostrar somente os últimos 7 dias' : 'Expandir histórico por mês' }}
+          <mat-icon>{{
+            showAllDisciplineHistory ? 'expand_less' : 'expand_more'
+          }}</mat-icon>
+          {{
+            showAllDisciplineHistory
+              ? 'Mostrar somente os últimos 7 dias'
+              : 'Expandir histórico por mês'
+          }}
         </button>
       }
     </section>
@@ -1169,20 +1643,30 @@
           <div>
             <mat-icon>auto_awesome</mat-icon>
             <span>
-              <strong>+{{ celebration.starPoints }} Star Point{{ celebration.starPoints > 1 ? 's' : '' }}</strong>
+              <strong
+                >+{{ celebration.starPoints }} Star Point{{
+                  celebration.starPoints > 1 ? 's' : ''
+                }}</strong
+              >
               <small>Use nas Constelações do Destino</small>
             </span>
           </div>
           @for (itemName of celebration.itemNames; track $index) {
             <div>
               <mat-icon>redeem</mat-icon>
-              <span><strong>{{ itemName }}</strong><small>Novo item no inventário</small></span>
+              <span
+                ><strong>{{ itemName }}</strong
+                ><small>Novo item no inventário</small></span
+              >
             </div>
           }
           @for (unlock of celebration.unlocks; track unlock) {
             <div>
               <mat-icon>lock_open</mat-icon>
-              <span><strong>{{ unlock }}</strong><small>Novo conteúdo liberado</small></span>
+              <span
+                ><strong>{{ unlock }}</strong
+                ><small>Novo conteúdo liberado</small></span
+              >
             </div>
           }
         </div>

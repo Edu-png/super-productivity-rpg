@@ -70,7 +70,7 @@ describe('createScheduleViewEntriesForNormalTasks()', () => {
         id: 'FAKE_TASK_ID',
         start: 33600000,
         type: 'Task',
-        duration: 1800000,
+        duration: 3600000,
       },
       {
         data: {
@@ -83,7 +83,7 @@ describe('createScheduleViewEntriesForNormalTasks()', () => {
         },
         id: 'FAKE_TASK_ID',
         type: 'Task',
-        start: 35400000,
+        start: 37200000,
         duration: 0,
       },
       {
@@ -97,8 +97,8 @@ describe('createScheduleViewEntriesForNormalTasks()', () => {
         },
         id: 'FAKE_TASK_ID',
         type: 'Task',
-        start: 35400000,
-        duration: 4500000,
+        start: 37200000,
+        duration: 5400000,
       },
       {
         data: {
@@ -111,7 +111,7 @@ describe('createScheduleViewEntriesForNormalTasks()', () => {
         },
         id: 'FAKE_TASK_ID',
         type: 'Task',
-        start: 39900000,
+        start: 42600000,
         duration: 0,
       },
     ] as any);

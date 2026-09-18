@@ -1,5 +1,5 @@
 import { TaskWithoutReminder } from '../../tasks/task.model';
-import { getTimeLeftForTask } from '../../../util/get-time-left-for-task';
+import { getScheduleDurationForTask } from '../../../util/get-time-left-for-task';
 
 export const getTasksWithinAndBeyondBudget = <T extends TaskWithoutReminder>(
   tasks: T[],
@@ -23,7 +23,7 @@ export const getTasksWithinAndBeyondBudget = <T extends TaskWithoutReminder>(
       continue;
     }
 
-    const timeLeftForTask = getTimeLeftForTask(task);
+    const timeLeftForTask = getScheduleDurationForTask(task);
     if (timeLeftForTask > remainingBudget) {
       isOverBudget = true;
       beyond.push(task);

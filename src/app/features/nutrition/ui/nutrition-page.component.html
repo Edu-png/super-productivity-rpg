@@ -1,0 +1,1238 @@
+<main class="nutrition-page">
+  <header class="nutrition-hero">
+    <div>
+      <span>VITALIDADE DIÁRIA</span>
+      <h1>🍎 Alimentação</h1>
+      <p>Configure uma vez, registre em segundos todos os dias.</p>
+    </div>
+  </header>
+
+  <nav class="nutrition-tabs">
+    <button
+      [class.active]="tab() === 'today'"
+      (click)="tab.set('today')"
+    >
+      <mat-icon>today</mat-icon> Hoje
+    </button>
+    <button
+      [class.active]="tab() === 'history'"
+      (click)="tab.set('history')"
+    >
+      <mat-icon>calendar_month</mat-icon> Histórico
+    </button>
+    <button
+      [class.active]="tab() === 'progress'"
+      (click)="onProgressTabOpened()"
+    >
+      <mat-icon>insights</mat-icon> Progresso
+    </button>
+    <button
+      [class.active]="tab() === 'settings'"
+      (click)="tab.set('settings')"
+    >
+      <mat-icon>tune</mat-icon> Configurações
+    </button>
+  </nav>
+
+  <section class="nutrition-character-selector">
+    <div>
+      <span>HERÓI DA VITALIDADE</span
+      ><strong>Registros e recompensas pertencem a este personagem</strong>
+    </div>
+    <div
+      class="character-cards"
+      role="radiogroup"
+      aria-label="Herói da Vitalidade"
+    >
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="character.id === selectedCharacterId()"
+          [class.active]="character.id === selectedCharacterId()"
+          (click)="selectCharacter(character.id)"
+        >
+          <character-renderer
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
+          <mat-icon>{{
+            character.id === selectedCharacterId()
+              ? 'check_circle'
+              : 'radio_button_unchecked'
+          }}</mat-icon>
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (nutrition.loading()) {
+    <section class="loading-rune">
+      <mat-icon>eco</mat-icon> Preparando o dia de hoje…
+    </section>
+  } @else if (tab() === 'today' && nutrition.todayDetail(); as today) {
+    <p class="today-date">{{ todayLabel }}</p>
+
+    <label class="log-date-picker">
+      Registrando para o dia
+      <input
+        type="date"
+        [ngModel]="nutrition.logDate()"
+        (ngModelChange)="onLogDateChange($event)"
+        [max]="nutrition.today"
+      />
+    </label>
+
+    <section class="metric-grid nutrition-metric-grid">
+      <article>
+        <mat-icon>local_fire_department</mat-icon><span>Consumidas</span>
+        <strong
+          >{{ nutrition.totalCaloriesConsumed() | number: '1.0-0' }} /
+          {{ today.day.calorieGoal | number: '1.0-0' }} kcal</strong
+        >
+      </article>
+      <article>
+        <mat-icon>bolt</mat-icon><span>Exercício</span>
+        <strong>{{ nutrition.exerciseCalories() | number: '1.0-0' }} kcal</strong>
+      </article>
+      <article>
+        <mat-icon>water_drop</mat-icon><span>Água</span>
+        <strong
+          >{{ formatLiters(nutrition.waterConsumed()) }} /
+          {{ formatLiters(today.day.waterGoalMl) }}</strong
+        >
+      </article>
+      <article>
+        <mat-icon>monitor_weight</mat-icon><span>Peso</span>
+        <strong>{{
+          today.day.weightKg ? (today.day.weightKg | number: '1.1-1') + ' kg' : '—'
+        }}</strong>
+      </article>
+    </section>
+
+    <section class="arcane-card nutrition-progress-card">
+      <div class="progress-row">
+        <span>Calorias</span>
+        <div class="progress-track">
+          <i
+            [style.width.%]="
+              today.day.calorieGoal
+                ? (nutrition.totalCaloriesConsumed() / today.day.calorieGoal) * 100
+                : 0
+            "
+          ></i>
+        </div>
+        <small
+          >{{ nutrition.totalCaloriesConsumed() | number: '1.0-0' }} /
+          {{ today.day.calorieGoal | number: '1.0-0' }}</small
+        >
+      </div>
+      <div class="progress-row">
+        <span>Água</span>
+        <div class="progress-track water">
+          <i
+            [style.width.%]="
+              today.day.waterGoalMl
+                ? (nutrition.waterConsumed() / today.day.waterGoalMl) * 100
+                : 0
+            "
+          ></i>
+        </div>
+        <small
+          >{{ formatLiters(nutrition.waterConsumed()) }} /
+          {{ formatLiters(today.day.waterGoalMl) }}</small
+        >
+      </div>
+    </section>
+
+    <section class="arcane-card day-type-card">
+      <label
+        >Tipo do dia
+        <select
+          [ngModel]="today.day.dayType"
+          (ngModelChange)="changeDayType($event)"
+        >
+          @for (dayType of nutrition.settings().dayTypes; track dayType.id) {
+            <option [value]="dayType.id">
+              {{ dayType.label }} · {{ dayType.calorieGoal }} kcal
+            </option>
+          }
+        </select>
+      </label>
+    </section>
+
+    <h2 class="section-title">Refeições</h2>
+    <section class="meal-grid">
+      @for (meal of today.meals; track meal.id; let i = $index) {
+        <article
+          class="meal-card"
+          [class.completed]="meal.completed"
+          [style.--meal-color]="mealColorFor(i)"
+        >
+          <div class="meal-card-header">
+            <mat-icon>{{ mealIconFor(i) }}</mat-icon>
+            <div>
+              <h3>{{ meal.name }}</h3>
+              <small>{{ meal.time }}</small>
+            </div>
+            <strong>{{ meal.calories | number: '1.0-0' }} kcal</strong>
+          </div>
+          @if (meal.foods.length) {
+            <ul class="meal-foods">
+              @for (food of meal.foods; track food) {
+                <li>{{ food }}</li>
+              }
+            </ul>
+          }
+          @if (templateForMeal(meal.mealTemplateId)?.description; as tip) {
+            <small class="meal-tip"><mat-icon>lightbulb</mat-icon>{{ tip }}</small>
+          }
+          @if (meal.editedFromTemplate) {
+            <small class="edited-badge">Ajustado hoje</small>
+          }
+          <div class="meal-actions">
+            <button
+              type="button"
+              class="meal-toggle-btn"
+              [class.done]="meal.completed"
+              (click)="toggleMeal(meal.id)"
+            >
+              <mat-icon>{{
+                meal.completed ? 'check_circle' : 'radio_button_unchecked'
+              }}</mat-icon>
+              {{ meal.completed ? 'Comi' : 'Marcar como comida' }}
+            </button>
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="openMealEditor(meal.id, meal.calories)"
+            >
+              Editar hoje
+            </button>
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="editTemplateFromMeal(meal.mealTemplateId)"
+            >
+              Editar dieta padrão
+            </button>
+          </div>
+        </article>
+      } @empty {
+        <div class="empty-state">
+          <mat-icon>restaurant</mat-icon>
+          <h3>Nenhuma refeição configurada</h3>
+          <p>Cadastre sua dieta base em Configurações.</p>
+        </div>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header>
+        <h2>Calorias extras</h2>
+        <button
+          type="button"
+          (click)="openExtraModal()"
+        >
+          <mat-icon>add</mat-icon> Calorias extras
+        </button>
+      </header>
+      @for (extra of today.extras; track extra.id) {
+        <div class="log-row">
+          <span>{{ extra.description }}</span>
+          <b>+{{ extra.calories }} kcal</b>
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="removeExtra(extra.id)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      } @empty {
+        <p class="muted">Nenhuma caloria extra hoje.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header>
+        <h2>🔥 Exercícios</h2>
+        <button
+          type="button"
+          (click)="openExerciseModal()"
+        >
+          <mat-icon>add</mat-icon> Registrar exercício
+        </button>
+      </header>
+      @for (exercise of today.exercises; track exercise.id) {
+        <div class="log-row">
+          <span
+            >{{ exerciseTypeLabel(exercise.type) }}
+            @if (exercise.description) {
+              · {{ exercise.description }}
+            }
+          </span>
+          <b>{{ exercise.caloriesBurned }} kcal</b>
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="removeExercise(exercise.id)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      } @empty {
+        <p class="muted">Nenhum exercício registrado hoje.</p>
+      }
+      @if (today.exercises.length) {
+        <small class="muted"
+          >Calorias gastas hoje: {{ nutrition.exerciseCalories() }} kcal · métrica
+          complementar, não é descontada da meta.</small
+        >
+      }
+    </section>
+
+    <section class="arcane-card hydration-card">
+      <header><h2>💧 Hidratação</h2></header>
+      <strong class="hydration-total"
+        >{{ formatLiters(nutrition.waterConsumed()) }} /
+        {{ formatLiters(today.day.waterGoalMl) }}</strong
+      >
+      <div class="droplets">
+        @for (filled of waterDroplets(); track $index) {
+          <mat-icon [class.filled]="filled">water_drop</mat-icon>
+        }
+      </div>
+      <div class="water-buttons">
+        <button
+          type="button"
+          (click)="addWater(250)"
+        >
+          +250 ml
+        </button>
+        <button
+          type="button"
+          (click)="addWater(500)"
+        >
+          +500 ml
+        </button>
+        <button
+          type="button"
+          (click)="addWater(750)"
+        >
+          +750 ml
+        </button>
+      </div>
+      <div class="water-custom">
+        <input
+          type="number"
+          min="0"
+          [(ngModel)]="customWaterMl"
+          placeholder="ml"
+        />
+        <button
+          type="button"
+          (click)="addCustomWater()"
+        >
+          Adicionar
+        </button>
+        <button
+          type="button"
+          class="ghost-btn"
+          (click)="undoWater()"
+        >
+          Desfazer última
+        </button>
+      </div>
+    </section>
+
+    <section class="arcane-card weight-card">
+      <header><h2>⚖ Peso de hoje</h2></header>
+      @if (!today.day.weightKg) {
+        <p class="prompt-text">Qual seu peso hoje?</p>
+      }
+      <div class="weight-input-row">
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          [(ngModel)]="weightInput"
+        />
+        <button
+          type="button"
+          (click)="saveWeight()"
+        >
+          Registrar
+        </button>
+      </div>
+      @if (today.day.weightKg) {
+        <div class="weight-compare">
+          <span>Hoje: {{ today.day.weightKg | number: '1.1-1' }} kg</span>
+          @if (yesterdayWeight(); as y) {
+            <span>Ontem: {{ y | number: '1.1-1' }} kg</span>
+            <span
+              >Diferença: {{ weightDiff()! >= 0 ? '+' : ''
+              }}{{ weightDiff() | number: '1.1-1' }} kg</span
+            >
+          }
+        </div>
+      }
+      @if (nutrition.weeklyAverageWeight(); as avg) {
+        <small class="muted"
+          >Média dos últimos 7 dias: {{ avg | number: '1.1-1' }} kg</small
+        >
+      }
+    </section>
+
+    <section class="arcane-card summary-card">
+      <header><h2>Resumo de hoje</h2></header>
+      <div class="meals-bar">
+        <span
+          >{{ today.day.mealsCompletedCount }} /
+          {{ today.day.mealsPlannedCount }} refeições</span
+        >
+        <div class="progress-track"><i [style.width.%]="mealsProgressPercent()"></i></div>
+      </div>
+      <div class="summary-grid">
+        <div>
+          <small>Consumidas</small
+          ><strong>{{ nutrition.totalCaloriesConsumed() | number: '1.0-0' }} kcal</strong>
+        </div>
+        <div>
+          <small>Meta</small
+          ><strong>{{ today.day.calorieGoal | number: '1.0-0' }} kcal</strong>
+        </div>
+        <div>
+          <small>{{
+            nutrition.remainingCalories() >= 0 ? 'Faltam' : 'Acima da meta'
+          }}</small>
+          <strong
+            >{{
+              (nutrition.remainingCalories() >= 0
+                ? nutrition.remainingCalories()
+                : -nutrition.remainingCalories()
+              ) | number: '1.0-0'
+            }}
+            kcal</strong
+          >
+        </div>
+        <div>
+          <small>Exercício</small
+          ><strong>{{ nutrition.exerciseCalories() | number: '1.0-0' }} kcal</strong>
+        </div>
+      </div>
+      @if (nutrition.extraCaloriesConsumed() > 0) {
+        <small class="muted">Extras: +{{ nutrition.extraCaloriesConsumed() }} kcal</small>
+      }
+      <small class="muted energy-note"
+        >Saldo energético relativo (informativo):
+        {{ nutrition.energyBalance() | number: '1.0-0' }} kcal</small
+      >
+    </section>
+
+    <section class="arcane-card rating-card">
+      <header><h2>Como foi minha alimentação?</h2></header>
+      <div class="rating-options">
+        @for (option of ratingOptions; track option.id) {
+          <button
+            type="button"
+            [class.active]="today.day.foodRating === option.id"
+            (click)="setRating(option.id)"
+          >
+            <mat-icon>{{ option.icon }}</mat-icon
+            >{{ option.label }}
+          </button>
+        }
+      </div>
+      <textarea
+        [(ngModel)]="ratingNotes"
+        (blur)="saveRatingNotes()"
+        placeholder="Observação (opcional)"
+        rows="2"
+      ></textarea>
+    </section>
+
+    @if (today.day.completedAt) {
+      <div class="day-complete-banner">
+        <mat-icon>verified</mat-icon>
+        <div>
+          <strong>Dia concluído</strong>
+          <span
+            >✓ {{ today.day.mealsCompletedCount }}/{{
+              today.day.mealsPlannedCount
+            }}
+            refeições</span
+          >
+          <span
+            >✓
+            {{
+              nutrition.totalCaloriesConsumed() <= today.day.calorieGoal
+                ? 'Meta calórica'
+                : (nutrition.remainingCalories() * -1 | number: '1.0-0') +
+                  ' kcal acima da meta'
+            }}</span
+          >
+          <span>✓ {{ formatLiters(nutrition.waterConsumed()) }} de água</span>
+          <span>✓ Peso registrado</span>
+        </div>
+      </div>
+    } @else if (canCompleteDay()) {
+      <button
+        type="button"
+        class="complete-day-btn"
+        (click)="completeDay()"
+      >
+        <mat-icon>task_alt</mat-icon> Concluir dia
+      </button>
+    }
+  } @else if (tab() === 'history') {
+    <section class="arcane-card history-card">
+      <header>
+        <div>
+          <span>ARQUIVO DA VITALIDADE</span>
+          <h2>{{ historyMonthLabel() }}</h2>
+        </div>
+        <nav class="month-nav">
+          <button
+            type="button"
+            (click)="previousHistoryMonth()"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            (click)="nextHistoryMonth()"
+          >
+            ›
+          </button>
+        </nav>
+      </header>
+      <div class="calendar-weekdays">
+        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span
+        ><span>Sex</span><span>Sáb</span>
+      </div>
+      <div class="calendar-grid">
+        @for (cell of historyCells(); track cell.key) {
+          <article
+            [class.outside]="!cell.currentMonth"
+            [class.today]="cell.today"
+            [class]="cell.status"
+            (click)="openHistoryDay(cell)"
+          >
+            <b>{{ cell.day }}</b>
+            @if (cell.status === 'complete') {
+              <mat-icon>check_circle</mat-icon>
+            } @else if (cell.status === 'partial') {
+              <span class="dot">•</span>
+            }
+          </article>
+        }
+      </div>
+    </section>
+  } @else if (tab() === 'progress') {
+    <section class="progress-filters">
+      @for (
+        range of [
+          [7, '7 dias'],
+          [30, '30 dias'],
+          [90, '3 meses'],
+          [180, '6 meses'],
+          [365, '1 ano'],
+          ['all', 'Tudo'],
+        ];
+        track range[0]
+      ) {
+        <button
+          type="button"
+          [class.active]="progressRangeDays() === range[0]"
+          (click)="setProgressRange($any(range[0]))"
+        >
+          {{ range[1] }}
+        </button>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Calorias por dia</h2></header>
+      @if (calorieChart().consumedXY.length) {
+        <svg
+          class="progress-chart"
+          viewBox="0 0 900 200"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Calorias por dia"
+        >
+          <polyline
+            [attr.points]="calorieChart().polylineGoal"
+            class="chart-line goal"
+          ></polyline>
+          <polyline
+            [attr.points]="calorieChart().polylineConsumed"
+            class="chart-line consumed"
+          ></polyline>
+          @for (point of calorieChart().consumedXY; track point.date) {
+            <circle
+              [attr.cx]="point.x"
+              [attr.cy]="point.y"
+              r="3.5"
+              class="chart-dot consumed"
+            >
+              <title>{{ point.label }} · {{ point.value | number: '1.0-0' }} kcal</title>
+            </circle>
+          }
+        </svg>
+        <div class="chart-legend">
+          <div><i class="consumed"></i>Consumidas</div>
+          <div><i class="goal"></i>Meta</div>
+        </div>
+      } @else {
+        <p class="muted">Sem dados no período.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Peso</h2></header>
+      <div class="weight-stats-grid">
+        <div>
+          <small>Atual</small
+          ><strong>{{
+            weightStats().current != null
+              ? (weightStats().current | number: '1.1-1') + ' kg'
+              : '—'
+          }}</strong>
+        </div>
+        <div>
+          <small>Média 7 dias</small
+          ><strong>{{
+            weightStats().avg7 != null
+              ? (weightStats().avg7 | number: '1.1-1') + ' kg'
+              : '—'
+          }}</strong>
+        </div>
+        <div>
+          <small>Mudança em 30 dias</small
+          ><strong>{{
+            weightStats().change30d != null
+              ? (weightStats().change30d! >= 0 ? '+' : '') +
+                (weightStats().change30d! | number: '1.1-1') +
+                ' kg'
+              : '—'
+          }}</strong>
+        </div>
+        <div>
+          <small>Mudança desde o início</small
+          ><strong>{{
+            weightStats().changeSinceStart != null
+              ? (weightStats().changeSinceStart! >= 0 ? '+' : '') +
+                (weightStats().changeSinceStart! | number: '1.1-1') +
+                ' kg'
+              : '—'
+          }}</strong>
+        </div>
+      </div>
+      @if (weightChart().pointsXY.length) {
+        <svg
+          class="progress-chart"
+          viewBox="0 0 900 200"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Peso ao longo do tempo"
+        >
+          <polyline
+            [attr.points]="weightChart().polylineAverage"
+            class="chart-line average"
+          ></polyline>
+          @for (point of weightChart().pointsXY; track point.date) {
+            <circle
+              [attr.cx]="point.x"
+              [attr.cy]="point.y"
+              r="3.5"
+              class="chart-dot"
+            >
+              <title>{{ point.label }} · {{ point.value | number: '1.1-1' }} kg</title>
+            </circle>
+          }
+        </svg>
+        <div class="chart-legend">
+          <div><i class="average"></i>Média móvel 7 dias</div>
+          <div><i class="dot"></i>Peso do dia</div>
+        </div>
+      } @else {
+        <p class="muted">Nenhum peso registrado no período.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Água</h2></header>
+      <div class="weight-stats-grid">
+        <div>
+          <small>Média diária</small
+          ><strong>{{ waterChart().avgLiters | number: '1.1-1' }} L</strong>
+        </div>
+        <div>
+          <small>Dias com meta atingida</small
+          ><strong>{{ waterChart().goalMetPercent }}%</strong>
+        </div>
+      </div>
+      @if (waterChart().pointsXY.length) {
+        <svg
+          class="progress-chart"
+          viewBox="0 0 900 200"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Água consumida por dia"
+        >
+          <polyline
+            [attr.points]="waterChart().polylineGoal"
+            class="chart-line goal"
+          ></polyline>
+          <polyline
+            [attr.points]="waterChart().polyline"
+            class="chart-line water"
+          ></polyline>
+          @for (point of waterChart().pointsXY; track point.date) {
+            <circle
+              [attr.cx]="point.x"
+              [attr.cy]="point.y"
+              r="3.5"
+              class="chart-dot water"
+            >
+              <title>{{ point.label }} · {{ point.value | number: '1.1-1' }} L</title>
+            </circle>
+          }
+        </svg>
+        <div class="chart-legend">
+          <div><i class="water"></i>Água</div>
+          <div><i class="goal"></i>Meta</div>
+        </div>
+      } @else {
+        <p class="muted">Sem dados no período.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Calorias por refeição</h2></header>
+      @for (row of mealCalorieBreakdown(); track row.name) {
+        <div class="bar-row">
+          <span>{{ row.name }}</span>
+          <div class="absolute-bar">
+            <i
+              [style.width.%]="row.widthPercent"
+              [style.background]="row.color"
+            ></i>
+          </div>
+          <b>{{ row.calories | number: '1.0-0' }}</b>
+        </div>
+      } @empty {
+        <p class="muted">Sem dados no período.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Calorias de exercício</h2></header>
+      @if (exerciseChart().pointsXY.length) {
+        <svg
+          class="progress-chart"
+          viewBox="0 0 900 200"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Calorias de exercício por dia"
+        >
+          <polyline
+            [attr.points]="exerciseChart().polyline"
+            class="chart-line exercise"
+          ></polyline>
+          @for (point of exerciseChart().pointsXY; track point.date) {
+            <circle
+              [attr.cx]="point.x"
+              [attr.cy]="point.y"
+              r="3.5"
+              class="chart-dot exercise"
+            >
+              <title>{{ point.label }} · {{ point.value | number: '1.0-0' }} kcal</title>
+            </circle>
+          }
+        </svg>
+      }
+      @if (exerciseBreakdown().hasData) {
+        <div class="exercise-breakdown">
+          <div>
+            <small>Corrida</small
+            ><strong>{{ exerciseBreakdown().totals.run | number: '1.0-0' }} kcal</strong>
+          </div>
+          <div>
+            <small>Academia</small
+            ><strong>{{ exerciseBreakdown().totals.gym | number: '1.0-0' }} kcal</strong>
+          </div>
+          <div>
+            <small>Outro</small
+            ><strong
+              >{{ exerciseBreakdown().totals.other | number: '1.0-0' }} kcal</strong
+            >
+          </div>
+        </div>
+      } @else {
+        <p class="muted">Sem exercícios registrados no período.</p>
+      }
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Adesão à dieta</h2></header>
+      <strong class="adherence-percent">{{ adherenceChart().percent }}%</strong>
+      <small class="muted"
+        >% das refeições planejadas que foram realizadas no período.</small
+      >
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Como foi minha alimentação?</h2></header>
+      <div class="rating-distribution">
+        @for (option of ratingOptions; track option.id) {
+          <div>
+            <mat-icon>{{ option.icon }}</mat-icon
+            ><span>{{ option.label }}</span
+            ><b>{{ ratingDistribution()[option.id] }}</b>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="arcane-card insights-card">
+      <header><h2>Análise automática</h2></header>
+      @for (insight of insights(); track insight) {
+        <p><mat-icon>auto_awesome</mat-icon>{{ insight }}</p>
+      } @empty {
+        <p class="muted">Registre alguns dias para ver seus insights.</p>
+      }
+    </section>
+  } @else if (tab() === 'settings') {
+    <section class="arcane-card">
+      <header><h2>Dieta base</h2></header>
+      @for (template of nutrition.mealTemplates(); track template.id; let i = $index) {
+        <div class="template-row">
+          <mat-icon [style.color]="mealColorFor(i)">{{ mealIconFor(i) }}</mat-icon>
+          <div>
+            <strong>{{ template.name }}</strong
+            ><small
+              >{{ template.defaultTime }} · {{ template.defaultCalories }} kcal</small
+            >
+          </div>
+          <button
+            type="button"
+            class="ghost-btn"
+            (click)="openTemplateEditor(template)"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="removeTemplate(template.id)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      }
+      <div class="template-creator">
+        <input
+          [(ngModel)]="templateName"
+          placeholder="Nome da refeição"
+        />
+        <input
+          type="number"
+          min="0"
+          [(ngModel)]="templateCalories"
+          placeholder="Calorias"
+        />
+        <input
+          type="time"
+          [(ngModel)]="templateTime"
+        />
+        <textarea
+          [(ngModel)]="templateFoodsText"
+          placeholder="Alimentos padrão (um por linha)"
+          rows="2"
+        ></textarea>
+        <button
+          type="button"
+          (click)="addTemplate()"
+        >
+          <mat-icon>add</mat-icon> Adicionar refeição
+        </button>
+      </div>
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Meta de água</h2></header>
+      <label
+        >Meta diária (ml)
+        <input
+          type="number"
+          min="0"
+          [ngModel]="nutrition.settings().waterGoalMl"
+          (ngModelChange)="updateWaterGoal($event)"
+        />
+      </label>
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Tipos de dia e metas calóricas</h2></header>
+      @for (dayType of nutrition.settings().dayTypes; track dayType.id) {
+        <div class="daytype-row">
+          <span>{{ dayType.label }}</span>
+          <input
+            type="number"
+            min="0"
+            [ngModel]="dayType.calorieGoal"
+            (ngModelChange)="updateDayTypeGoal(dayType, $event)"
+          />
+          <span class="unit">kcal</span>
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="removeDayType(dayType.id)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      }
+      <div class="daytype-creator">
+        <input
+          [(ngModel)]="newDayTypeLabel"
+          placeholder="Novo tipo de dia"
+        />
+        <input
+          type="number"
+          min="0"
+          [(ngModel)]="newDayTypeGoal"
+          placeholder="Meta kcal"
+        />
+        <button
+          type="button"
+          (click)="addDayType()"
+        >
+          <mat-icon>add</mat-icon> Adicionar
+        </button>
+      </div>
+    </section>
+
+    <section class="arcane-card">
+      <header><h2>Agenda semanal</h2></header>
+      @for (weekday of weekdayIndexes; track weekday) {
+        <div class="schedule-row">
+          <span>{{ weekdayLabels[weekday] }}</span>
+          <select
+            [ngModel]="nutrition.settings().weeklySchedule[weekday]"
+            (ngModelChange)="setWeeklySchedule(weekday, $event)"
+          >
+            @for (dayType of nutrition.settings().dayTypes; track dayType.id) {
+              <option [value]="dayType.id">{{ dayType.label }}</option>
+            }
+          </select>
+        </div>
+      }
+      <small class="muted"
+        >O tipo do dia é escolhido automaticamente por essa agenda, mas você sempre pode
+        mudar manualmente na aba Hoje.</small
+      >
+    </section>
+  }
+
+  @if (extraModalOpen()) {
+    <div
+      class="node-editor-backdrop"
+      (click)="extraModalOpen.set(false)"
+    >
+      <section
+        class="nutrition-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <h2>Calorias extras</h2>
+          <button
+            type="button"
+            (click)="extraModalOpen.set(false)"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        <label
+          >Descrição<input
+            [(ngModel)]="extraDescription"
+            placeholder="Chocolate"
+        /></label>
+        <label
+          >Calorias<input
+            type="number"
+            min="1"
+            [(ngModel)]="extraCalories"
+        /></label>
+        <footer>
+          <button
+            type="button"
+            (click)="extraModalOpen.set(false)"
+          >
+            Cancelar</button
+          ><button
+            type="button"
+            class="primary"
+            [disabled]="!extraDescription.trim() || !extraCalories"
+            (click)="saveExtra()"
+          >
+            Salvar
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (exerciseModalOpen()) {
+    <div
+      class="node-editor-backdrop"
+      (click)="exerciseModalOpen.set(false)"
+    >
+      <section
+        class="nutrition-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <h2>Registrar exercício</h2>
+          <button
+            type="button"
+            (click)="exerciseModalOpen.set(false)"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        <label
+          >Tipo
+          <select [(ngModel)]="exerciseType">
+            <option value="run">Corrida</option>
+            <option value="gym">Academia</option>
+            <option value="other">Outro</option>
+          </select>
+        </label>
+        <label>Descrição (opcional)<input [(ngModel)]="exerciseDescription" /></label>
+        <label
+          >Calorias gastas<input
+            type="number"
+            min="1"
+            [(ngModel)]="exerciseCalories"
+        /></label>
+        <label
+          >Duração em minutos (opcional)<input
+            type="number"
+            min="0"
+            [(ngModel)]="exerciseDuration"
+        /></label>
+        <footer>
+          <button
+            type="button"
+            (click)="exerciseModalOpen.set(false)"
+          >
+            Cancelar</button
+          ><button
+            type="button"
+            class="primary"
+            [disabled]="!exerciseCalories"
+            (click)="saveExercise()"
+          >
+            Salvar
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (editingMealId()) {
+    <div
+      class="node-editor-backdrop"
+      (click)="closeMealEditor()"
+    >
+      <section
+        class="nutrition-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <h2>Editar hoje</h2>
+          <button
+            type="button"
+            (click)="closeMealEditor()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        <label
+          >Calorias consumidas nessa refeição hoje<input
+            type="number"
+            min="0"
+            [(ngModel)]="editMealCalories"
+        /></label>
+        <small class="muted"
+          >Isso não altera sua dieta padrão, só o registro de hoje.</small
+        >
+        <footer>
+          <button
+            type="button"
+            (click)="closeMealEditor()"
+          >
+            Cancelar</button
+          ><button
+            type="button"
+            class="primary"
+            (click)="saveMealEdit()"
+          >
+            Salvar
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (editingTemplateId()) {
+    <div
+      class="node-editor-backdrop"
+      (click)="closeTemplateEditor()"
+    >
+      <section
+        class="nutrition-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <h2>Editar dieta padrão</h2>
+          <button
+            type="button"
+            (click)="closeTemplateEditor()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        <label>Nome<input [(ngModel)]="templateName" /></label>
+        <label
+          >Calorias padrão<input
+            type="number"
+            min="0"
+            [(ngModel)]="templateCalories"
+        /></label>
+        <label
+          >Horário sugerido<input
+            type="time"
+            [(ngModel)]="templateTime"
+        /></label>
+        <label
+          >Alimentos padrão (um por linha)<textarea
+            [(ngModel)]="templateFoodsText"
+            rows="4"
+          ></textarea>
+        </label>
+        <label
+          >Observação / dica (opcional)<textarea
+            [(ngModel)]="templateDescription"
+            rows="2"
+          ></textarea>
+        </label>
+        <small class="muted"
+          >Alterações aqui valem só para os próximos dias - dias já registrados não
+          mudam.</small
+        >
+        <footer>
+          <button
+            type="button"
+            (click)="closeTemplateEditor()"
+          >
+            Cancelar</button
+          ><button
+            type="button"
+            class="primary"
+            (click)="saveTemplateEdit()"
+          >
+            Salvar
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (historyDetailDayId(); as dayId) {
+    <div
+      class="node-editor-backdrop"
+      (click)="closeHistoryDay()"
+    >
+      <section
+        class="nutrition-modal history-detail-modal"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <h2>{{ historyDetail()?.day?.date }}</h2>
+          <button
+            type="button"
+            (click)="closeHistoryDay()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        @if (historyDetail(); as detail) {
+          <div class="weight-input-row">
+            <label>Peso (kg)</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              [(ngModel)]="historyWeightInput"
+            />
+            <button
+              type="button"
+              (click)="saveHistoryWeight()"
+            >
+              Salvar
+            </button>
+          </div>
+          <h3>Refeições</h3>
+          @for (meal of detail.meals; track meal.id) {
+            <div class="log-row">
+              <span>{{ meal.name }}</span>
+              <b>{{ meal.calories }} kcal</b>
+              <button
+                type="button"
+                class="icon-btn"
+                (click)="toggleHistoryMeal(meal.id)"
+              >
+                <mat-icon>{{
+                  meal.completed ? 'check_circle' : 'radio_button_unchecked'
+                }}</mat-icon>
+              </button>
+            </div>
+          }
+          <h3>Extras</h3>
+          @for (extra of detail.extras; track extra.id) {
+            <div class="log-row">
+              <span>{{ extra.description }}</span
+              ><b>+{{ extra.calories }} kcal</b>
+            </div>
+          } @empty {
+            <p class="muted">Nenhum.</p>
+          }
+          <h3>Exercícios</h3>
+          @for (exercise of detail.exercises; track exercise.id) {
+            <div class="log-row">
+              <span>{{ exerciseTypeLabel(exercise.type) }}</span
+              ><b>{{ exercise.caloriesBurned }} kcal</b>
+            </div>
+          } @empty {
+            <p class="muted">Nenhum.</p>
+          }
+          <h3>Água</h3>
+          <p>{{ formatLiters(sumWater(detail.waterLogs)) }} registrados</p>
+        }
+      </section>
+    </div>
+  }
+</main>

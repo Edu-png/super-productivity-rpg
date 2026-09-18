@@ -1,6 +1,6 @@
 import { TaskWithDueTime } from '../../tasks/task.model';
 
-import { getTimeLeftForTask } from '../../../util/get-time-left-for-task';
+import { getScheduleDurationForTask } from '../../../util/get-time-left-for-task';
 import { getDateTimeFromClockString } from '../../../util/get-date-time-from-clock-string';
 import { isValidSplitTime } from '../../../util/is-valid-split-time';
 import { devError } from '../../../util/dev-error';
@@ -13,7 +13,7 @@ import {
   ScheduleWorkStartEndCfg,
 } from '../schedule.model';
 import { selectTaskRepeatCfgsForExactDay } from '../../task-repeat-cfg/store/task-repeat-cfg.selectors';
-import { isSameDay } from '../../../util/is-same-day';
+import { wouldRepeatCfgOccurOnDay } from '../../task-repeat-cfg/store/would-repeat-cfg-occur-on-day.util';
 import { getDbDateStr } from '../../../util/get-db-date-str';
 const PROJECTION_DAYS: number = 30;
 
@@ -70,8 +70,7 @@ const createBlockerBlocksForScheduledRepeatProjections = (
   // Days that already have a concrete (timed) instance of a repeat cfg, keyed
   // by `${repeatCfgId}|${dayStr}`. Such days must not also render a projection
   // for the same cfg, or the schedule shows the real task AND its projection
-  // (#7853). The today-skip below (i starts at 1) only ever covered today;
-  // future-dated instances slipped through whenever the cfg's
+  // (#7853). future-dated instances slipped through whenever the cfg's
   // lastTaskCreationDay lagged behind the instance's day.
   const concreteInstanceDays = new Set<string>();
   scheduledTasks.forEach((task) => {
@@ -80,8 +79,11 @@ const createBlockerBlocksForScheduledRepeatProjections = (
     }
   });
 
-  const isViewingCurrentDay = realNow === undefined || isSameDay(realNow, now);
-  let i: number = isViewingCurrentDay ? 1 : 0;
+  const todayStartDate = new Date(realNow ?? now);
+  todayStartDate.setHours(0, 0, 0, 0);
+  const todayStartTime = todayStartDate.getTime();
+
+  let i = 0;
   while (i < nrOfDays) {
     // Calculate proper day start instead of adding 24-hour increments
     const nowDate = new Date(now);
@@ -90,14 +92,19 @@ const createBlockerBlocksForScheduledRepeatProjections = (
     targetDate.setHours(0, 0, 0, 0);
     const currentDayTimestamp = targetDate.getTime();
     const currentDayStr = getDbDateStr(currentDayTimestamp);
-
-    const allRepeatableTasksForDay = selectTaskRepeatCfgsForExactDay.projector(
-      scheduledTaskRepeatCfgs,
-      {
-        dayDate: currentDayTimestamp,
-      },
-    );
     i++;
+
+    // Days already behind the real "today" fall back to a pattern-only check
+    // instead of the processing-gated selector - see wouldRepeatCfgOccurOnDay
+    // (#past-days-vanish).
+    const allRepeatableTasksForDay =
+      currentDayTimestamp < todayStartTime
+        ? scheduledTaskRepeatCfgs.filter((cfg) =>
+            wouldRepeatCfgOccurOnDay(cfg, currentDayTimestamp),
+          )
+        : selectTaskRepeatCfgsForExactDay.projector(scheduledTaskRepeatCfgs, {
+            dayDate: currentDayTimestamp,
+          });
 
     allRepeatableTasksForDay.forEach((repeatCfg) => {
       if (concreteInstanceDays.has(`${repeatCfg.id}|${currentDayStr}`)) {
@@ -222,8 +229,14 @@ const createBlockerBlocksForScheduledTasks = (
   const blockedBlocks: BlockedBlock[] = [];
   scheduledTasks.forEach((task) => {
     const start = task.dueWithTime;
-    // const end = task.due + Math.max(getTimeLeftForTask(task), 1);
-    const end = task.dueWithTime + getTimeLeftForTask(task);
+    // Tasks with a fixed due time reserve their block here too - same rule as
+    // the flow-task path (create-schedule-view-entries-for-normal-tasks.ts):
+    // once tracked time reaches/passes the estimate, keep reserving exactly
+    // the originally programmed duration instead of collapsing to a
+    // zero-width block. A collapsed block here also stops merging correctly
+    // with neighboring blocker blocks below, which was displacing/shrinking
+    // whatever came right after it.
+    const end = task.dueWithTime + getScheduleDurationForTask(task);
 
     let wasMerged = false;
     for (const blockedBlock of blockedBlocks) {

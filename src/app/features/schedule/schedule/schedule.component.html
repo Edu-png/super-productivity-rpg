@@ -77,7 +77,6 @@
     <button
       mat-icon-button
       (click)="goToPreviousPeriod()"
-      [disabled]="isViewingToday()"
       [attr.aria-label]="
         (isMonthView()
           ? T.F.SCHEDULE.PREVIOUS_MONTH

@@ -7,6 +7,7 @@ import { LockService } from '../sync/lock.service';
 import {
   LockAcquisitionTimeoutError,
   PermanentDeferredWriteError,
+  WriteFlushTimeoutError,
 } from '../core/errors/sync-errors';
 import { OperationLogStoreService } from '../persistence/operation-log-store.service';
 import {
@@ -24,6 +25,7 @@ import { T } from '../../t.const';
 import { validateOperationPayload } from '../validation/validate-operation-payload';
 import { VectorClockService } from '../sync/vector-clock.service';
 import {
+  COMPACTION_RETRY_COOLDOWN_MS,
   COMPACTION_THRESHOLD,
   LOCK_NAMES,
   MAX_COMPACTION_FAILURES,
@@ -56,6 +58,10 @@ const KNOWN_ACTION_TYPES: ReadonlySet<string> = new Set(Object.values(ActionType
 @Injectable()
 export class OperationLogEffects implements DeferredLocalActionsPort {
   private compactionFailures = 0;
+  /** Timestamp of the last compaction attempt (success, failure, or busy-skip); gates retries via COMPACTION_RETRY_COOLDOWN_MS. */
+  private lastCompactionAttemptAt = 0;
+  /** Ensures the failure snackbar is shown once per failing streak, not on every retry. */
+  private hasNotifiedCompactionFailure = false;
   /** Circuit breaker: prevents recursive quota exceeded handling */
   private isHandlingQuotaExceeded = false;
   /** Counter for total operations written. Used for high-volume sync debugging. */
@@ -456,6 +462,20 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
    * Counter is reset by compaction service on success.
    */
   private triggerCompaction(): void {
+    if (Date.now() - this.lastCompactionAttemptAt < COMPACTION_RETRY_COOLDOWN_MS) {
+      // A recent attempt (success doesn't reach here again until the next
+      // COMPACTION_THRESHOLD ops, so this only ever gates a failure or a busy
+      // skip) is still cooling down — skip. Without this, a compaction that
+      // can't currently succeed gets re-attempted on literally every
+      // subsequent write (the in-memory counter that gates this call is only
+      // reset on success), each attempt itself polling for up to 30s waiting
+      // for the write pipeline to quiesce — burning CPU/IndexedDB time
+      // continuously and being the main driver of the "app feels slow"
+      // symptom once compaction starts failing or the user is editing a lot
+      // at once.
+      return;
+    }
+    this.lastCompactionAttemptAt = Date.now();
     OpLog.normal('OperationLogEffects: Triggering compaction...');
     this.compactionService
       .compact()
@@ -464,14 +484,35 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
           return;
         }
         this.compactionFailures = 0;
+        this.hasNotifiedCompactionFailure = false;
         // Reset in-memory counter on successful compaction
         this.inMemoryCompactionCounter = 0;
       })
       .catch((e) => {
+        if (e instanceof WriteFlushTimeoutError) {
+          // Benign: the write pipeline couldn't reach a quiet moment to
+          // safely snapshot (the user is actively editing many things in a
+          // row, so new ops keep landing faster than the flush can settle).
+          // The op log itself is fine — this is NOT a real compaction
+          // failure, so it must not count towards MAX_COMPACTION_FAILURES or
+          // show the scary "database cleanup failed" snackbar. It retries on
+          // its own next time the write threshold is crossed, once editing
+          // quiets down (same skip-and-retry-later pattern already used by
+          // OperationLogSnapshotService for this exact condition).
+          OpLog.warn(
+            'OperationLogEffects: Compaction skipped — write pipeline still busy',
+            e,
+          );
+          return;
+        }
         OpLog.err('OperationLogEffects: Compaction failed', e);
         devError('Compaction failed: ' + e);
         this.compactionFailures++;
-        if (this.compactionFailures >= MAX_COMPACTION_FAILURES) {
+        if (
+          this.compactionFailures >= MAX_COMPACTION_FAILURES &&
+          !this.hasNotifiedCompactionFailure
+        ) {
+          this.hasNotifiedCompactionFailure = true;
           this.snackService.open({
             type: 'ERROR',
             msg: T.F.SYNC.S.COMPACTION_FAILED,

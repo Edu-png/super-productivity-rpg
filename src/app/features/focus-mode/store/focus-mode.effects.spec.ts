@@ -2710,6 +2710,142 @@ describe('FocusModeEffects', () => {
         done();
       });
     });
+
+    it('should NOT dispatch for Countdown mode (auto-restarted instead, see autoRestartCountdownOnCompletion$)', (done) => {
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({
+          isRunning: false,
+          purpose: 'work',
+          duration: 60 * 60 * 1000,
+          elapsed: 60 * 60 * 1000,
+        }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Countdown);
+      store.overrideSelector(selectors.selectIsOvertimeEnabled, false);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+
+      const { emitted, subscription } = collectEmissions(
+        effects.detectSessionCompletion$,
+      );
+
+      setTimeout(() => {
+        expect(emitted).toEqual([]);
+        subscription.unsubscribe();
+        done();
+      }, 50);
+    });
+  });
+
+  describe('autoRestartCountdownOnCompletion$', () => {
+    // A Countdown session running out means the estimate was wrong, not that
+    // the user is done - it should loop a fresh lap of the same duration on
+    // the same task rather than ending the session (see main effect's JSDoc).
+    it('should dispatch startFocusSession with the same duration when a Countdown timer completes', (done) => {
+      const duration = 60 * 60 * 1000;
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({
+          isRunning: false,
+          purpose: 'work',
+          duration,
+          elapsed: duration,
+        }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Countdown);
+      store.overrideSelector(selectors.selectIsOvertimeEnabled, false);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+
+      effects.autoRestartCountdownOnCompletion$.pipe(take(1)).subscribe((action) => {
+        expect(action).toEqual(actions.startFocusSession({ duration }));
+        done();
+      });
+    });
+
+    it('should NOT dispatch for Pomodoro mode (handled by detectSessionCompletion$ instead)', (done) => {
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({
+          isRunning: false,
+          purpose: 'work',
+          duration: 25 * 60 * 1000,
+          elapsed: 25 * 60 * 1000,
+        }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Pomodoro);
+      store.overrideSelector(selectors.selectIsOvertimeEnabled, false);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+
+      const { emitted, subscription } = collectEmissions(
+        effects.autoRestartCountdownOnCompletion$,
+      );
+
+      setTimeout(() => {
+        expect(emitted).toEqual([]);
+        subscription.unsubscribe();
+        done();
+      }, 50);
+    });
+
+    it('should NOT dispatch when the timer is still running', (done) => {
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({
+          isRunning: true,
+          purpose: 'work',
+          duration: 60 * 60 * 1000,
+          elapsed: 60 * 60 * 1000,
+        }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Countdown);
+      store.overrideSelector(selectors.selectIsOvertimeEnabled, false);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+
+      const { emitted, subscription } = collectEmissions(
+        effects.autoRestartCountdownOnCompletion$,
+      );
+
+      setTimeout(() => {
+        expect(emitted).toEqual([]);
+        subscription.unsubscribe();
+        done();
+      }, 50);
+    });
+
+    it('should NOT dispatch when overtime is enabled', (done) => {
+      store.overrideSelector(
+        selectors.selectTimer,
+        createMockTimer({
+          isRunning: false,
+          purpose: 'work',
+          duration: 60 * 60 * 1000,
+          elapsed: 61 * 60 * 1000,
+        }),
+      );
+      store.overrideSelector(selectors.selectMode, FocusModeMode.Countdown);
+      store.overrideSelector(selectors.selectIsOvertimeEnabled, true);
+      store.refreshState();
+
+      effects = TestBed.inject(FocusModeEffects);
+
+      const { emitted, subscription } = collectEmissions(
+        effects.autoRestartCountdownOnCompletion$,
+      );
+
+      setTimeout(() => {
+        expect(emitted).toEqual([]);
+        subscription.unsubscribe();
+        done();
+      }, 50);
+    });
   });
 
   describe('setOvertimeOnSessionStart$', () => {

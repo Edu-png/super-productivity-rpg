@@ -106,6 +106,7 @@ import { DeletedTaskIssueSidecarService } from '../issue/two-way-sync/deleted-ta
 import { TimeBlockDeleteSidecarService } from '../calendar-integration/time-block/time-block-delete-sidecar.service';
 import { getDeadlineAutoPlanFields } from './util/get-deadline-auto-plan-fields';
 import { TaskTimeSyncService } from './task-time-sync.service';
+import { updateTaskRepeatCfgs } from '../task-repeat-cfg/store/task-repeat-cfg.actions';
 
 @Injectable({
   providedIn: 'root',
@@ -1116,6 +1117,18 @@ export class TaskService {
     this._store.dispatch(
       TaskSharedActions.moveToOtherProject({ task, targetProjectId: projectId }),
     );
+
+    // Future occurrences are rendered and created from the repeat template,
+    // not from the concrete task instance. Keep the template in the same
+    // project so every projected occurrence inherits the project color.
+    if (task.repeatCfgId) {
+      this._store.dispatch(
+        updateTaskRepeatCfgs({
+          ids: [task.repeatCfgId],
+          changes: { projectId },
+        }),
+      );
+    }
   }
 
   moveToCurrentWorkContext(task: TaskWithSubTasks | Task): void {

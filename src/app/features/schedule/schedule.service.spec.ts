@@ -11,6 +11,8 @@ import { BehaviorSubject, of } from 'rxjs';
 import { CalendarIntegrationService } from '../calendar-integration/calendar-integration.service';
 import { HiddenCalendarProvidersService } from '../calendar-integration/hidden-calendar-providers.service';
 import { TaskService } from '../tasks/task.service';
+import { TaskArchiveService } from '../archive/task-archive.service';
+import { WorklogService } from '../worklog/worklog.service';
 import { ScheduleCalendarMapEntry, ScheduleEvent } from './schedule.model';
 import { SVEType } from './schedule.const';
 
@@ -44,6 +46,14 @@ describe('ScheduleService', () => {
         {
           provide: TaskService,
           useValue: { currentTaskId: () => null },
+        },
+        {
+          provide: TaskArchiveService,
+          useValue: { load: () => Promise.resolve({ ids: [], entities: {} }) },
+        },
+        {
+          provide: WorklogService,
+          useValue: { archiveUpdateManualTrigger$: new BehaviorSubject(true) },
         },
       ],
     });
@@ -652,6 +662,14 @@ describe('ScheduleService – calendar visibility filter', () => {
         {
           provide: HiddenCalendarProvidersService,
           useValue: { hiddenProviderIds },
+        },
+        {
+          provide: TaskArchiveService,
+          useValue: { load: () => Promise.resolve({ ids: [], entities: {} }) },
+        },
+        {
+          provide: WorklogService,
+          useValue: { archiveUpdateManualTrigger$: new BehaviorSubject(true) },
         },
       ],
     });

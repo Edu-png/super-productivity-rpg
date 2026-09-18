@@ -2,6 +2,7 @@ import { effect, inject, Injectable, Injector } from '@angular/core';
 import { ImexViewService } from '../../imex/imex-meta/imex-view.service';
 import { TranslateService } from '@ngx-translate/core';
 import { LocalBackupService } from '../../imex/local-backup/local-backup.service';
+import { RpgCharacterBackupService } from '../../features/rpg-profile/rpg-character-backup.service';
 import { GlobalConfigService } from '../../features/config/global-config.service';
 import { SnackService } from '../snack/snack.service';
 import { PluginService } from '../../plugins/plugin.service';
@@ -58,6 +59,7 @@ export class StartupService {
   private _imexMetaService = inject(ImexViewService);
   private _translateService = inject(TranslateService);
   private _localBackupService = inject(LocalBackupService);
+  private _rpgCharacterBackupService = inject(RpgCharacterBackupService);
   private _globalConfigService = inject(GlobalConfigService);
   private _snackService = inject(SnackService);
   private _ratePromptService = inject(RatePromptService);
@@ -142,6 +144,7 @@ export class StartupService {
       this._updateCheckService.init();
       this._checkAvailableStorage();
       this._initOfflineBanner();
+      void this._rpgCharacterBackupService.runDailyBackupIfNeeded();
 
       const miscCfg = this._globalConfigService.misc();
 

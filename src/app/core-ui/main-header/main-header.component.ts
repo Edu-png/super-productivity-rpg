@@ -100,11 +100,6 @@ export class MainHeaderComponent implements OnDestroy {
   private readonly _dateService = inject(DateService);
   private readonly _dataInitStateService = inject(DataInitStateService);
   private readonly _conflictJournal = inject(ConflictJournalService);
-  private _rpgAudioContext: AudioContext | null = null;
-  private _rpgMusicGain: GainNode | null = null;
-  private _rpgMusicTimer: ReturnType<typeof setInterval> | null = null;
-  private _rpgNoteIndex = 0;
-  readonly isRpgMusicPlaying = signal(false);
 
   readonly isDataLoaded = toSignal(this._dataInitStateService.isAllDataLoadedInitially$, {
     initialValue: false,
@@ -234,8 +229,15 @@ export class MainHeaderComponent implements OnDestroy {
     void this._router.navigate(['/library']);
   }
 
+  openGameLibrary(): void {
+    void this._router.navigate(['/games']);
+  }
+
+  openNutrition(): void {
+    void this._router.navigate(['/nutrition']);
+  }
+
   openRpgProfile(): void {
-    this._startRpgMusic();
     void this._router.navigate(['/profile']);
   }
 
@@ -272,57 +274,6 @@ export class MainHeaderComponent implements OnDestroy {
       this.isDataLoaded();
       this._syncTeleport(enabled);
     });
-    this._subs.add(
-      this._router.events
-        .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-        .subscribe((event) => {
-          if (!event.urlAfterRedirects.startsWith('/profile')) {
-            this._stopRpgMusic();
-          }
-        }),
-    );
-  }
-
-  private _startRpgMusic(): void {
-    if (this.isRpgMusicPlaying()) return;
-    const AudioContextClass = window.AudioContext;
-    const context = new AudioContextClass();
-    const master = context.createGain();
-    master.gain.setValueAtTime(0.028, context.currentTime);
-    master.connect(context.destination);
-    this._rpgAudioContext = context;
-    this._rpgMusicGain = master;
-    this.isRpgMusicPlaying.set(true);
-
-    const notes = [220, 261.63, 329.63, 293.66, 246.94, 329.63, 392, 293.66];
-    const playNote = (): void => {
-      if (!this._rpgAudioContext || !this._rpgMusicGain) return;
-      const now = this._rpgAudioContext.currentTime;
-      const oscillator = this._rpgAudioContext.createOscillator();
-      const envelope = this._rpgAudioContext.createGain();
-      oscillator.type = 'triangle';
-      oscillator.frequency.setValueAtTime(notes[this._rpgNoteIndex % notes.length], now);
-      this._rpgNoteIndex += 1;
-      envelope.gain.setValueAtTime(0.0001, now);
-      envelope.gain.exponentialRampToValueAtTime(0.45, now + 0.08);
-      envelope.gain.exponentialRampToValueAtTime(0.0001, now + 1.65);
-      oscillator.connect(envelope);
-      envelope.connect(this._rpgMusicGain);
-      oscillator.start(now);
-      oscillator.stop(now + 1.7);
-    };
-    playNote();
-    this._rpgMusicTimer = setInterval(playNote, 1450);
-  }
-
-  private _stopRpgMusic(): void {
-    if (this._rpgMusicTimer) clearInterval(this._rpgMusicTimer);
-    this._rpgMusicTimer = null;
-    const context = this._rpgAudioContext;
-    this._rpgAudioContext = null;
-    this._rpgMusicGain = null;
-    this.isRpgMusicPlaying.set(false);
-    if (context) void context.close();
   }
 
   private _syncTeleport(enabled: boolean): void {
@@ -372,7 +323,6 @@ export class MainHeaderComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this._stopRpgMusic();
     this._subs.unsubscribe();
     this._teleportObserver?.disconnect();
     this._teleportedNav?.remove();

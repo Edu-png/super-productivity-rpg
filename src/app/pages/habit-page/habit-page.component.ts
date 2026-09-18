@@ -30,12 +30,13 @@ interface CalendarDay {
 export class HabitPageComponent {
   readonly tracker = inject(TaskHabitService);
   readonly profile = inject(RpgProfileService);
-  readonly selectedCharacterIds = signal<string[]>([
-    this.profile.activeCharacterId(),
-  ]);
+  readonly selectedCharacterIds = signal<string[]>([this.profile.activeCharacterId()]);
   readonly view = signal<'day' | 'month'>('day');
   readonly editorOpen = signal(false);
   readonly search = signal('');
+  readonly manualHabitName = signal('');
+  readonly manualHabitId = signal<string | null>(null);
+  readonly editingTimeHabitId = signal<string | null>(null);
   readonly selectedDate = signal(new Date());
   readonly monthCursor = signal(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -79,7 +80,7 @@ export class HabitPageComponent {
   });
   readonly visibleHabits = computed(() =>
     this.tracker
-      .habitsForCharacters(this.selectedCharacterIds())
+      .habitsForDate(this.selectedDateKey(), this.selectedCharacterIds())
       .sort((a, b) => {
         const date = this.selectedDateKey();
         const aTime = this.tracker.scheduledAt(a.id, date);
@@ -105,6 +106,25 @@ export class HabitPageComponent {
     return this.tracker.completionRate(date, this.selectedCharacterIds());
   }
 
+  activeHabits(date: string) {
+    return this.tracker.habitsForDate(date, this.selectedCharacterIds());
+  }
+
+  createManualHabit(): void {
+    const id = this.tracker.createManualHabit(
+      this.manualHabitName(),
+      this.selectedCharacterIds(),
+    );
+    if (!id) return;
+    this.manualHabitId.set(id);
+    this.manualHabitName.set('');
+  }
+
+  toggleManualLink(task: Task): void {
+    const habitId = this.manualHabitId();
+    if (habitId) this.tracker.toggleTaskForHabit(habitId, task);
+  }
+
   previousDay(): void {
     this._moveSelectedDate(-1);
   }
@@ -115,9 +135,7 @@ export class HabitPageComponent {
 
   today(): void {
     this.selectedDate.set(new Date());
-    this.monthCursor.set(
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    );
+    this.monthCursor.set(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   }
 
   previousMonth(): void {
@@ -155,6 +173,20 @@ export class HabitPageComponent {
     } else {
       this.tracker.addFromTask(task, selected);
     }
+  }
+
+  startEditTime(habitId: string): void {
+    this.editingTimeHabitId.set(habitId);
+  }
+
+  saveManualTime(habitId: string, value: string): void {
+    this.tracker.setManualTime(habitId, value || null);
+    this.editingTimeHabitId.set(null);
+  }
+
+  clearManualTime(habitId: string): void {
+    this.tracker.setManualTime(habitId, null);
+    this.editingTimeHabitId.set(null);
   }
 
   private _moveSelectedDate(amount: number): void {

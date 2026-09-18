@@ -84,6 +84,16 @@
     }
   </div>
 
+  <button
+    (click)="viewNotes()"
+    mat-menu-item
+  >
+    <span class="menuItemLeft">
+      <mat-icon>notes</mat-icon>
+      {{ T.F.TASK.CMP.VIEW_NOTES | translate }}
+    </span>
+  </button>
+
   @if (
     isTimeTrackingEnabled() &&
     ((isAdvancedControls() && isTouchActive()) || !isAdvancedControls()) &&
@@ -137,22 +147,31 @@
       <span class="key-i">{{ kb.togglePlay }}</span>
     </button>
   }
-  @if (isTouchActive() || !isAdvancedControls()) {
+  <button
+    (click)="toggleTaskDone()"
+    mat-menu-item
+  >
+    <span class="menuItemLeft">
+      @if (task.isDone) {
+        <mat-icon>undo</mat-icon>
+      } @else {
+        <mat-icon>check</mat-icon>
+      }
+      {{ (task.isDone ? T.F.TASK.CMP.MARK_UNDONE : T.F.TASK.CMP.MARK_DONE) | translate }}
+    </span>
+    <span class="key-i">{{ kb.taskToggleDone }}</span>
+  </button>
+
+  @if (!task.isDone) {
     <button
-      (click)="toggleTaskDone()"
+      (click)="markAsFailed()"
+      class="color-warn"
       mat-menu-item
     >
       <span class="menuItemLeft">
-        @if (task.isDone) {
-          <mat-icon>undo</mat-icon>
-        } @else {
-          <mat-icon>check</mat-icon>
-        }
-        {{
-          (task.isDone ? T.F.TASK.CMP.MARK_UNDONE : T.F.TASK.CMP.MARK_DONE) | translate
-        }}
+        <mat-icon class="color-warn-i">close</mat-icon>
+        {{ T.F.TASK.CMP.MARK_FAILED | translate }}
       </span>
-      <span class="key-i">{{ kb.taskToggleDone }}</span>
     </button>
   }
 
@@ -167,7 +186,7 @@
       </span>
     </button>
   }
-  @if (isAdvancedControls() && !task.parentId && !task.isDone) {
+  @if (!task.parentId && !task.isDone) {
     <button
       (click)="addSubTask()"
       mat-menu-item
@@ -301,6 +320,20 @@
       <span class="key-i">{{ kb.taskMoveToProject }}</span>
     </button>
   }
+  @if (canMoveToTaskAsSubtask && ((moveToTaskList$ | async)?.length || 0) > 0) {
+    <button
+      #moveToTaskMenuTrigger="matMenuTrigger"
+      [matMenuTriggerFor]="moveToTaskMenu"
+      mat-menu-item
+      [menuTouchFix]="moveToTaskMenuTrigger"
+      (menuOpened)="focusFirstSubmenuItem(moveToTaskMenu)"
+    >
+      <span class="menuItemLeft">
+        <mat-icon>subdirectory_arrow_right</mat-icon>
+        {{ T.F.TASK.CMP.MOVE_TO_TASK | translate }}
+      </span>
+    </button>
+  }
   @if (task.parentId) {
     <button
       (click)="convertToMainTask()"
@@ -379,6 +412,22 @@
             [color]="project.theme?.primary"
             [folderPath]="projectFolderMap().get(project.id)"
           ></select-option-row>
+        </button>
+      }
+    }
+  </ng-template>
+</mat-menu>
+
+<mat-menu #moveToTaskMenu="matMenu">
+  <ng-template matMenuContent>
+    @if (moveToTaskList$ | async; as list) {
+      @for (candidate of list; track candidate.id) {
+        <button
+          (click)="moveToTaskAsSubtask(candidate.id)"
+          mat-menu-item
+          menuTouchFix
+        >
+          {{ candidate.title }}
         </button>
       }
     }

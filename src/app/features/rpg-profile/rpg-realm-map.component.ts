@@ -21,15 +21,15 @@ import { CharacterRendererComponent } from './character-renderer.component';
 export class RpgRealmMapComponent implements OnDestroy {
   readonly profile = inject(RpgProfileService);
   readonly realms = RPG_REALMS;
+  readonly realmMapBackground = "url('./assets/rpg/realms/realms-overworld-v1.png')";
   readonly currentRealm = computed(
     () =>
       this.realms.find((realm) => realm.id === this.profile.state().currentRealmId) ??
       this.realms[0],
   );
   private readonly initialRealm =
-    RPG_REALMS.find(
-      (realm) => realm.id === this.profile.state().currentRealmId,
-    ) ?? RPG_REALMS[0];
+    RPG_REALMS.find((realm) => realm.id === this.profile.state().currentRealmId) ??
+    RPG_REALMS[0];
   readonly playerX = signal(this.initialRealm.position.x);
   readonly playerY = signal(this.initialRealm.position.y);
   readonly isWalking = signal(false);

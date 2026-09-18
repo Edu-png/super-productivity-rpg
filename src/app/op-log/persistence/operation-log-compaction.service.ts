@@ -6,6 +6,7 @@ import {
   EMERGENCY_COMPACTION_RETENTION_MS,
   LOCK_NAMES,
   SLOW_COMPACTION_THRESHOLD_MS,
+  STATE_SIZE_WARNING_THRESHOLD_MB,
 } from '../core/operation-log.const';
 import { OperationLogStoreService } from './operation-log-store.service';
 import { StateSnapshotService } from '../backup/state-snapshot.service';
@@ -136,6 +137,7 @@ export class OperationLogCompactionService {
       // 1. Get current state from NgRx store
       const currentState = this.stateSnapshot.getStateSnapshotForOperationLog();
       this.checkCompactionTimeout(startTime, `${label}state snapshot`);
+      this.warnIfStateTooLarge(currentState);
 
       // GUARD (#7892): never compact against an empty/degraded state. Compaction
       // both writes the state cache AND deletes old synced ops — if the live
@@ -243,6 +245,27 @@ export class OperationLogCompactionService {
         `Compaction timeout after ${elapsed}ms during ${phase}. ` +
           `Aborting to prevent lock expiration. ` +
           `Consider reducing state size or increasing timeout.`,
+      );
+    }
+  }
+
+  /**
+   * Logs a warning when the snapshotted state is large enough that
+   * serializing/writing it is a plausible cause of a slow or timed-out
+   * compaction. Purely diagnostic — never blocks or alters compaction.
+   */
+  private warnIfStateTooLarge(currentState: unknown): void {
+    let sizeMb: number;
+    try {
+      sizeMb = new Blob([JSON.stringify(currentState)]).size / (1024 * 1024);
+    } catch {
+      return;
+    }
+    if (sizeMb > STATE_SIZE_WARNING_THRESHOLD_MB) {
+      OpLog.warn(
+        `OperationLogCompactionService: State snapshot is ${sizeMb.toFixed(1)}MB, ` +
+          `above the ${STATE_SIZE_WARNING_THRESHOLD_MB}MB warning threshold — this is a ` +
+          `likely cause of slow or timed-out compaction.`,
       );
     }
   }

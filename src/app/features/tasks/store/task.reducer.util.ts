@@ -100,23 +100,25 @@ export const reCalcTimeEstimateForParentIfParent = (
       return upd && upd.id === id ? { ...task, ...upd.changes } : task;
     })
     .filter((task): task is Task => !!task);
-  // TaskLog.log(
-  //   subTasks.reduce((acc: number, st: Task) => {
-  //     TaskLog.log(
-  //       (st.isDone ? 0 : Math.max(0, st.timeEstimate - st.timeSpent)) / 60 / 1000,
-  //     );
-  //
-  //     return acc + (st.isDone ? 0 : Math.max(0, st.timeEstimate - st.timeSpent));
-  //   }, 0) /
-  //     60 /
-  //     1000,
-  // );
+
+  const recalculated = sumSubTaskTimeLeft(subTasks);
+  // Marking a subtask done/undone (with no estimate change of its own)
+  // must not shrink the parent's total below what it already was - a
+  // schedule block (or the "time left today" total) collapsing the instant
+  // you check something off reads as broken, not as progress. Structural
+  // changes (a subtask added, removed, or re-estimated) still recalculate
+  // freely in either direction.
+  const isPureDoneToggle =
+    !!upd && 'isDone' in upd.changes && !('timeEstimate' in upd.changes);
+  const timeEstimate = isPureDoneToggle
+    ? Math.max(recalculated, parentTask.timeEstimate)
+    : recalculated;
 
   return taskAdapter.updateOne(
     {
       id: parentId,
       changes: {
-        timeEstimate: sumSubTaskTimeLeft(subTasks),
+        timeEstimate,
       },
     },
     state,

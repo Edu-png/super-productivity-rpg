@@ -13,6 +13,7 @@ import { FH, SVEType, T_ID_PREFIX } from '../schedule.const';
 import { PlannerActions } from '../../planner/store/planner.actions';
 import { CalendarEventActionsService } from '../../calendar-integration/calendar-event-actions.service';
 import { DateService } from '../../../core/date/date.service';
+import { TaskRepeatCfgService } from '../../task-repeat-cfg/task-repeat-cfg.service';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -24,6 +25,7 @@ describe('ScheduleWeekDragService', () => {
   let store: MockStore;
   let dispatchSpy: jasmine.Spy;
   let calendarEventActionsSpy: jasmine.SpyObj<CalendarEventActionsService>;
+  let taskRepeatCfgServiceSpy: jasmine.SpyObj<TaskRepeatCfgService>;
 
   const createMockGlobalConfigService = (
     defaultTaskRemindOption: TaskReminderOptionId = TaskReminderOptionId.AtStart,
@@ -63,6 +65,12 @@ describe('ScheduleWeekDragService', () => {
           provide: DateService,
           useValue: { todayStr: () => '2026-03-20' },
         },
+        {
+          provide: TaskRepeatCfgService,
+          useValue: jasmine.createSpyObj<TaskRepeatCfgService>('TaskRepeatCfgService', [
+            'updateTaskRepeatCfgs',
+          ]),
+        },
       ],
     });
 
@@ -73,6 +81,9 @@ describe('ScheduleWeekDragService', () => {
     ) as jasmine.SpyObj<CalendarEventActionsService>;
     calendarEventActionsSpy.canMoveEvent.and.returnValue(true);
     calendarEventActionsSpy.moveToStartTime.and.resolveTo(true);
+    taskRepeatCfgServiceSpy = TestBed.inject(
+      TaskRepeatCfgService,
+    ) as jasmine.SpyObj<TaskRepeatCfgService>;
     dispatchSpy = spyOn(store, 'dispatch').and.callThrough();
   };
 
@@ -417,6 +428,22 @@ describe('ScheduleWeekDragService', () => {
       const dispatchedAction = dispatchSpy.calls.mostRecent().args[0];
       // AtStart means remindAt equals scheduleTime
       expect(dispatchedAction.remindAt).toBe(scheduleTime);
+    });
+
+    it('should keep the recurring series start time in sync with the moved task', () => {
+      setupTestBed();
+      const scheduleTime = new Date(2026, 6, 30, 6, 10).getTime();
+      const task = {
+        ...baseTask,
+        repeatCfgId: 'repeat-duolingo',
+      };
+
+      (service as any)._scheduleTask(task, scheduleTime);
+
+      expect(taskRepeatCfgServiceSpy.updateTaskRepeatCfgs).toHaveBeenCalledWith(
+        ['repeat-duolingo'],
+        { startTime: '6:10' },
+      );
     });
 
     it('should use configured default reminder option "m10" (10 minutes before) when scheduling new task', () => {

@@ -44,6 +44,7 @@ import { TaskContextMenuComponent } from '../../tasks/task-context-menu/task-con
 import { DateTimeFormatService } from '../../../core/date-time-format/date-time-format.service';
 import { FH } from '../schedule.const';
 import { CalendarEventActionsService } from '../../calendar-integration/calendar-event-actions.service';
+import { RpgProfileService } from '../../rpg-profile/rpg-profile.service';
 
 const FIVE_MINUTES_IN_MS = 5 * 60 * 1000;
 
@@ -92,6 +93,7 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
   private _taskService = inject(TaskService);
   private _calEventActions = inject(CalendarEventActionsService);
   private _ngZone = inject(NgZone);
+  private _rpgProfileService = inject(RpgProfileService);
   readonly titleHasLinks = computed(() => {
     const t = this.title();
     return !!t && hasLinkHints(t);
@@ -164,6 +166,44 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
       (evt as any)?.data?.title ||
       (evt.type === SVEType.LunchBreak ? 'Lunch Break' : 'TITLE')
     );
+  });
+
+  // The block itself never shrinks below the programmed estimate once a task
+  // runs over (see getScheduleDurationForTask) - this surfaces the real
+  // overage as a small badge instead, so it's still visible at a glance.
+  readonly overageLabel = computed(() => {
+    const t = this.task();
+    if (!t) return null;
+    const overageMs = Math.max(0, t.timeSpent - t.timeEstimate);
+    if (t.subTaskIds.length > 0 || overageMs <= 0) return null;
+    const minutes = Math.round(overageMs / 60000);
+    if (minutes <= 0) return null;
+    return minutes < 60
+      ? `+${minutes}m`
+      : `+${Math.floor(minutes / 60)}h${minutes % 60 ? (minutes % 60) + 'm' : ''}`;
+  });
+
+  // A task explicitly given up on via "Mark as not done" (rpg-profile.service's
+  // markTaskAsFailed) rather than one that was simply completed early - gets its
+  // own badge/styling below instead of the generic underage one.
+  readonly isFailedTask = computed(() => {
+    const t = this.task();
+    return !!t && this._rpgProfileService.isTaskFailed(t.id);
+  });
+
+  // Counterpart badge for a completed task that didn't use up its full
+  // estimate - the block stays at its programmed size (getScheduleDurationForTask),
+  // so this surfaces how much of it went unused instead of shrinking the block.
+  readonly underageLabel = computed(() => {
+    const t = this.task();
+    if (!t || !t.isDone || this.isFailedTask()) return null;
+    const underageMs = Math.max(0, t.timeEstimate - t.timeSpent);
+    if (t.subTaskIds.length > 0 || underageMs <= 0) return null;
+    const minutes = Math.round(underageMs / 60000);
+    if (minutes <= 0) return null;
+    return minutes < 60
+      ? `-${minutes}m`
+      : `-${Math.floor(minutes / 60)}h${minutes % 60 ? (minutes % 60) + 'm' : ''}`;
   });
 
   readonly scheduledClockStr = computed(() => {
@@ -262,6 +302,10 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
       addClass += ' is-done';
     }
 
+    if (this.isFailedTask()) {
+      addClass += ' is-rpg-failed';
+    }
+
     if (this.visibleSubTasks().length) {
       addClass += ' has-subtasks';
     }
@@ -334,7 +378,11 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private readonly _projectId = computed(() => this.task()?.projectId || null);
+  private readonly _projectId = computed(() => {
+    const evt = this.se();
+    const eventProjectId = (evt.data as TaskCopy | TaskRepeatCfg | undefined)?.projectId;
+    return this.task()?.projectId || eventProjectId || null;
+  });
 
   readonly projectColor = computed(() => {
     const projectId = this._projectId();

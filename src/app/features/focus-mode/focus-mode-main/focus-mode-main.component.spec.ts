@@ -16,6 +16,7 @@ import { FocusMainUIState, FocusModeMode } from '../focus-mode.model';
 import { TaskCopy } from '../../tasks/task.model';
 import { SimpleCounter } from '../../simple-counter/simple-counter.model';
 import * as actions from '../store/focus-mode.actions';
+import { unsetCurrentTask } from '../../tasks/store/task.actions';
 import { TaskSharedActions } from '../../../root-store/meta/task-shared.actions';
 import { EffectsModule } from '@ngrx/effects';
 import { Component, EventEmitter, Output, signal, WritableSignal } from '@angular/core';
@@ -399,6 +400,7 @@ describe('FocusModeMainComponent', () => {
 
       expect(mockStore.dispatch).toHaveBeenCalledWith(actions.completeTask());
       expect(mockStore.dispatch).toHaveBeenCalledWith(actions.selectFocusTask());
+      expect(mockStore.dispatch).toHaveBeenCalledWith(unsetCurrentTask());
       expect(mockStore.dispatch).toHaveBeenCalledWith(
         TaskSharedActions.updateTask({
           task: {
@@ -423,6 +425,7 @@ describe('FocusModeMainComponent', () => {
         '[FocusMode] Complete Task',
         '[Task Shared] updateTask',
         '[FocusMode] Select Task',
+        '[Task] UnsetCurrentTask',
       ]);
 
       // Get all calls and verify the UpdateTask action details

@@ -26,15 +26,27 @@ export class ArcaneLibraryService {
   readonly aggregates = signal<ReadingDailyAggregate[]>([]);
   readonly challenges = signal<ReadingChallenge[]>([]);
   readonly settings = signal<LibrarySettings>({
-    id: '', profileId: '', view: 'gallery',
+    id: '',
+    profileId: '',
+    view: 'gallery',
     filters: { year: '', status: '', genre: '', format: '', favorite: false },
     annualGoal: 40,
   });
-  readonly totalMinutes = computed(() => this.aggregates().reduce((sum, day) => sum + day.minutes, 0));
-  readonly totalPages = computed(() => this.aggregates().reduce((sum, day) => sum + day.pages, 0));
-  readonly finished = computed(() => this.books().filter((book) => book.status === 'finished'));
-  readonly reading = computed(() => this.books().filter((book) => book.status === 'reading'));
-  readonly wishlist = computed(() => this.books().filter((book) => ['wishlist', 'planned'].includes(book.status)));
+  readonly totalMinutes = computed(() =>
+    this.aggregates().reduce((sum, day) => sum + day.minutes, 0),
+  );
+  readonly totalPages = computed(() =>
+    this.aggregates().reduce((sum, day) => sum + day.pages, 0),
+  );
+  readonly finished = computed(() =>
+    this.books().filter((book) => book.status === 'finished'),
+  );
+  readonly reading = computed(() =>
+    this.books().filter((book) => book.status === 'reading'),
+  );
+  readonly wishlist = computed(() =>
+    this.books().filter((book) => ['wishlist', 'planned'].includes(book.status)),
+  );
 
   async load(profileId: string): Promise<void> {
     this.profileId.set(profileId);
@@ -43,31 +55,60 @@ export class ArcaneLibraryService {
     this.groups.set(data.groups);
     this.aggregates.set(data.aggregates);
     this.challenges.set(data.challenges);
-    this.settings.set(data.settings ?? {
-      id: profileId, profileId, view: 'gallery',
-      filters: { year: '', status: '', genre: '', format: '', favorite: false },
-      annualGoal: 40,
-    });
+    this.settings.set(
+      data.settings ?? {
+        id: profileId,
+        profileId,
+        view: 'gallery',
+        filters: { year: '', status: '', genre: '', format: '', favorite: false },
+        annualGoal: 40,
+      },
+    );
   }
 
-  async createBook(input: Partial<ArcaneBook> & Pick<ArcaneBook, 'title'>): Promise<ArcaneBook> {
+  async createBook(
+    input: Partial<ArcaneBook> & Pick<ArcaneBook, 'title'>,
+  ): Promise<ArcaneBook> {
     const now = Date.now();
     const today = dateKey();
     const status = input.status ?? 'wishlist';
     const book: ArcaneBook = {
-      id: crypto.randomUUID(), profileId: this.profileId(), collectionId: null, shelfId: null,
-      title: input.title.trim(), subtitle: input.subtitle ?? '', author: input.author ?? '',
-      series: '', volume: null, language: 'Português', genre: input.genre ?? 'Não definido',
-      subgenres: [], nationality: '', publisher: '', isbn: '', format: input.format ?? 'physical',
-      pages: input.pages ?? 0, currentPage: 0, publicationYear: null, purchaseDate: null,
+      id: crypto.randomUUID(),
+      profileId: this.profileId(),
+      collectionId: null,
+      shelfId: null,
+      title: input.title.trim(),
+      subtitle: input.subtitle ?? '',
+      author: input.author ?? '',
+      series: '',
+      volume: null,
+      language: 'Português',
+      genre: input.genre ?? 'Não definido',
+      subgenres: [],
+      nationality: '',
+      publisher: '',
+      isbn: '',
+      format: input.format ?? 'physical',
+      pages: input.pages ?? 0,
+      currentPage: 0,
+      publicationYear: null,
+      purchaseDate: null,
       price: null,
       startedAt: status === 'reading' || status === 'finished' ? today : null,
       finishedAt: status === 'finished' ? today : null,
       status,
-      rating: null, favorite: false, reread: false, tags: [], notes: '',
-      coverDataUrl: input.coverDataUrl ?? null, color: COLORS[this.books().length % COLORS.length],
-      plannedMonth: input.plannedMonth ?? null, priority: 3, difficultyMultiplier: 1,
-      createdAt: now, updatedAt: now,
+      rating: null,
+      favorite: false,
+      reread: false,
+      tags: [],
+      notes: '',
+      coverDataUrl: input.coverDataUrl ?? null,
+      color: COLORS[this.books().length % COLORS.length],
+      plannedMonth: input.plannedMonth ?? null,
+      priority: 3,
+      difficultyMultiplier: 1,
+      createdAt: now,
+      updatedAt: now,
     };
     await this.repository.putBook(book);
     this.books.update((rows) => [...rows, book]);
@@ -78,14 +119,19 @@ export class ArcaneLibraryService {
     const today = dateKey();
     const updated = {
       ...book,
-      startedAt: book.status === 'reading' || book.status === 'finished'
-        ? book.startedAt ?? today
-        : book.status === 'abandoned' ? book.startedAt : null,
-      finishedAt: book.status === 'finished' ? book.finishedAt ?? today : null,
+      startedAt:
+        book.status === 'reading' || book.status === 'finished'
+          ? (book.startedAt ?? today)
+          : book.status === 'abandoned'
+            ? book.startedAt
+            : null,
+      finishedAt: book.status === 'finished' ? (book.finishedAt ?? today) : null,
       updatedAt: Date.now(),
     };
     await this.repository.putBook(updated);
-    this.books.update((rows) => rows.map((row) => row.id === updated.id ? updated : row));
+    this.books.update((rows) =>
+      rows.map((row) => (row.id === updated.id ? updated : row)),
+    );
   }
 
   async removeBook(id: string): Promise<void> {
@@ -93,24 +139,72 @@ export class ArcaneLibraryService {
     this.books.update((rows) => rows.filter((row) => row.id !== id));
   }
 
-  async addGroup(kind: 'collection' | 'shelf', title: string, parentId: string | null): Promise<void> {
+  async addGroup(
+    kind: 'collection' | 'shelf',
+    title: string,
+    parentId: string | null,
+  ): Promise<void> {
     if (!title.trim()) return;
     const group: LibraryGroup = {
-      id: crypto.randomUUID(), profileId: this.profileId(), parentId, kind,
-      title: title.trim(), color: COLORS[this.groups().length % COLORS.length], createdAt: Date.now(),
+      id: crypto.randomUUID(),
+      profileId: this.profileId(),
+      parentId,
+      kind,
+      title: title.trim(),
+      color: COLORS[this.groups().length % COLORS.length],
+      createdAt: Date.now(),
     };
     await this.repository.putGroup(group);
     this.groups.update((rows) => [...rows, group]);
   }
 
-  async addLog(book: ArcaneBook, minutes: number, startPage: number, endPage: number, notes: string): Promise<void> {
+  async removeGroup(id: string): Promise<void> {
+    const children = this.groups().filter((group) => group.parentId === id);
+    for (const child of children) await this.repository.deleteGroup(child.id);
+    for (const book of this.books()) {
+      if (book.collectionId === id || book.shelfId === id) {
+        await this.updateBook({
+          ...book,
+          collectionId: book.collectionId === id ? null : book.collectionId,
+          shelfId: book.shelfId === id || book.collectionId === id ? null : book.shelfId,
+        });
+      }
+    }
+    await this.repository.deleteGroup(id);
+    this.groups.update((rows) =>
+      rows.filter((row) => row.id !== id && row.parentId !== id),
+    );
+  }
+
+  async addLog(
+    book: ArcaneBook,
+    minutes: number,
+    startPage: number,
+    endPage: number,
+    notes: string,
+    loggedAtOverride?: number,
+  ): Promise<void> {
     const pages = Math.max(0, endPage - startPage);
     const xp = pages > 0 ? Math.max(1, Math.ceil(pages / 5)) : 0;
+    const loggedAt = loggedAtOverride ?? Date.now();
     const log: ReadingLog = {
-      id: crypto.randomUUID(), profileId: this.profileId(), bookId: book.id,
-      date: dateKey(), startedAt: Date.now(), minutes: Math.max(1, minutes),
-      startPage, endPage, mood: null, energy: null, location: '', notes,
-      quotes: [], favoritePassages: [], music: '', xpEarned: xp, goldEarned: Math.floor(pages / 50),
+      id: crypto.randomUUID(),
+      profileId: this.profileId(),
+      bookId: book.id,
+      date: dateKey(new Date(loggedAt)),
+      startedAt: loggedAt,
+      minutes: Math.max(1, minutes),
+      startPage,
+      endPage,
+      mood: null,
+      energy: null,
+      location: '',
+      notes,
+      quotes: [],
+      favoritePassages: [],
+      music: '',
+      xpEarned: xp,
+      goldEarned: Math.floor(pages / 50),
     };
     const aggregate = await this.repository.addLog(log);
     this.rpg.grantExternalReward(
@@ -120,9 +214,13 @@ export class ArcaneLibraryService {
       'arcane-library',
       this.profileId(),
     );
-    this.aggregates.update((rows) => [...rows.filter((row) => row.id !== aggregate.id), aggregate]);
+    this.aggregates.update((rows) => [
+      ...rows.filter((row) => row.id !== aggregate.id),
+      aggregate,
+    ]);
     await this.updateBook({
-      ...book, currentPage: Math.max(book.currentPage, endPage),
+      ...book,
+      currentPage: Math.max(book.currentPage, endPage),
       status: endPage >= book.pages && book.pages > 0 ? 'finished' : 'reading',
       startedAt: book.startedAt ?? log.date,
       finishedAt: endPage >= book.pages && book.pages > 0 ? log.date : null,
@@ -134,13 +232,29 @@ export class ArcaneLibraryService {
     await this.repository.putSettings(settings);
   }
 
-  async addChallenge(title: string, metric: ReadingChallenge['metric'], target: number): Promise<void> {
+  async addChallenge(
+    title: string,
+    metric: ReadingChallenge['metric'],
+    target: number,
+  ): Promise<void> {
     if (!title.trim() || target < 1) return;
     const challenge: ReadingChallenge = {
-      id: crypto.randomUUID(), profileId: this.profileId(), title: title.trim(),
-      metric, target, progress: 0, xpReward: target * 2, goldReward: Math.ceil(target / 2), completedAt: null,
+      id: crypto.randomUUID(),
+      profileId: this.profileId(),
+      title: title.trim(),
+      metric,
+      target,
+      progress: 0,
+      xpReward: target * 2,
+      goldReward: Math.ceil(target / 2),
+      completedAt: null,
     };
     await this.repository.putChallenge(challenge);
     this.challenges.update((rows) => [...rows, challenge]);
+  }
+
+  async removeChallenge(id: string): Promise<void> {
+    await this.repository.deleteChallenge(id);
+    this.challenges.update((rows) => rows.filter((row) => row.id !== id));
   }
 }

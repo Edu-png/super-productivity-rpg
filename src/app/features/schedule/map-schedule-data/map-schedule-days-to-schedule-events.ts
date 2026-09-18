@@ -1,5 +1,5 @@
 import { ScheduleDay, ScheduleEvent } from '../schedule.model';
-import { getTimeLeftForTask } from '../../../util/get-time-left-for-task';
+import { getScheduleDurationForTask } from '../../../util/get-time-left-for-task';
 import { SVEType } from '../schedule.const';
 import { TaskWithPlannedForDayIndication } from '../../tasks/task.model';
 import { dateStrToUtcDate } from '../../../util/date-str-to-utc-date';
@@ -16,7 +16,7 @@ export const mapScheduleDaysToScheduleEvents = (
 
   days.forEach((day, dayIndex) => {
     beyondBudgetDays[dayIndex] = day.beyondBudgetTasks.map((taskPlannedForDay) => {
-      const timeLeft = getTimeLeftForTask(taskPlannedForDay);
+      const timeLeft = getScheduleDurationForTask(taskPlannedForDay);
       const timeLeftInHours = timeLeft / 1000 / 60 / 60;
       const plannedForDay =
         (taskPlannedForDay as TaskWithPlannedForDayIndication).plannedForDay ||

@@ -208,6 +208,9 @@ const ea: ElectronAPI = {
   showFullScreenBlocker: (args) => _send('FULL_SCREEN_BLOCKER', args),
 
   backupAppData: (appData) => _invoke('BACKUP', appData) as Promise<void>,
+  rpgBackup: (args) => _invoke('RPG_BACKUP', args) as Promise<void>,
+  rpgBackupPickFolder: () =>
+    _invoke('RPG_BACKUP_PICK_FOLDER') as Promise<string | undefined>,
 
   updateCurrentTask: (
     task,

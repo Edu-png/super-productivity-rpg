@@ -1,11 +1,4 @@
-import { inject, Injectable } from '@angular/core';
-import { PluginUserPersistenceService } from '../../plugins/plugin-user-persistence.service';
-
-interface CloudManifest {
-  version: 1;
-  updatedAt: number;
-  chunks: number;
-}
+import { Injectable } from '@angular/core';
 
 export interface CloudDomainSnapshot<T> {
   value: T;
@@ -13,72 +6,32 @@ export interface CloudDomainSnapshot<T> {
 }
 
 /**
- * Stores versioned domain snapshots in pluginUserData. That state already
- * participates in every Super Productivity sync provider, while chunking
- * keeps each entity below the persistence limit.
+ * Stores versioned domain snapshots in pluginUserData so RPG/Academy
+ * Arcana/Arcane Library state can sync across devices via the existing
+ * plugin persistence channel.
+ *
+ * EMERGENCY STABILIZATION (2026-08-01): disabled. The real implementation
+ * chunked each domain value into ~48KB pieces and persisted each chunk via
+ * `PluginUserPersistenceService`, where every chunk becomes its own op-log
+ * operation (dispatch -> capture -> validate -> vector clock -> potential
+ * compaction/snapshot). A single RPG roster save could fan out into a dozen
+ * or more such operations; this was traced to the renderer hanging/crashing
+ * shortly after startup while replaying and re-flushing that op volume
+ * (reported: app freezing after marking a task done, then a startup
+ * crash-loop). `load()` always returning null and `save()` being a no-op
+ * makes every caller (DomainStateStore, ArcaneLibraryRepository,
+ * AcademyStudyService) fall back to their local-only IndexedDB path, which
+ * is already each domain's source of truth on this device - nothing here
+ * deletes or bypasses local persistence, cross-device sync is just paused
+ * until the write-amplification issue is fixed at its root.
  */
 @Injectable({ providedIn: 'root' })
 export class CloudDomainSyncService {
-  private readonly persistence = inject(PluginUserPersistenceService);
-  private readonly queued = new Map<string, Promise<void>>();
-  private readonly chunkSize = 48_000;
-
-  async load<T>(domain: string, scope: string): Promise<CloudDomainSnapshot<T> | null> {
-    const key = this.key(domain, scope);
-    const rawManifest = await this.persistence.loadPluginUserData(`${key}:manifest`);
-    if (!rawManifest) return null;
-    try {
-      const manifest = JSON.parse(rawManifest) as CloudManifest;
-      const chunks = await Promise.all(
-        Array.from({ length: manifest.chunks }, (_, index) =>
-          this.persistence.loadPluginUserData(`${key}:chunk:${index}`),
-        ),
-      );
-      if (chunks.some((chunk) => chunk === null)) return null;
-      return {
-        value: JSON.parse(chunks.join('')) as T,
-        updatedAt: manifest.updatedAt,
-      };
-    } catch {
-      return null;
-    }
+  async load<T>(_domain: string, _scope: string): Promise<CloudDomainSnapshot<T> | null> {
+    return null;
   }
 
-  save<T>(domain: string, scope: string, value: T): Promise<void> {
-    const key = this.key(domain, scope);
-    const previous = this.queued.get(key) ?? Promise.resolve();
-    const next = previous
-      .catch(() => undefined)
-      .then(async () => {
-        const serialized = JSON.stringify(value);
-        const chunks: string[] = [];
-        for (let index = 0; index < serialized.length; index += this.chunkSize) {
-          chunks.push(serialized.slice(index, index + this.chunkSize));
-        }
-        if (!chunks.length) chunks.push('');
-        for (let index = 0; index < chunks.length; index++) {
-          await this.persistence.persistPluginUserData(
-            `${key}:chunk:${index}`,
-            chunks[index],
-          );
-        }
-        await this.persistence.persistPluginUserData(
-          `${key}:manifest`,
-          JSON.stringify({
-            version: 1,
-            updatedAt: Date.now(),
-            chunks: chunks.length,
-          } satisfies CloudManifest),
-        );
-      });
-    this.queued.set(key, next);
-    void next.finally(() => {
-      if (this.queued.get(key) === next) this.queued.delete(key);
-    });
-    return next;
-  }
-
-  private key(domain: string, scope: string): string {
-    return `life-rpg:${domain}:${scope}`;
+  async save<T>(_domain: string, _scope: string, _value: T): Promise<void> {
+    return;
   }
 }

@@ -71,7 +71,16 @@ export const setPausedTaskId = createAction(
 // Additional compatibility actions
 export const setFocusSessionDuration = createAction(
   '[FocusMode] Set Focus Session Duration',
-  props<{ focusSessionDuration: number }>(),
+  props<{
+    focusSessionDuration: number;
+    // Pass true when the new duration belongs to a different task than
+    // whatever the timer's current elapsed was counted against (e.g.
+    // switching tasks while paused after finishing one) - otherwise a
+    // shorter duration than the stale elapsed makes the timer read as
+    // already-completed the moment it resumes, without ever having ticked
+    // for the new task at all.
+    resetElapsed?: boolean;
+  }>(),
 );
 
 export const completeTask = createAction('[FocusMode] Complete Task');

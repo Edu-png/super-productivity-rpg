@@ -20,6 +20,7 @@ import { msLeftToday } from '../../../util/ms-left-today';
 import { getTasksWithinAndBeyondBudget } from './get-tasks-within-and-beyond-budget';
 import { dateStrToUtcDate } from '../../../util/date-str-to-utc-date';
 import { selectTaskRepeatCfgsForExactDay } from '../../task-repeat-cfg/store/task-repeat-cfg.selectors';
+import { wouldRepeatCfgOccurOnDay } from '../../task-repeat-cfg/store/would-repeat-cfg-occur-on-day.util';
 import { Log } from '../../../core/log';
 
 type ScheduleFlowTask = TaskWithoutReminder | TaskWithPlannedForDayIndication;
@@ -86,7 +87,15 @@ export const createScheduleDays = (
     const isInCurrentWeek =
       dayStartTime >= todayStart && dayStartTime < currentWeekEndTime;
 
-    let startTime = i == 0 ? now : dayStartTime;
+    // Which day is "now" for elapsed-time purposes? In week view, dayDates[0] is
+    // always Monday, not necessarily today (e.g. viewing the week on a Friday) -
+    // so "today" can land on any index, not just 0. Matching against actualNow's
+    // own day (rather than assuming index 0) finds the right day regardless of
+    // where it falls in the displayed range, and correctly finds no match at all
+    // when viewing a week/day that doesn't contain today.
+    const isThisDayNow = actualNow >= dayStartTime && actualNow < nextDayStart;
+
+    let startTime = isThisDayNow ? actualNow : dayStartTime;
     if (workStartEndCfg) {
       const startTimeToday = getDateTimeFromClockString(
         workStartEndCfg.startTime,
@@ -97,18 +106,25 @@ export const createScheduleDays = (
       }
     }
 
-    const nonScheduledRepeatCfgsDueOnDay = selectTaskRepeatCfgsForExactDay.projector(
-      unScheduledTaskRepeatCfgs,
-      {
-        dayDate: startTime,
-      },
-    );
+    // For days already behind the real "today", the normal selector would report
+    // "nothing due" once processing (e.g. skipOverdue) has advanced the cfg past
+    // that day without ever creating an instance for it. The schedule view needs
+    // to show what the routine's pattern actually called for regardless, so past
+    // days check the pattern directly instead (#past-days-vanish).
+    const nonScheduledRepeatCfgsDueOnDay =
+      dayStartTime < todayStart
+        ? unScheduledTaskRepeatCfgs.filter((cfg) =>
+            wouldRepeatCfgOccurOnDay(cfg, startTime),
+          )
+        : selectTaskRepeatCfgsForExactDay.projector(unScheduledTaskRepeatCfgs, {
+            dayDate: startTime,
+          });
 
     const blockerBlocksForDay = blockerBlocksDayMap[dayDate] || [];
 
     const nonScheduledBudgetForDay = getBudgetLeftForDay(
       blockerBlocksForDay,
-      i === 0 ? now : undefined,
+      isThisDayNow ? actualNow : undefined,
     );
 
     let viewEntries: SVE[] = [];
@@ -282,7 +298,7 @@ export const createScheduleDays = (
     return {
       dayDate,
       entries: viewEntriesToRenderForDay,
-      isToday: i === 0,
+      isToday: isThisDayNow,
       beyondBudgetTasks: beyondBudgetTasks,
     };
   });

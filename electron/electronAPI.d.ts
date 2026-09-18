@@ -252,6 +252,9 @@ export interface ElectronAPI {
     maxBackupFiles?: number | null;
   }): Promise<void>;
 
+  rpgBackup(args: { fileName: string; data: unknown; extraDir?: string }): Promise<void>;
+  rpgBackupPickFolder(): Promise<string | undefined>;
+
   updateCurrentTask(
     task: Task | null,
     isPomodoroEnabled: boolean,

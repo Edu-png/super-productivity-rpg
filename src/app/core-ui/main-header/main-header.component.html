@@ -72,13 +72,31 @@
           <mat-icon>auto_stories</mat-icon>
         </button>
         <button
-          (click)="openRpgProfile()"
-          aria-label="Abrir Perfil RPG"
-          [matTooltip]="isRpgMusicPlaying() ? 'Perfil RPG • música ambiente ativa' : 'Perfil RPG'"
+          (click)="openGameLibrary()"
+          aria-label="Abrir Arsenal de Jogos"
+          matTooltip="Arsenal de Jogos"
           mat-icon-button
           type="button"
         >
-          <mat-icon [class.rpg-music-active]="isRpgMusicPlaying()">casino</mat-icon>
+          <mat-icon>sports_esports</mat-icon>
+        </button>
+        <button
+          (click)="openNutrition()"
+          aria-label="Abrir Alimentação"
+          matTooltip="Alimentação"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>restaurant</mat-icon>
+        </button>
+        <button
+          (click)="openRpgProfile()"
+          aria-label="Abrir Perfil RPG"
+          matTooltip="Perfil RPG"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>casino</mat-icon>
         </button>
         @if (showDesktopButtons()) {
           @for (

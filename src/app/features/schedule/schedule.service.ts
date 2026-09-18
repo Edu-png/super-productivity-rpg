@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, Signal } from '@angular/core';
 import { DateService } from '../../core/date/date.service';
-import { interval } from 'rxjs';
+import { from, interval } from 'rxjs';
 import {
   ScheduleCalendarMapEntry,
   ScheduleDay,
@@ -10,7 +10,7 @@ import {
 } from './schedule.model';
 import { SVEType } from './schedule.const';
 import { PlannerDayMap } from '../planner/planner.model';
-import { TaskWithDueTime, TaskWithSubTasks } from '../tasks/task.model';
+import { Task, TaskWithDueTime, TaskWithSubTasks } from '../tasks/task.model';
 import { TaskRepeatCfg } from '../task-repeat-cfg/task-repeat-cfg.model';
 import { ScheduleConfig } from '../config/global-config.model';
 import { mapToScheduleDays } from './map-schedule-data/map-to-schedule-days';
@@ -23,7 +23,9 @@ import { CalendarIntegrationService } from '../calendar-integration/calendar-int
 import { HiddenCalendarProvidersService } from '../calendar-integration/hidden-calendar-providers.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TaskService } from '../tasks/task.service';
-import { startWith } from 'rxjs/operators';
+import { TaskArchiveService } from '../archive/task-archive.service';
+import { WorklogService } from '../worklog/worklog.service';
+import { map, startWith, switchMap } from 'rxjs/operators';
 import { parseDbDateStr } from '../../util/parse-db-date-str';
 
 @Injectable({
@@ -35,8 +37,25 @@ export class ScheduleService {
   private _calendarIntegrationService = inject(CalendarIntegrationService);
   private _hiddenCalendarProviders = inject(HiddenCalendarProvidersService);
   private _taskService = inject(TaskService);
+  private _taskArchiveService = inject(TaskArchiveService);
+  private _worklogService = inject(WorklogService);
 
   private _timelineTasks = toSignal(this._store.select(selectTimelineTasks));
+  // Tasks "Finalizar o dia" already moved out of the active list, so past
+  // days in the schedule keep showing what actually happened instead of
+  // going blank the moment their tasks get archived (#past-days-vanish).
+  // Reloaded whenever the archive changes (see WorklogService.refreshWorklog()).
+  private _archivedTasks = toSignal(
+    this._worklogService.archiveUpdateManualTrigger$.pipe(
+      switchMap(() => from(this._taskArchiveService.load())),
+      map((archive) =>
+        archive.ids
+          .map((id) => archive.entities[id])
+          .filter((t): t is Task => !!t && !t.parentId),
+      ),
+    ),
+    { initialValue: [] as Task[] },
+  );
   private _taskRepeatCfgs = toSignal(
     this._store.select(selectTaskRepeatCfgsWithAndWithoutStartTime),
   );
@@ -76,13 +95,14 @@ export class ScheduleService {
       now = Date.now(),
       realNow,
       daysToShow,
-      timelineTasks,
       taskRepeatCfgs,
       calendarEvents,
       plannerDayMap,
       timelineCfg,
       currentTaskId = null,
     } = params;
+
+    const timelineTasks = this._withArchivedTasks(params.timelineTasks);
 
     if (!timelineTasks || !taskRepeatCfgs || !plannerDayMap) {
       return [];
@@ -102,6 +122,32 @@ export class ScheduleService {
       timelineCfg?.isLunchBreakEnabled ? createLunchBreakCfg(timelineCfg) : undefined,
       realNow,
     );
+  }
+
+  // Adds archived tasks (already moved out of the active list) into the same
+  // planned/unPlanned shape selectTimelineTasks produces for active tasks, so
+  // createScheduleDays can place them on their original day same as before
+  // they were archived. Skips anything whose id is still in the active list
+  // (done-but-not-yet-archived tasks are already covered there).
+  private _withArchivedTasks(
+    timelineTasks?: BuildScheduleDaysParams['timelineTasks'],
+  ): BuildScheduleDaysParams['timelineTasks'] {
+    if (!timelineTasks) return timelineTasks;
+    const activeIds = new Set([
+      ...timelineTasks.planned.map((t) => t.id),
+      ...timelineTasks.unPlanned.map((t) => t.id),
+    ]);
+    const newlyArchived = this._archivedTasks().filter((t) => !activeIds.has(t.id));
+    const archivedPlanned = newlyArchived.filter(
+      (t): t is TaskWithDueTime => typeof t.dueWithTime === 'number',
+    );
+    const archivedUnPlanned: TaskWithSubTasks[] = newlyArchived
+      .filter((t) => typeof t.dueWithTime !== 'number')
+      .map((t) => ({ ...t, subTasks: [] }));
+    return {
+      planned: [...timelineTasks.planned, ...archivedPlanned],
+      unPlanned: [...timelineTasks.unPlanned, ...archivedUnPlanned],
+    };
   }
 
   /**
@@ -281,7 +327,9 @@ export class ScheduleService {
 
 const createWorkStartEndCfg = (timelineCfg: ScheduleConfig): ScheduleWorkStartEndCfg => ({
   startTime: timelineCfg.workStart,
-  endTime: timelineCfg.workEnd,
+  // Existing local profiles may still carry the former 17:00 default.
+  // Render those with the new 18:00 default while preserving custom values.
+  endTime: timelineCfg.workEnd === '17:00' ? '18:00' : timelineCfg.workEnd,
 });
 
 const createLunchBreakCfg = (timelineCfg: ScheduleConfig): ScheduleLunchBreakCfg => ({

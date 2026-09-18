@@ -38,8 +38,6 @@ import { ScheduleService } from '../schedule.service';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { T } from '../../../t.const';
 import { SCHEDULE_CONSTANTS } from '../schedule.constants';
-import { GlobalConfigService } from '../../config/global-config.service';
-import { DEFAULT_FIRST_DAY_OF_WEEK } from '../../../core/locale.constants';
 import { DateTimeFormatService } from '../../../core/date-time-format/date-time-format.service';
 import { getWeekNumber } from '../../../util/get-week-number';
 import { parseDbDateStr } from '../../../util/parse-db-date-str';
@@ -74,7 +72,6 @@ export class ScheduleComponent {
   scheduleService = inject(ScheduleService);
   private _store = inject(Store);
   private _globalTrackingIntervalService = inject(GlobalTrackingIntervalService);
-  private _globalConfigService = inject(GlobalConfigService);
   private _dateTimeFormatService = inject(DateTimeFormatService);
   private _translate = inject(TranslateService);
   private _hiddenCalendarProviders = inject(HiddenCalendarProvidersService);
@@ -180,6 +177,10 @@ export class ScheduleComponent {
         selectedDate,
       );
     }
+    if (selectedView === 'week') {
+      const weekStart = this._getMonday(selectedDate ?? new Date());
+      return this.scheduleService.getDaysToShow(count, weekStart);
+    }
     return this.scheduleService.getDaysToShow(count, selectedDate);
   });
 
@@ -234,8 +235,10 @@ export class ScheduleComponent {
   });
 
   firstDayOfWeek = computed(() => {
-    const cfg = this._globalConfigService.localization()?.firstDayOfWeek;
-    return cfg !== null && cfg !== undefined ? cfg : DEFAULT_FIRST_DAY_OF_WEEK;
+    // Agenda is intentionally Monday-first in both week and month views.
+    // This keeps the same stable Monday–Sunday layout regardless of locale or
+    // which day the app is opened.
+    return 1;
   });
 
   // Calculate context-aware "now" based on selected date
@@ -247,9 +250,17 @@ export class ScheduleComponent {
     this.scheduleService.scheduleRefreshTick();
 
     const selectedDate = this._selectedDate();
-    if (selectedDate === null) {
+    if (selectedDate === null && !this.isWeekView()) {
       return Date.now();
     }
+
+    // Week view starts on Monday, which is often before today. The schedule
+    // mapper anchors its first column to contextNow, so using the real current
+    // time here would move Monday's entries into later columns. Anchor to the
+    // first displayed day instead (unless it actually is today).
+    const contextDate = this.isWeekView()
+      ? parseDbDateStr(this.daysToShow()[0])
+      : selectedDate!;
 
     // contextNow anchors dayDates[0] (`startTime = i == 0 ? now` in
     // create-schedule-days), so it has to stay inside that day. Testing where the
@@ -258,7 +269,7 @@ export class ScheduleComponent {
     // picked as "tomorrow" becomes today while the view stays put), and can never
     // hand the mapper a now past day 0's end, which would push every entry out of
     // the column.
-    const dayStart = new Date(selectedDate);
+    const dayStart = new Date(contextDate);
     dayStart.setHours(0, 0, 0, 0);
     // setDate rather than +24h: DST-safe day advancement.
     const nextDayStart = new Date(dayStart);
@@ -269,6 +280,15 @@ export class ScheduleComponent {
       ? now
       : dayStart.getTime();
   });
+
+  private _getMonday(date: Date): Date {
+    const monday = new Date(date);
+    monday.setHours(0, 0, 0, 0);
+    const day = monday.getDay();
+    const daysSinceMonday = (day + 6) % 7;
+    monday.setDate(monday.getDate() - daysSinceMonday);
+    return monday;
+  }
 
   scheduleDays = computed(() => {
     return this.scheduleService.createScheduleDaysWithContext({
@@ -320,9 +340,6 @@ export class ScheduleComponent {
   });
 
   goToPreviousPeriod(): void {
-    // Never navigate into the past — the displayed range must include today or later
-    if (this.isViewingToday()) return;
-
     const currentDate = this._selectedDate() || new Date();
     const selectedView = this._currentTimeViewMode();
 
@@ -338,15 +355,7 @@ export class ScheduleComponent {
       const previousPeriod = new Date(currentDate);
       previousPeriod.setDate(currentDate.getDate() - daysToSkip);
       previousPeriod.setHours(0, 0, 0, 0);
-
-      // If going back would land on or before today, snap to "today view" (null)
-      const todayMidnight = new Date();
-      todayMidnight.setHours(0, 0, 0, 0);
-      if (previousPeriod.getTime() <= todayMidnight.getTime()) {
-        this._selectedDate.set(null);
-      } else {
-        this._selectedDate.set(previousPeriod);
-      }
+      this._selectedDate.set(previousPeriod);
     }
   }
 

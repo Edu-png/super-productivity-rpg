@@ -26,6 +26,8 @@ import { first } from 'rxjs/operators';
 import { getTimeLeftForTask } from '../../../util/get-time-left-for-task';
 import { CalendarEventActionsService } from '../../calendar-integration/calendar-event-actions.service';
 import { DateService } from '../../../core/date/date.service';
+import { TaskRepeatCfgService } from '../../task-repeat-cfg/task-repeat-cfg.service';
+import { clockStringFromDate } from '../../../ui/duration/clock-string-from-date';
 
 interface PointerPosition {
   x: number;
@@ -51,6 +53,7 @@ export class ScheduleWeekDragService {
   private readonly _globalConfigService = inject(GlobalConfigService);
   private readonly _calendarEventActions = inject(CalendarEventActionsService);
   private readonly _dateService = inject(DateService);
+  private readonly _taskRepeatCfgService = inject(TaskRepeatCfgService);
 
   private readonly _isShiftMode = signal(false);
   readonly isShiftMode: Signal<boolean> = this._isShiftMode.asReadonly();
@@ -749,6 +752,16 @@ export class ScheduleWeekDragService {
         ? TaskSharedActions.reScheduleTaskWithTime(payload)
         : TaskSharedActions.scheduleTaskWithTime(payload),
     );
+
+    // The concrete task instance stores its time in dueWithTime, while future
+    // repeat projections read startTime from the repeat configuration. Keep
+    // both in sync so moving a recurring task does not leave future instances
+    // flowing from the default workday start.
+    if (task.repeatCfgId) {
+      this._taskRepeatCfgService.updateTaskRepeatCfgs([task.repeatCfgId], {
+        startTime: clockStringFromDate(scheduleTime),
+      });
+    }
 
     // Ensure task has a minimum duration so it's visible on the schedule.
     // Without this, zero-duration tasks would be invisible or hard to interact with.

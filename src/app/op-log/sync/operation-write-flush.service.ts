@@ -3,6 +3,7 @@ import { LockService } from './lock.service';
 import { OperationCaptureService } from '../capture/operation-capture.service';
 import { OpLog } from '../../core/log';
 import { LOCK_NAMES } from '../core/operation-log.const';
+import { WriteFlushTimeoutError } from '../core/errors/sync-errors';
 
 /**
  * Service to ensure all pending operation writes have completed.
@@ -96,7 +97,7 @@ export class OperationWriteFlushService {
             `${pendingCount} operation(s) still pending after ${this.MAX_WAIT_TIME}ms.`,
           { pendingCount },
         );
-        throw new Error(
+        throw new WriteFlushTimeoutError(
           `Operation write flush timeout: ${pendingCount} pending operation(s). ` +
             `This may indicate a stuck effect. Try reloading the app.`,
         );
@@ -155,7 +156,7 @@ export class OperationWriteFlushService {
           `retrying cutoff (attempt ${attempt + 1}/${this.MAX_CUTOFF_ATTEMPTS}).`,
       );
     }
-    throw new Error(
+    throw new WriteFlushTimeoutError(
       `Operation write cutoff not reached after ${this.MAX_CUTOFF_ATTEMPTS} attempts — continuous dispatch activity. Try again.`,
     );
   }

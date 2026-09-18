@@ -9,6 +9,7 @@ import {
   FOCUS_MODE_DEFAULTS,
 } from '../focus-mode.model';
 import { LS } from '../../../core/persistence/storage-keys.const';
+import { setCurrentTask } from '../../tasks/store/task.actions';
 
 export const FOCUS_MODE_FEATURE_KEY = 'focusMode';
 
@@ -81,6 +82,26 @@ export const focusModeReducer = createReducer(
     _isOvertimeEnabled:
       mode === FocusModeMode.Flowtime ? false : state._isOvertimeEnabled,
   })),
+
+  // Belt-and-suspenders fix, independent of syncTrackingStartToSession$'s
+  // effect branches (which depend on isFocusModeEnabled/timer.purpose/config
+  // and can miss a case): whenever the tracked task changes while a Flowtime
+  // work session is active, the elapsed count must restart at 0 for the new
+  // task - reacting directly to the task-tracking action itself, rather than
+  // through effect timing, guarantees this can't be skipped.
+  on(setCurrentTask, (state) => {
+    if (state.mode !== FocusModeMode.Flowtime || state.timer.purpose !== 'work') {
+      return state;
+    }
+    return {
+      ...state,
+      timer: {
+        ...state.timer,
+        elapsed: 0,
+        startedAt: state.timer.isRunning ? Date.now() : null,
+      },
+    };
+  }),
 
   // Overlay control
   on(a.showFocusOverlay, (state) => ({
@@ -279,16 +300,40 @@ export const focusModeReducer = createReducer(
   }),
 
   // Duration setting - don't set duration for Flowtime sessions
-  on(a.setFocusSessionDuration, (state, { focusSessionDuration }) => {
-    // Prevent setting duration for Flowtime mode to ensure it runs forever
+  on(a.setFocusSessionDuration, (state, { focusSessionDuration, resetElapsed }) => {
+    // Flowtime has no fixed duration (it always runs "forever"), so skip
+    // that field - but resetElapsed must still apply, otherwise switching
+    // tasks mid-Flowtime carries the previous task's elapsed count into the
+    // new one instead of restarting it at 0.
     if (state.mode === FocusModeMode.Flowtime) {
-      return state;
+      return resetElapsed
+        ? {
+            ...state,
+            timer: {
+              ...state.timer,
+              elapsed: 0,
+              startedAt: null,
+              isRunning: false,
+            },
+          }
+        : state;
     }
     return {
       ...state,
       timer: {
         ...state.timer,
         duration: focusSessionDuration,
+        // Force isRunning:false alongside the reset, not just elapsed/
+        // startedAt: switchToTask can call this while the previous task's
+        // lap is still actively running (isRunning stays true untouched
+        // otherwise), leaving startedAt:null while "running" - the tick
+        // calculation (elapsed = now - startedAt) has nothing valid to
+        // subtract from, so the countdown reads stuck at the full reset
+        // duration forever with no play button to actually start it (the
+        // UI only shows play when isRunning is false). Landing here always
+        // idle regardless of the caller's prior state is what makes "never
+        // auto-start on a task switch" actually hold.
+        ...(resetElapsed ? { elapsed: 0, startedAt: null, isRunning: false } : null),
       },
     };
   }),

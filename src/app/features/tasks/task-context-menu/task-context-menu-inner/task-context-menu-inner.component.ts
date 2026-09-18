@@ -23,8 +23,22 @@ import {
 } from '@angular/material/menu';
 import { MatDivider } from '@angular/material/divider';
 import { ESTIMATE_OPTIONS } from '../../add-task-bar/add-task-bar.const';
-import { Task, TaskCopy, TaskWithSubTasks } from '../../task.model';
-import { EMPTY, forkJoin, from, Observable, of, ReplaySubject, Subject } from 'rxjs';
+import {
+  Task,
+  TaskCopy,
+  TaskDetailTargetPanel,
+  TaskWithSubTasks,
+} from '../../task.model';
+import {
+  combineLatest,
+  EMPTY,
+  forkJoin,
+  from,
+  Observable,
+  of,
+  ReplaySubject,
+  Subject,
+} from 'rxjs';
 import {
   concatMap,
   delay,
@@ -83,6 +97,8 @@ import { DEFAULT_GLOBAL_CONFIG } from 'src/app/features/config/default-global-co
 import { MenuTreeService } from '../../../menu-tree/menu-tree.service';
 import { SelectOptionRowComponent } from '../../../../ui/select-option-row/select-option-row.component';
 import { AddSubtaskInputService } from '../../add-subtask-input/add-subtask-input.service';
+import { RpgProfileService } from '../../../rpg-profile/rpg-profile.service';
+import { canConvertTaskToSubTask } from '../../util/can-convert-task-to-sub-task';
 
 @Component({
   selector: 'task-context-menu-inner',
@@ -125,6 +141,7 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
   private readonly _dateService = inject(DateService);
   private readonly _menuTreeService = inject(MenuTreeService);
   private readonly _addSubtaskInputService = inject(AddSubtaskInputService);
+  private readonly _rpgProfileService = inject(RpgProfileService);
 
   protected readonly isTouchActive = isTouchActive;
   protected readonly T = T;
@@ -171,6 +188,24 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
     distinctUntilChanged(),
     switchMap((pid) =>
       this._projectService.getProjectsWithoutIdInTreeOrder$(pid || null),
+    ),
+  );
+  // Candidate parents for "Move to task as subtask": other top-level, undone
+  // tasks in the current context (mirrors canApplyConvertToSubTask's own
+  // rules - a subtask-of-a-subtask isn't allowed, so parentId is already
+  // absent from mainListTasks$'s top-level list). Deliberately uses
+  // mainListTasks$, not undoneTasks$ - the latter drops today's
+  // later-scheduled tasks (the "Mais tarde hoje" section) via
+  // _filterFutureScheduledTasksForToday, which hid exactly the kind of
+  // target ("Trabalhar - Bloco III" at 13:00) this menu exists to find.
+  moveToTaskList$: Observable<TaskWithSubTasks[]> = combineLatest([
+    this._task$,
+    this._workContextService.mainListTasks$,
+  ]).pipe(
+    map(([current, tasks]) =>
+      tasks.filter(
+        (candidate) => candidate && !candidate.isDone && candidate.id !== current.id,
+      ),
     ),
   );
   toggleTagList = this._tagService.tagsNoMyDayAndNoListInTreeOrder;
@@ -473,7 +508,14 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
   }
 
   addSubTask(): void {
-    this._addSubtaskInputService.requestOpen(this.task.parentId || this.task.id);
+    const parentId = this.task.parentId || this.task.id;
+    // The inline row input only works where a <task> row for parentId is
+    // already rendered (main list) - request it in case one is, but always
+    // also open the detail panel (which hosts its own add-subtask button)
+    // so this works uniformly from views with no such row, like the
+    // schedule/calendar's context menu.
+    this._addSubtaskInputService.requestOpen(parentId);
+    this._taskService.setSelectedId(parentId);
   }
 
   async duplicate(): Promise<void> {
@@ -532,6 +574,18 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
     } else {
       this._taskService.setDone(this.task.id);
     }
+  }
+
+  viewNotes(): void {
+    this._taskService.setSelectedId(this.task.id, TaskDetailTargetPanel.Notes);
+  }
+
+  markAsFailed(): void {
+    if (this.task.isDone) {
+      return;
+    }
+    this._rpgProfileService.markTaskAsFailed(this.task);
+    this._taskService.setDone(this.task.id);
   }
 
   addToMyDay(): void {
@@ -694,6 +748,20 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
         )
         .subscribe(() => this.onClose());
     }
+  }
+
+  get canMoveToTaskAsSubtask(): boolean {
+    return canConvertTaskToSubTask(this.task);
+  }
+
+  moveToTaskAsSubtask(targetParentId: string): void {
+    this._store.dispatch(
+      TaskSharedActions.convertToSubTask({
+        taskId: this.task.id,
+        targetParentId,
+        afterTaskId: null,
+      }),
+    );
   }
 
   moveToBacklog(): void {
