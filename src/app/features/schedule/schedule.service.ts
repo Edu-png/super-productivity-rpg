@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, Signal } from '@angular/core';
 import { DateService } from '../../core/date/date.service';
-import { from, interval } from 'rxjs';
+import { from, interval, merge } from 'rxjs';
 import {
   ScheduleCalendarMapEntry,
   ScheduleDay,
@@ -44,9 +44,16 @@ export class ScheduleService {
   // Tasks "Finalizar o dia" already moved out of the active list, so past
   // days in the schedule keep showing what actually happened instead of
   // going blank the moment their tasks get archived (#past-days-vanish).
-  // Reloaded whenever the archive changes (see WorklogService.refreshWorklog()).
+  // archiveUpdateManualTrigger$ only re-fires from a handful of pages
+  // (History, Worklog Week, task summary tables - see
+  // WorklogService.refreshWorklog() call sites) - a session that never visits
+  // any of them keeps whatever archive snapshot existed at the FIRST
+  // subscription (a BehaviorSubject, so it fires once immediately) for its
+  // entire lifetime, missing every task archived afterward. The 2-minute
+  // interval is a self-healing fallback so this reflects reality even when
+  // nothing else asks it to refresh (#past-days-stale-archive).
   private _archivedTasks = toSignal(
-    this._worklogService.archiveUpdateManualTrigger$.pipe(
+    merge(this._worklogService.archiveUpdateManualTrigger$, interval(2 * 60 * 1000)).pipe(
       switchMap(() => from(this._taskArchiveService.load())),
       map((archive) =>
         archive.ids
@@ -141,12 +148,13 @@ export class ScheduleService {
     const archivedPlanned = newlyArchived.filter(
       (t): t is TaskWithDueTime => typeof t.dueWithTime === 'number',
     );
-    const archivedUnPlanned: TaskWithSubTasks[] = newlyArchived
-      .filter((t) => typeof t.dueWithTime !== 'number')
-      .map((t) => ({ ...t, subTasks: [] }));
+    // Archived tasks without a dueWithTime (e.g. every past repeat instance)
+    // have no original slot to return to - fed in as unPlanned they'd all be
+    // re-flowed as duplicate blocks at arbitrary times, so they're left out.
+    // Past repeat days are still drawn from the cfg pattern itself.
     return {
       planned: [...timelineTasks.planned, ...archivedPlanned],
-      unPlanned: [...timelineTasks.unPlanned, ...archivedUnPlanned],
+      unPlanned: timelineTasks.unPlanned,
     };
   }
 

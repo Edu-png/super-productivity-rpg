@@ -620,24 +620,254 @@ type RegionTheme = {
 };
 
 const REGION_THEMES: RegionTheme[] = [
-  { id: 'discipline', rootId: 'discipline-ascendant', names: ['Ritmo', 'Foco', 'Constância', 'Ofensiva', 'Rotina', 'Propósito', 'Domínio', 'Ascensão'], icons: ['bolt', 'timer', 'task_alt', 'local_fire_department', 'event_repeat', 'flag', 'military_tech', 'workspace_premium'], effect: 'xp_multiplier' },
-  { id: 'intelligence', rootId: 'wisdom-sage', names: ['Leitura', 'Memória', 'Pesquisa', 'Lógica', 'Estudo', 'Síntese', 'Maestria', 'Sabedoria'], icons: ['menu_book', 'psychology', 'science', 'schema', 'school', 'hub', 'cognition', 'auto_stories'], effect: 'xp_multiplier' },
-  { id: 'social', rootId: 'social-legend', names: ['Vínculo', 'Escuta', 'Presença', 'Aliança', 'Mentoria', 'Guilda', 'Influência', 'Legado'], icons: ['handshake', 'hearing', 'record_voice_over', 'groups', 'school', 'shield_person', 'campaign', 'diversity_3'], effect: 'luck' },
-  { id: 'finance', rootId: 'finance-dividends', names: ['Reserva', 'Valor', 'Cofre', 'Troca', 'Investimento', 'Patrimônio', 'Prosperidade', 'Fortuna'], icons: ['paid', 'savings', 'lock', 'currency_exchange', 'trending_up', 'account_balance', 'diamond', 'toll'], effect: 'gold_multiplier' },
-  { id: 'health', rootId: 'health-immortal', names: ['Fôlego', 'Descanso', 'Movimento', 'Vigor', 'Equilíbrio', 'Resiliência', 'Vitalidade', 'Renovação'], icons: ['air', 'bedtime', 'directions_run', 'favorite', 'balance', 'shield', 'monitor_heart', 'health_and_safety'], effect: 'luck' },
+  {
+    id: 'discipline',
+    rootId: 'discipline-ascendant',
+    names: [
+      'Ritmo',
+      'Foco',
+      'Constância',
+      'Ofensiva',
+      'Rotina',
+      'Propósito',
+      'Domínio',
+      'Ascensão',
+    ],
+    icons: [
+      'bolt',
+      'timer',
+      'task_alt',
+      'local_fire_department',
+      'event_repeat',
+      'flag',
+      'military_tech',
+      'workspace_premium',
+    ],
+    effect: 'xp_multiplier',
+  },
+  {
+    id: 'intelligence',
+    rootId: 'wisdom-sage',
+    names: [
+      'Leitura',
+      'Memória',
+      'Pesquisa',
+      'Lógica',
+      'Estudo',
+      'Síntese',
+      'Maestria',
+      'Sabedoria',
+    ],
+    icons: [
+      'menu_book',
+      'psychology',
+      'science',
+      'schema',
+      'school',
+      'hub',
+      'cognition',
+      'auto_stories',
+    ],
+    effect: 'xp_multiplier',
+  },
+  {
+    id: 'social',
+    rootId: 'social-legend',
+    names: [
+      'Vínculo',
+      'Escuta',
+      'Presença',
+      'Aliança',
+      'Mentoria',
+      'Guilda',
+      'Influência',
+      'Legado',
+    ],
+    icons: [
+      'handshake',
+      'hearing',
+      'record_voice_over',
+      'groups',
+      'school',
+      'shield_person',
+      'campaign',
+      'diversity_3',
+    ],
+    effect: 'luck',
+  },
+  {
+    id: 'finance',
+    rootId: 'finance-dividends',
+    names: [
+      'Reserva',
+      'Valor',
+      'Cofre',
+      'Troca',
+      'Investimento',
+      'Patrimônio',
+      'Prosperidade',
+      'Fortuna',
+    ],
+    icons: [
+      'paid',
+      'savings',
+      'lock',
+      'currency_exchange',
+      'trending_up',
+      'account_balance',
+      'diamond',
+      'toll',
+    ],
+    effect: 'gold_multiplier',
+  },
+  {
+    id: 'health',
+    rootId: 'health-immortal',
+    names: [
+      'Fôlego',
+      'Descanso',
+      'Movimento',
+      'Vigor',
+      'Equilíbrio',
+      'Resiliência',
+      'Vitalidade',
+      'Renovação',
+    ],
+    icons: [
+      'air',
+      'bedtime',
+      'directions_run',
+      'favorite',
+      'balance',
+      'shield',
+      'monitor_heart',
+      'health_and_safety',
+    ],
+    effect: 'luck',
+  },
 ];
 
 const CLUSTER_PATTERNS: Record<RpgClusterPattern, { x: number; y: number }[]> = {
-  short_branch: [{ x: 0, y: 0 }, { x: 52, y: -12 }, { x: 105, y: 8 }, { x: 158, y: -18 }, { x: 210, y: 0 }, { x: 80, y: 55 }, { x: 138, y: 66 }, { x: 195, y: 52 }, { x: 235, y: 88 }, { x: 268, y: 25 }],
-  small_ring: [{ x: 0, y: 0 }, { x: 58, y: 0 }, { x: 44, y: 45 }, { x: 0, y: 62 }, { x: -46, y: 44 }, { x: -62, y: 0 }, { x: -44, y: -46 }, { x: 0, y: -64 }, { x: 46, y: -44 }, { x: 92, y: 0 }],
-  partial_ring: [{ x: 0, y: 0 }, { x: -55, y: 20 }, { x: -70, y: -35 }, { x: -35, y: -82 }, { x: 20, y: -92 }, { x: 68, y: -62 }, { x: 82, y: -8 }, { x: 65, y: 48 }, { x: 20, y: 78 }, { x: 108, y: 72 }],
-  spiral: [{ x: 0, y: 0 }, { x: 38, y: 5 }, { x: 48, y: 42 }, { x: 12, y: 66 }, { x: -42, y: 48 }, { x: -65, y: -8 }, { x: -35, y: -72 }, { x: 35, y: -92 }, { x: 98, y: -42 }, { x: 125, y: 35 }],
-  diamond: [{ x: 0, y: 0 }, { x: 52, y: -45 }, { x: 52, y: 45 }, { x: 105, y: -78 }, { x: 105, y: 78 }, { x: 152, y: -42 }, { x: 152, y: 42 }, { x: 202, y: 0 }, { x: 104, y: 0 }, { x: 250, y: 0 }],
-  fork: [{ x: 0, y: 0 }, { x: 55, y: 0 }, { x: 105, y: -52 }, { x: 160, y: -72 }, { x: 105, y: 52 }, { x: 160, y: 72 }, { x: 218, y: -82 }, { x: 218, y: 82 }, { x: 225, y: 0 }, { x: 280, y: 0 }],
-  double_path: [{ x: 0, y: 0 }, { x: 58, y: -38 }, { x: 58, y: 38 }, { x: 118, y: -42 }, { x: 118, y: 42 }, { x: 178, y: -36 }, { x: 178, y: 36 }, { x: 232, y: 0 }, { x: 118, y: 0 }, { x: 285, y: 0 }],
-  loop: [{ x: 0, y: 0 }, { x: 54, y: -42 }, { x: 112, y: -58 }, { x: 168, y: -32 }, { x: 182, y: 28 }, { x: 130, y: 62 }, { x: 68, y: 58 }, { x: 40, y: 15 }, { x: 112, y: 0 }, { x: 235, y: 0 }],
-  satellites: [{ x: 0, y: 0 }, { x: 0, y: -72 }, { x: 62, y: -35 }, { x: 65, y: 38 }, { x: 0, y: 74 }, { x: -62, y: 38 }, { x: -65, y: -35 }, { x: 105, y: -62 }, { x: 118, y: 58 }, { x: 155, y: 0 }],
-  converging_paths: [{ x: 0, y: 0 }, { x: 52, y: -58 }, { x: 52, y: 0 }, { x: 52, y: 58 }, { x: 115, y: -68 }, { x: 115, y: 0 }, { x: 115, y: 68 }, { x: 175, y: -34 }, { x: 175, y: 34 }, { x: 230, y: 0 }],
+  short_branch: [
+    { x: 0, y: 0 },
+    { x: 52, y: -12 },
+    { x: 105, y: 8 },
+    { x: 158, y: -18 },
+    { x: 210, y: 0 },
+    { x: 80, y: 55 },
+    { x: 138, y: 66 },
+    { x: 195, y: 52 },
+    { x: 235, y: 88 },
+    { x: 268, y: 25 },
+  ],
+  small_ring: [
+    { x: 0, y: 0 },
+    { x: 58, y: 0 },
+    { x: 44, y: 45 },
+    { x: 0, y: 62 },
+    { x: -46, y: 44 },
+    { x: -62, y: 0 },
+    { x: -44, y: -46 },
+    { x: 0, y: -64 },
+    { x: 46, y: -44 },
+    { x: 92, y: 0 },
+  ],
+  partial_ring: [
+    { x: 0, y: 0 },
+    { x: -55, y: 20 },
+    { x: -70, y: -35 },
+    { x: -35, y: -82 },
+    { x: 20, y: -92 },
+    { x: 68, y: -62 },
+    { x: 82, y: -8 },
+    { x: 65, y: 48 },
+    { x: 20, y: 78 },
+    { x: 108, y: 72 },
+  ],
+  spiral: [
+    { x: 0, y: 0 },
+    { x: 38, y: 5 },
+    { x: 48, y: 42 },
+    { x: 12, y: 66 },
+    { x: -42, y: 48 },
+    { x: -65, y: -8 },
+    { x: -35, y: -72 },
+    { x: 35, y: -92 },
+    { x: 98, y: -42 },
+    { x: 125, y: 35 },
+  ],
+  diamond: [
+    { x: 0, y: 0 },
+    { x: 52, y: -45 },
+    { x: 52, y: 45 },
+    { x: 105, y: -78 },
+    { x: 105, y: 78 },
+    { x: 152, y: -42 },
+    { x: 152, y: 42 },
+    { x: 202, y: 0 },
+    { x: 104, y: 0 },
+    { x: 250, y: 0 },
+  ],
+  fork: [
+    { x: 0, y: 0 },
+    { x: 55, y: 0 },
+    { x: 105, y: -52 },
+    { x: 160, y: -72 },
+    { x: 105, y: 52 },
+    { x: 160, y: 72 },
+    { x: 218, y: -82 },
+    { x: 218, y: 82 },
+    { x: 225, y: 0 },
+    { x: 280, y: 0 },
+  ],
+  double_path: [
+    { x: 0, y: 0 },
+    { x: 58, y: -38 },
+    { x: 58, y: 38 },
+    { x: 118, y: -42 },
+    { x: 118, y: 42 },
+    { x: 178, y: -36 },
+    { x: 178, y: 36 },
+    { x: 232, y: 0 },
+    { x: 118, y: 0 },
+    { x: 285, y: 0 },
+  ],
+  loop: [
+    { x: 0, y: 0 },
+    { x: 54, y: -42 },
+    { x: 112, y: -58 },
+    { x: 168, y: -32 },
+    { x: 182, y: 28 },
+    { x: 130, y: 62 },
+    { x: 68, y: 58 },
+    { x: 40, y: 15 },
+    { x: 112, y: 0 },
+    { x: 235, y: 0 },
+  ],
+  satellites: [
+    { x: 0, y: 0 },
+    { x: 0, y: -72 },
+    { x: 62, y: -35 },
+    { x: 65, y: 38 },
+    { x: 0, y: 74 },
+    { x: -62, y: 38 },
+    { x: -65, y: -35 },
+    { x: 105, y: -62 },
+    { x: 118, y: 58 },
+    { x: 155, y: 0 },
+  ],
+  converging_paths: [
+    { x: 0, y: 0 },
+    { x: 52, y: -58 },
+    { x: 52, y: 0 },
+    { x: 52, y: 58 },
+    { x: 115, y: -68 },
+    { x: 115, y: 0 },
+    { x: 115, y: 68 },
+    { x: 175, y: -34 },
+    { x: 175, y: 34 },
+    { x: 230, y: 0 },
+  ],
 };
 
 const PATTERN_SEQUENCE = Object.keys(CLUSTER_PATTERNS) as RpgClusterPattern[];
@@ -671,11 +901,10 @@ const nearestTheme = (angle: number): RegionTheme =>
 const clusterId = (ring: number, index: number): string =>
   `web-cluster-${ring + 1}-${index + 1}`;
 
-const hubId = (ring: number, index: number): string =>
-  `${clusterId(ring, index)}-node-1`;
+const hubId = (ring: number, index: number): string => `${clusterId(ring, index)}-node-1`;
 
-export const RPG_CONSTELLATION_CLUSTERS: RpgConstellationCluster[] =
-  RING_SPECS.flatMap((spec, ring) =>
+export const RPG_CONSTELLATION_CLUSTERS: RpgConstellationCluster[] = RING_SPECS.flatMap(
+  (spec, ring) =>
     Array.from({ length: spec.count }, (_, index) => {
       const angle = spec.phase + (index / spec.count) * Math.PI * 2;
       const theme = nearestTheme(angle);
@@ -713,14 +942,10 @@ export const RPG_CONSTELLATION_CLUSTERS: RpgConstellationCluster[] =
         isDestinyHub,
       };
     }),
-  );
+);
 
-const localConnections = (
-  cluster: RpgConstellationCluster,
-  index: number,
-): string[] => {
-  const node = (localIndex: number): string =>
-    `${cluster.id}-node-${localIndex + 1}`;
+const localConnections = (cluster: RpgConstellationCluster, index: number): string[] => {
+  const node = (localIndex: number): string => `${cluster.id}-node-${localIndex + 1}`;
   if (index === 0) return cluster.parentHubIds;
   if (cluster.pattern === 'small_ring' || cluster.pattern === 'loop') {
     if (index === 9) return [node(8), node(1)];
@@ -773,8 +998,7 @@ const createExpandedStars = (): RpgConstellationStar[] =>
             : 1;
       const effects = { [theme.effect]: effectValue };
       if (isHub && hybridTheme && hybridTheme.effect !== theme.effect) {
-        effects[hybridTheme.effect] =
-          hybridTheme.effect === 'luck' ? 1 : 0.003;
+        effects[hybridTheme.effect] = hybridTheme.effect === 'luck' ? 1 : 0.003;
       }
       return {
         id: `${cluster.id}-node-${index + 1}`,
@@ -783,11 +1007,12 @@ const createExpandedStars = (): RpgConstellationStar[] =>
             ? `Encruzilhada do Destino ${clusterIndex + 1}`
             : `Hub ${theme.names[clusterIndex % theme.names.length]}`
           : `${theme.names[(clusterIndex + index) % theme.names.length]} ${index}`,
-        description: isHub && hybridTheme
-          ? `Ponte entre ${theme.id} e ${hybridTheme.id}.`
-          : percentageEffect
-            ? `+${Math.round(effectValue * 1000) / 10}% de bônus.`
-            : `+${effectValue} de sorte.`,
+        description:
+          isHub && hybridTheme
+            ? `Ponte entre ${theme.id} e ${hybridTheme.id}.`
+            : percentageEffect
+              ? `+${Math.round(effectValue * 1000) / 10}% de bônus.`
+              : `+${effectValue} de sorte.`,
         lore: isFinal
           ? 'Um marco no fim do cluster, forte sem romper o equilíbrio da jornada.'
           : 'Uma estrela de uma rota configurável da grande malha celestial.',
@@ -810,38 +1035,42 @@ const createExpandedStars = (): RpgConstellationStar[] =>
         cost: isFinal || (isHub && cluster.isDestinyHub) ? 2 : 1,
         maxLevel: 1,
         requiredLevel: cluster.ring * 20 + (isFinal ? 18 : 1),
-        icon: cluster.isDestinyHub && isHub
-          ? 'auto_awesome'
-          : theme.icons[(clusterIndex + index) % theme.icons.length],
-        rarity: isHub && cluster.isDestinyHub
-          ? 'legendary'
-          : isFinal
-            ? 'epic'
-            : isNotable || isHub
-              ? 'rare'
-              : index % 3 === 0
-                ? 'uncommon'
-                : 'common',
+        icon:
+          cluster.isDestinyHub && isHub
+            ? 'auto_awesome'
+            : theme.icons[(clusterIndex + index) % theme.icons.length],
+        rarity:
+          isHub && cluster.isDestinyHub
+            ? 'legendary'
+            : isFinal
+              ? 'epic'
+              : isNotable || isHub
+                ? 'rare'
+                : index % 3 === 0
+                  ? 'uncommon'
+                  : 'common',
         effects,
       } satisfies RpgConstellationStar;
     });
   });
 
-const SHIFTED_BASE_STARS: RpgConstellationStar[] = BASE_CONSTELLATION_STARS.map((star) => ({
-  ...star,
-  nodeType:
-    star.rarity === 'legendary'
-      ? 'legendary'
-      : star.rarity === 'epic'
-        ? 'notable'
-        : star.rarity === 'rare'
-          ? 'medium'
-          : 'small',
-  position: {
-    x: star.position.x + 800,
-    y: star.position.y + 700,
-  },
-}));
+const SHIFTED_BASE_STARS: RpgConstellationStar[] = BASE_CONSTELLATION_STARS.map(
+  (star) => ({
+    ...star,
+    nodeType:
+      star.rarity === 'legendary'
+        ? 'legendary'
+        : star.rarity === 'epic'
+          ? 'notable'
+          : star.rarity === 'rare'
+            ? 'medium'
+            : 'small',
+    position: {
+      x: star.position.x + 800,
+      y: star.position.y + 700,
+    },
+  }),
+);
 
 const NODE_RADIUS: Record<NonNullable<RpgConstellationStar['nodeType']>, number> = {
   small: 15,
@@ -880,8 +1109,7 @@ const resolveNodeCollisions = (
         const dx = second.position.x - first.position.x;
         const dy = second.position.y - first.position.y;
         const distance = Math.hypot(dx, dy);
-        const minimumDistance =
-          radiusFor(first) + radiusFor(second) + minimumVisualGap;
+        const minimumDistance = radiusFor(first) + radiusFor(second) + minimumVisualGap;
 
         if (distance >= minimumDistance) {
           continue;
@@ -916,8 +1144,7 @@ const resolveNodeCollisions = (
   return stars;
 };
 
-export const RPG_CONSTELLATION_STARS: RpgConstellationStar[] =
-  resolveNodeCollisions([
-    ...SHIFTED_BASE_STARS,
-    ...createExpandedStars(),
-  ]);
+export const RPG_CONSTELLATION_STARS: RpgConstellationStar[] = resolveNodeCollisions([
+  ...SHIFTED_BASE_STARS,
+  ...createExpandedStars(),
+]);

@@ -90,6 +90,13 @@ export class NutritionPageComponent implements OnInit {
   readonly historyDetailDayId = signal<string | null>(null);
   readonly historyDetail = signal<NutritionDayDetail | null>(null);
   historyWeightInput = 0;
+  historyExtraDescription = '';
+  historyExtraCalories = 0;
+  historyExerciseType: ExerciseType = 'run';
+  historyExerciseDescription = '';
+  historyExerciseCalories = 0;
+  historyExerciseDuration: number | null = null;
+  historyCustomWaterMl = 250;
 
   // ---- Progresso ----
   readonly progressRangeDays = signal<number | 'all'>(30);
@@ -554,6 +561,13 @@ export class NutritionPageComponent implements OnInit {
     const detail = await this.nutrition.loadDayDetail(day.id);
     this.historyDetail.set(detail);
     this.historyWeightInput = detail?.day.weightKg ?? 0;
+    this.historyExtraDescription = '';
+    this.historyExtraCalories = 0;
+    this.historyExerciseType = 'run';
+    this.historyExerciseDescription = '';
+    this.historyExerciseCalories = 0;
+    this.historyExerciseDuration = null;
+    this.historyCustomWaterMl = 250;
   }
 
   closeHistoryDay(): void {
@@ -572,6 +586,95 @@ export class NutritionPageComponent implements OnInit {
     const dayId = this.historyDetailDayId();
     if (!dayId || !this.historyWeightInput) return;
     await this.nutrition.setWeight(dayId, this.historyWeightInput);
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  // Anchors new entries to noon of the day being edited (not Date.now()) -
+  // otherwise an extra/exercise added for a past day would carry today's
+  // real timestamp, which is what "time" is for in the first place.
+  private _historyDayTimestamp(): number {
+    const date = this.historyDetail()?.day.date;
+    if (!date) return Date.now();
+    const [year, month, day] = date.split('-').map(Number);
+    return new Date(year, month - 1, day, 12).getTime();
+  }
+
+  async saveHistoryExtra(): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (
+      !dayId ||
+      !this.historyExtraDescription.trim() ||
+      this.historyExtraCalories <= 0
+    ) {
+      return;
+    }
+    await this.nutrition.addExtraCalorie(
+      dayId,
+      this.historyExtraDescription,
+      this.historyExtraCalories,
+      this._historyDayTimestamp(),
+    );
+    this.historyExtraDescription = '';
+    this.historyExtraCalories = 0;
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async removeHistoryExtra(id: string): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId) return;
+    await this.nutrition.removeExtraCalorie(dayId, id);
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async saveHistoryExercise(): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId || this.historyExerciseCalories <= 0) return;
+    await this.nutrition.addExerciseLog(
+      dayId,
+      this.historyExerciseType,
+      this.historyExerciseDescription,
+      this.historyExerciseCalories,
+      this.historyExerciseDuration,
+      this._historyDayTimestamp(),
+    );
+    this.historyExerciseDescription = '';
+    this.historyExerciseCalories = 0;
+    this.historyExerciseDuration = null;
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async removeHistoryExercise(id: string): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId) return;
+    await this.nutrition.removeExerciseLog(dayId, id);
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async addHistoryWater(ml: number): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId) return;
+    await this.nutrition.addWater(dayId, ml);
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async addHistoryCustomWater(): Promise<void> {
+    if (!this.historyCustomWaterMl) return;
+    await this.addHistoryWater(this.historyCustomWaterMl);
+  }
+
+  async undoHistoryWater(): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId) return;
+    await this.nutrition.undoLastWater(dayId);
+    this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
+  }
+
+  async completeHistoryDay(): Promise<void> {
+    const dayId = this.historyDetailDayId();
+    if (!dayId) return;
+    await this.nutrition.completeDay(dayId);
+    // completeDay -> _persistDetail already updates nutrition.recentDays(),
+    // which historyCells() reads reactively - no separate refresh needed.
     this.historyDetail.set(await this.nutrition.loadDayDetail(dayId));
   }
 

@@ -545,6 +545,19 @@ textarea {
   color: #6bd99a;
 }
 
+.history-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px;
+
+  input,
+  select {
+    flex: 1;
+    min-width: 90px;
+  }
+}
+
 .weight-input-row {
   display: flex;
   gap: 8px;
@@ -1174,6 +1187,27 @@ textarea {
   margin: 10px 0 4px;
   font-size: 14px;
   color: #6bd99a;
+}
+
+.history-day-footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(80, 200, 140, 0.18);
+  text-align: right;
+}
+
+.day-complete-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #3fd487;
+  font-weight: 600;
+}
+
+.complete-day-btn {
+  border-color: #3fd487;
+  background: #3fd487;
+  color: #06140d;
 }
 
 @media (max-width: 900px) {

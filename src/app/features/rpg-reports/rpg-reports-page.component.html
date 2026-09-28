@@ -1,0 +1,570 @@
+<div class="reports-page">
+  @let hero = profile.state();
+  <header class="card quest-card reports-hero">
+    <h2><span>📜</span> Crônicas do herói</h2>
+    <div class="hero-body">
+      <div>
+        <h1>Relatórios</h1>
+        <p>
+          Horas, punições, contratos, medalhas e caixinha de
+          <b>{{ hero.displayName }}</b> no período escolhido. Cada personagem tem o
+          próprio relatório: troque de personagem no Perfil RPG.
+        </p>
+      </div>
+      <div
+        class="character-badge"
+        title="Relatório deste personagem"
+      >
+        <character-renderer
+          [appearance]="hero.appearance"
+          [species]="hero.speciesId"
+          [characterClass]="hero.classId"
+          [compact]="true"
+          [portrait]="true"
+          [headerIcon]="true"
+        />
+        <span>{{ hero.displayName }}</span>
+        <small>{{ hero.speciesId }} · {{ hero.classId }}</small>
+        <mat-icon>check_circle</mat-icon>
+      </div>
+    </div>
+  </header>
+
+  <nav
+    class="view-toggle"
+    aria-label="Visão"
+  >
+    <button
+      type="button"
+      [class.active]="view() === 'report'"
+      (click)="view.set('report')"
+    >
+      <mat-icon>query_stats</mat-icon> Relatório
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'review'"
+      (click)="openReview()"
+    >
+      <mat-icon>rate_review</mat-icon> Revisão semanal
+      @if (!savedReview()) {
+        <span class="pending-dot"></span>
+      }
+    </button>
+  </nav>
+
+  @if (view() === 'review') {
+    <section class="card quest-card review-week">
+      <h2><span>🗝️</span> Revisão da semana</h2>
+      <div class="review-week-nav">
+        <button
+          type="button"
+          mat-icon-button
+          aria-label="Semana anterior"
+          (click)="shiftReviewWeek(-1)"
+        >
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <strong>{{ reviewRange().label }}</strong>
+        <button
+          type="button"
+          mat-icon-button
+          aria-label="Próxima semana"
+          (click)="shiftReviewWeek(1)"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+        @if (savedReview()) {
+          <span class="review-status done"
+            ><mat-icon>check_circle</mat-icon> Concluída</span
+          >
+        } @else {
+          <span class="review-status"
+            ><mat-icon>pending</mat-icon> Pendente · +{{ REVIEW_REWARD.xp }} XP ao
+            concluir</span
+          >
+        }
+      </div>
+    </section>
+
+    @if (isLoading()) {
+      <p class="muted">Carregando dados da semana…</p>
+    } @else {
+      <section class="card quest-card">
+        <h2><span>📊</span> O que aconteceu</h2>
+        <ul class="highlights">
+          @for (item of reviewHighlights(); track $index) {
+            <li [class]="'tone-' + item.tone">
+              <mat-icon>{{ item.icon }}</mat-icon>
+              <span>{{ item.text }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      @if (previousReview()?.nextFocus; as focus) {
+        <section class="card quest-card">
+          <h2><span>🎯</span> Foco que você definiu para esta semana</h2>
+          <p class="previous-focus">“{{ focus }}”</p>
+          <div class="focus-options">
+            <button
+              type="button"
+              [class.active]="reviewPreviousFocusDone === 'yes'"
+              (click)="reviewPreviousFocusDone = 'yes'"
+            >
+              <mat-icon>check_circle</mat-icon> Cumpri
+            </button>
+            <button
+              type="button"
+              [class.active]="reviewPreviousFocusDone === 'partial'"
+              (click)="reviewPreviousFocusDone = 'partial'"
+            >
+              <mat-icon>timelapse</mat-icon> Parcialmente
+            </button>
+            <button
+              type="button"
+              [class.active]="reviewPreviousFocusDone === 'no'"
+              (click)="reviewPreviousFocusDone = 'no'"
+            >
+              <mat-icon>cancel</mat-icon> Não cumpri
+            </button>
+          </div>
+        </section>
+      }
+
+      <section class="card quest-card review-form">
+        <h2><span>✍️</span> Reflexão</h2>
+        <div class="rating">
+          <span>Como foi a semana?</span>
+          <div
+            role="radiogroup"
+            aria-label="Nota da semana"
+          >
+            @for (star of [1, 2, 3, 4, 5]; track star) {
+              <button
+                type="button"
+                role="radio"
+                [attr.aria-checked]="reviewRating === star"
+                [attr.aria-label]="star + ' de 5'"
+                [class.filled]="star <= reviewRating"
+                (click)="reviewRating = star"
+              >
+                <mat-icon>{{ star <= reviewRating ? 'star' : 'star_border' }}</mat-icon>
+              </button>
+            }
+          </div>
+        </div>
+        <label
+          >O que funcionou?
+          <textarea
+            rows="3"
+            [(ngModel)]="reviewWorked"
+            placeholder="Ex.: estudar logo cedo antes de abrir o celular"
+          ></textarea>
+        </label>
+        <label
+          >O que travou?
+          <textarea
+            rows="3"
+            [(ngModel)]="reviewBlocked"
+            placeholder="Ex.: tarde de quinta perdida em redes sociais"
+          ></textarea>
+        </label>
+        <label
+          >O que vou mudar?
+          <textarea
+            rows="3"
+            [(ngModel)]="reviewChange"
+            placeholder="Ex.: celular fora do quarto durante os blocos"
+          ></textarea>
+        </label>
+        <label class="next-focus"
+          >Foco da próxima semana
+          <input
+            [(ngModel)]="reviewNextFocus"
+            placeholder="Uma frase: o que mais importa na próxima semana?"
+          />
+        </label>
+        <div class="review-actions">
+          @if (reviewMessage()) {
+            <span class="review-message">{{ reviewMessage() }}</span>
+          }
+          <button
+            type="button"
+            class="review-save"
+            (click)="saveReview()"
+          >
+            <mat-icon>{{ savedReview() ? 'save' : 'task_alt' }}</mat-icon>
+            {{
+              savedReview()
+                ? 'Atualizar revisão'
+                : 'Concluir revisão (+' + REVIEW_REWARD.xp + ' XP)'
+            }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card quest-card">
+        <h2><span>📚</span> Revisões anteriores</h2>
+        @for (item of pastReviews(); track item.weekStart) {
+          <button
+            type="button"
+            class="past-review"
+            (click)="openReview(item.weekStart)"
+          >
+            <strong>{{ reviewWeekLabel(item.weekStart) }}</strong>
+            <span class="stars"
+              >{{ '★'.repeat(item.rating) }}{{ '☆'.repeat(5 - item.rating) }}</span
+            >
+            <small>{{ item.nextFocus || 'Sem foco definido' }}</small>
+            @if (item.previousFocusDone) {
+              <em [class]="'focus-' + item.previousFocusDone">{{
+                item.previousFocusDone === 'yes'
+                  ? 'foco cumprido'
+                  : item.previousFocusDone === 'partial'
+                    ? 'foco parcial'
+                    : 'foco não cumprido'
+              }}</em>
+            }
+          </button>
+        } @empty {
+          <p class="muted">
+            Nenhuma revisão feita ainda. A primeira começa aqui em cima.
+          </p>
+        }
+      </section>
+    }
+  } @else {
+    <section class="card period-bar">
+      <div
+        class="mode-toggle"
+        role="group"
+        aria-label="Tipo de relatório"
+      >
+        <button
+          type="button"
+          [class.active]="mode() === 'week'"
+          (click)="mode.set('week')"
+        >
+          Semanal
+        </button>
+        <button
+          type="button"
+          [class.active]="mode() === 'month'"
+          (click)="mode.set('month')"
+        >
+          Mensal
+        </button>
+      </div>
+
+      @if (mode() === 'week') {
+        <div class="week-nav">
+          <button
+            type="button"
+            mat-icon-button
+            aria-label="Semana anterior"
+            (click)="shiftWeek(-1)"
+          >
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <strong>{{ range().label }}</strong>
+          <button
+            type="button"
+            mat-icon-button
+            aria-label="Próxima semana"
+            (click)="shiftWeek(1)"
+          >
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      } @else {
+        <div class="month-range">
+          <label
+            >De
+            <input
+              type="month"
+              [ngModel]="monthFrom()"
+              (ngModelChange)="$event && monthFrom.set($event)"
+            />
+          </label>
+          <label
+            >Até
+            <input
+              type="month"
+              [ngModel]="monthTo()"
+              (ngModelChange)="$event && monthTo.set($event)"
+            />
+          </label>
+          <div class="presets">
+            <button
+              type="button"
+              (click)="presetMonths('this')"
+            >
+              Este mês
+            </button>
+            <button
+              type="button"
+              (click)="presetMonths('last')"
+            >
+              Mês passado
+            </button>
+            <button
+              type="button"
+              (click)="presetMonths('last3')"
+            >
+              Últimos 3 meses
+            </button>
+            <button
+              type="button"
+              (click)="presetMonths('year')"
+            >
+              Este ano
+            </button>
+          </div>
+        </div>
+      }
+      <button
+        type="button"
+        mat-icon-button
+        class="reload"
+        aria-label="Atualizar dados"
+        title="Atualizar dados"
+        (click)="reload()"
+      >
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </section>
+
+    <h2 class="period-title">{{ range().label }}</h2>
+
+    @if (isLoading()) {
+      <p class="muted">Carregando tarefas…</p>
+    } @else {
+      @let r = report();
+
+      <section class="kpis">
+        <div class="card kpi">
+          <small>Horas registradas</small>
+          <strong>{{ formatHours(r.totalHours) }}</strong>
+        </div>
+        <div class="card kpi">
+          <small>Tarefas concluídas</small>
+          <strong>{{ r.tasksDone }}</strong>
+        </div>
+        <div class="card kpi">
+          <small>XP de tarefas</small>
+          <strong>{{ r.xpEarned | number }}</strong>
+        </div>
+        <div class="card kpi">
+          <small>Punições</small>
+          <strong>{{ r.penaltyTotals.count }}</strong>
+        </div>
+        <div class="card kpi">
+          <small>Contratos</small>
+          <strong
+            >{{ r.contractsWon.length }} <span class="won">✔</span> ·
+            {{ r.contractsLost.length }} <span class="lost">✘</span></strong
+          >
+        </div>
+        <div class="card kpi money">
+          <small>Caixinha no período</small>
+          <strong>{{ formatMoney(r.moneyAdded) }}</strong>
+          <small>separado: {{ formatMoney(r.moneyTransferred) }}</small>
+        </div>
+      </section>
+
+      <section class="card quest-card panel">
+        <h2>
+          Horas por
+          {{ r.timeline.length && r.timeline[0].id.length === 7 ? 'mês' : 'dia' }}
+        </h2>
+        @if (r.totalHours > 0) {
+          <div
+            class="timeline"
+            role="img"
+            [attr.aria-label]="
+              'Horas registradas por período, total ' + formatHours(r.totalHours)
+            "
+          >
+            @for (bar of r.timeline; track bar.id; let i = $index) {
+              <div
+                class="timeline-col"
+                [title]="bar.label + ': ' + formatHours(bar.hours)"
+              >
+                <div class="timeline-track">
+                  <div
+                    class="timeline-bar"
+                    [style.height.%]="
+                      bar.hours ? barWidth(bar.hours, maxTimelineHours()) : 0
+                    "
+                  ></div>
+                </div>
+                <small [class.hidden]="i % timelineLabelEvery() !== 0">{{
+                  bar.label
+                }}</small>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="muted">Nenhuma hora registrada neste período.</p>
+        }
+      </section>
+
+      <div class="two-col">
+        <section class="card quest-card panel">
+          <h2>Horas por projeto</h2>
+          @for (bar of r.hoursByProject; track bar.id) {
+            <div
+              class="hbar"
+              [title]="bar.label + ': ' + formatHours(bar.hours)"
+            >
+              <span class="hbar-label">
+                <i
+                  class="dot"
+                  [style.background]="bar.color || '#6d6883'"
+                ></i>
+                {{ bar.label }}
+              </span>
+              <span class="hbar-track">
+                <span
+                  class="hbar-fill"
+                  [style.width.%]="barWidth(bar.hours, maxProjectHours())"
+                ></span>
+              </span>
+              <span class="hbar-value">{{ formatHours(bar.hours) }}</span>
+            </div>
+          } @empty {
+            <p class="muted">Sem horas neste período.</p>
+          }
+        </section>
+
+        <section class="card quest-card panel">
+          <h2>Horas por área</h2>
+          @for (bar of r.hoursByAttribute; track bar.id) {
+            <div
+              class="hbar"
+              [title]="bar.label + ': ' + formatHours(bar.hours)"
+            >
+              <span class="hbar-label">{{ bar.label }}</span>
+              <span class="hbar-track">
+                <span
+                  class="hbar-fill"
+                  [style.width.%]="barWidth(bar.hours, maxAttributeHours())"
+                ></span>
+              </span>
+              <span class="hbar-value">{{ formatHours(bar.hours) }}</span>
+            </div>
+          } @empty {
+            <p class="muted">
+              Nenhuma hora em projetos com área definida. Associe projetos a atributos no
+              Perfil RPG.
+            </p>
+          }
+        </section>
+      </div>
+
+      <section class="card quest-card panel">
+        <h2>Punições mais frequentes</h2>
+        @if (r.penalties.length) {
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Punição</th>
+                <th>Vezes</th>
+                <th>XP</th>
+                <th>Moedas</th>
+                <th>R$</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of r.penalties; track row.title) {
+                <tr>
+                  <td>
+                    {{ row.title }}
+                    <span class="count-track"
+                      ><span
+                        class="count-fill"
+                        [style.width.%]="barWidth(row.count, maxPenaltyCount())"
+                      ></span
+                    ></span>
+                  </td>
+                  <td class="num">{{ row.count }}×</td>
+                  <td class="num">-{{ row.xp | number }}</td>
+                  <td class="num">-{{ row.coins | number }}</td>
+                  <td class="num">{{ formatMoney(row.money) }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td class="num">{{ r.penaltyTotals.count }}×</td>
+                <td class="num">-{{ r.penaltyTotals.xp | number }}</td>
+                <td class="num">-{{ r.penaltyTotals.coins | number }}</td>
+                <td class="num">{{ formatMoney(r.penaltyTotals.money) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        } @else {
+          <p class="muted">Nenhuma punição no período. 🎉</p>
+        }
+        <p class="footnote">
+          Punições aplicadas manualmente passaram a ser registradas com data a partir de
+          25/09/2026; tarefas não concluídas aparecem desde sempre.
+        </p>
+      </section>
+
+      <div class="two-col">
+        <section class="card quest-card panel">
+          <h2>Contratos</h2>
+          @for (contract of r.contractsWon; track contract.id) {
+            <div class="contract-row won">
+              <mat-icon>verified</mat-icon>
+              <span>{{ contract.title }}</span>
+              <small
+                >+{{ contract.stakeXp }} XP · +{{ contract.stakeCoins }} moedas</small
+              >
+            </div>
+          }
+          @for (contract of r.contractsLost; track contract.id) {
+            <div class="contract-row lost">
+              <mat-icon>gavel</mat-icon>
+              <span>{{ contract.title }}</span>
+              <small
+                >-{{ contract.stakeXp }} XP ·
+                {{ formatMoney(contract.stakeMoney) }}</small
+              >
+            </div>
+          }
+          @if (!r.contractsWon.length && !r.contractsLost.length) {
+            <p class="muted">Nenhum contrato encerrado neste período.</p>
+          }
+        </section>
+
+        <section class="card quest-card panel">
+          <h2>Medalhas</h2>
+          @for (medal of r.medals; track $index) {
+            <div
+              class="medal-row"
+              [class.tier-bronze]="medal.tier === 'bronze'"
+              [class.tier-silver]="medal.tier === 'silver'"
+              [class.tier-gold]="medal.tier === 'gold'"
+            >
+              <mat-icon>military_tech</mat-icon>
+              <span>
+                {{ medal.title }}
+                @if (medal.isUpgrade) {
+                  <small>(subiu de raridade)</small>
+                }
+              </span>
+              <b>{{ medal.tier ? TIER_LABEL[medal.tier] : 'Meta anual' }}</b>
+              <small>+{{ medal.xp }} XP · +{{ medal.gold }} ouro</small>
+            </div>
+          } @empty {
+            <p class="muted">Nenhuma medalha conquistada neste período.</p>
+          }
+        </section>
+      </div>
+    }
+  }
+</div>

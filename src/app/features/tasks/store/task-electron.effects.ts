@@ -13,7 +13,10 @@ import {
 import { selectCurrentTask, selectTaskEntities } from './task.selectors';
 import { selectTodayTaskIds } from '../../work-context/store/work-context.selectors';
 import { GlobalConfigService } from '../../config/global-config.service';
-import { selectIsOverlayShown } from '../../focus-mode/store/focus-mode.selectors';
+import {
+  selectIsOverlayShown,
+  selectIsRunning as selectIsFocusSessionRunning,
+} from '../../focus-mode/store/focus-mode.selectors';
 import { TimeTrackingActions } from '../../time-tracking/store/time-tracking.actions';
 import { FocusModeService } from '../../focus-mode/focus-mode.service';
 import {
@@ -186,9 +189,15 @@ export class TaskElectronEffects {
         // collapses 1 IPC/sec into ~1 IPC/3s. Leading+trailing keeps the first
         // tick after start instant and the final value at the end of a window.
         throttleTime(3000, undefined, { leading: true, trailing: true }),
-        withLatestFrom(this._store$.select(selectIsOverlayShown)),
-        // Don't show progress bar when focus session is running
-        filter(([a, isFocusSessionRunning]) => !isFocusSessionRunning),
+        withLatestFrom(this._store$.select(selectIsFocusSessionRunning)),
+        // Don't show progress bar when a focus session is running - it owns the
+        // taskbar bar itself (focus-mode.effects.ts setTaskBarProgress$). Using
+        // selectIsOverlayShown here instead of the session's actual running
+        // state used to let both effects write to the same OS taskbar bar
+        // whenever the session kept running with its overlay hidden/minimized,
+        // each on its own throttle window with a different progress value -
+        // visibly flickering between the two (#taskbar-progress-flicker).
+        filter(([, isFocusSessionRunning]) => !isFocusSessionRunning),
         tap(([{ task }]) => {
           const progress = task.timeSpent / task.timeEstimate;
           window.ea.setProgressBar({

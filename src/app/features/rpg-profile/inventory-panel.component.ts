@@ -30,12 +30,32 @@ export class InventoryPanelComponent {
     { id: 'neck', label: 'Pescoço', imageUrl: 'assets/rpg/items-pack/item-6-2.png' },
     { id: 'chest', label: 'Peitoral', imageUrl: 'assets/rpg/items-pack/item-0-7.png' },
     { id: 'hands', label: 'Mãos', imageUrl: 'assets/rpg/items-pack/item-2-5.png' },
-    { id: 'mainHand', label: 'Arma principal', imageUrl: 'assets/rpg/items-pack/item-4-7.png' },
-    { id: 'offHand', label: 'Escudo / segunda arma', imageUrl: 'assets/rpg/items-pack/item-0-4.png' },
-    { id: 'ringLeft', label: 'Anel esquerdo', imageUrl: 'assets/rpg/items/ring-of-power.png' },
-    { id: 'ringRight', label: 'Anel direito', imageUrl: 'assets/rpg/items/ring-of-power.png' },
+    {
+      id: 'mainHand',
+      label: 'Arma principal',
+      imageUrl: 'assets/rpg/items-pack/item-4-7.png',
+    },
+    {
+      id: 'offHand',
+      label: 'Escudo / segunda arma',
+      imageUrl: 'assets/rpg/items-pack/item-0-4.png',
+    },
+    {
+      id: 'ringLeft',
+      label: 'Anel esquerdo',
+      imageUrl: 'assets/rpg/items/ring-of-power.png',
+    },
+    {
+      id: 'ringRight',
+      label: 'Anel direito',
+      imageUrl: 'assets/rpg/items/ring-of-power.png',
+    },
     { id: 'boots', label: 'Botas', imageUrl: 'assets/rpg/items-pack/item-1-7.png' },
-    { id: 'companion', label: 'Companheiro', imageUrl: 'assets/rpg/items-pack/item-0-2.png' },
+    {
+      id: 'companion',
+      label: 'Companheiro',
+      imageUrl: 'assets/rpg/items-pack/item-0-2.png',
+    },
     { id: 'pet', label: 'Mascote', imageUrl: 'assets/rpg/pets/mysterious-egg.png' },
     { id: 'relic', label: 'Relíquia', imageUrl: 'assets/rpg/items-pack/item-0-3.png' },
   ];
@@ -47,17 +67,12 @@ export class InventoryPanelComponent {
   readonly emptySlots = computed(() =>
     Array.from(
       {
-        length: Math.max(
-          0,
-          this.capacity - this.backpack().length,
-        ),
+        length: Math.max(0, this.capacity - this.backpack().length),
       },
       (_, index) => index,
     ),
   );
-  readonly overflowItem = computed(
-    () => this.profile.state().overflowItems[0] ?? null,
-  );
+  readonly overflowItem = computed(() => this.profile.state().overflowItems[0] ?? null);
   readonly equipmentStats = computed(() => {
     const stats = this.profile.equipmentBonuses();
     return [

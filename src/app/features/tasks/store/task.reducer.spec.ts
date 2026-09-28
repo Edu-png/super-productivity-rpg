@@ -164,8 +164,8 @@ describe('Task Reducer', () => {
       ]);
     });
 
-    it('should roll up the parent time estimate when adding a subtask with an estimate', () => {
-      const parent = createTask('parent');
+    it('should keep the parent time estimate when adding a subtask with an estimate', () => {
+      const parent = createTask('parent', { timeEstimate: 60 * 60 * 1000 });
       const subTask = createTask('subTask', { timeEstimate: 2.5 * 60 * 60 * 1000 });
       const state: TaskState = {
         ...initialTaskState,
@@ -184,7 +184,7 @@ describe('Task Reducer', () => {
       );
 
       expect(result.entities['parent']!.subTaskIds).toEqual(['subTask']);
-      expect(result.entities['parent']!.timeEstimate).toBe(2.5 * 60 * 60 * 1000);
+      expect(result.entities['parent']!.timeEstimate).toBe(60 * 60 * 1000);
     });
   });
 

@@ -90,6 +90,15 @@
           <mat-icon>restaurant</mat-icon>
         </button>
         <button
+          (click)="openReports()"
+          aria-label="Abrir Relatórios"
+          matTooltip="Relatórios"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>query_stats</mat-icon>
+        </button>
+        <button
           (click)="openRpgProfile()"
           aria-label="Abrir Perfil RPG"
           matTooltip="Perfil RPG"

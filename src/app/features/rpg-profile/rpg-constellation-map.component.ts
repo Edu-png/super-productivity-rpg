@@ -82,10 +82,7 @@ export class RpgConstellationMapComponent {
     return this.profile.canUnlockStar(star.id) ? 'available' : 'locked';
   }
 
-  connectionState(
-    parent: RpgConstellationStar,
-    child?: RpgConstellationStar,
-  ): string {
+  connectionState(parent: RpgConstellationStar, child?: RpgConstellationStar): string {
     if (parent.id === 'destiny-core' || this.starRank(parent) > 0) return 'active';
     return child && this.profile.canUnlockStar(child.id) ? 'available' : 'locked';
   }

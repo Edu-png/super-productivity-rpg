@@ -1,10 +1,5 @@
 export type AcademyEntityId = string;
-export type StudyNodeKind =
-  | 'folder'
-  | 'course'
-  | 'module'
-  | 'topic'
-  | 'subtopic';
+export type StudyNodeKind = 'folder' | 'course' | 'module' | 'topic' | 'subtopic';
 
 export interface SyncMetadata {
   createdAt: number;
@@ -102,6 +97,20 @@ export interface StudySession extends SyncMetadata {
   xpEarned: number;
   goldEarned: number;
   flashcardsReviewed: number;
+  /**
+   * Every loss of focus logged during this block, one entry each. Absent on
+   * sessions created before distraction tracking existed (they're left out of
+   * the distraction stats instead of counting as zero).
+   */
+  distractions?: StudyDistraction[];
+}
+
+export interface StudyDistraction {
+  id: string;
+  at: number;
+  category: string;
+  /** Free-text reason, e.g. "vi notificação do WhatsApp". */
+  note: string;
 }
 
 export interface Flashcard extends SyncMetadata {
@@ -152,6 +161,14 @@ export interface DailyStudyAggregate {
   areaMinutes: Record<string, number>;
   nodeMinutes: Record<string, number>;
   projectMinutes: Record<string, number>;
+  // Minutes from sessions logged with no specific topic (nodeId), tracked
+  // separately at write time so the tooltip can show them without having to
+  // infer them from areaMinutes/nodeMinutes at display time - the node a
+  // nodeMinutes entry belonged to may no longer exist (topic deleted), which
+  // made that inference silently drop the deleted topic's minutes from the
+  // subtraction and double-count them. Optional: absent on aggregates written
+  // before this field existed.
+  areaOnlyMinutes?: Record<string, number>;
   updatedAt: number;
 }
 
@@ -162,6 +179,8 @@ export interface AcademySettings {
   weeklyGoalMinutes: number;
   monthlyGoalMinutes: number;
   reviewStepsDays: number[];
+  /** Player-defined distraction categories; defaults apply when absent. */
+  distractionCategories?: string[];
   updatedAt: number;
 }
 
@@ -172,12 +191,48 @@ export interface AcademyDashboardSnapshot {
   totalMinutes: number;
   streak: number;
   pendingReviews: number;
+  pendingTopicReviews: number;
   flashcardCount: number;
   learnedCards: number;
   accuracy: number;
   completedTopics: number;
   totalTopics: number;
   recentDays: DailyStudyAggregate[];
+}
+
+/**
+ * Per-node spaced-repetition schedule ("adicionar à revisão"). Separate from
+ * StudyNode itself (most nodes - folders, courses - never opt into review) and
+ * separate from Flashcard's own scheduling (topic review = broad recall of a
+ * whole topic; flashcards = specific facts - see academy-arcana spec §7).
+ * One row per node, keyed by nodeId itself for simple upsert/lookup.
+ */
+export interface TopicReviewState extends SyncMetadata {
+  id: AcademyEntityId; // === nodeId
+  profileId: string;
+  nodeId: AcademyEntityId;
+  areaId: AcademyEntityId;
+  addedAt: number;
+  dueAt: number;
+  stability: number;
+  difficulty: number;
+  lastReviewedAt: number | null;
+  reviewCount: number;
+  lapseCount: number;
+}
+
+export interface TopicReviewLog extends SyncMetadata {
+  id: AcademyEntityId;
+  profileId: string;
+  nodeId: AcademyEntityId;
+  reviewedAt: number;
+  rating: 1 | 2 | 3 | 4;
+  previousIntervalDays: number;
+  nextIntervalDays: number;
+  stabilityBefore: number;
+  stabilityAfter: number;
+  difficultyBefore: number;
+  difficultyAfter: number;
 }
 
 export interface AcademyBackup {
@@ -191,5 +246,7 @@ export interface AcademyBackup {
     reviews: FlashcardReview[];
     analytics: DailyStudyAggregate[];
     settings: AcademySettings[];
+    topicReviews: TopicReviewState[];
+    topicReviewLogs: TopicReviewLog[];
   }>;
 }

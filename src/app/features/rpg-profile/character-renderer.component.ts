@@ -160,13 +160,7 @@ export class CharacterRendererComponent implements OnDestroy {
     const actorColumn = actor % 4;
     const actorRow = Math.floor(actor / 4);
     // Portraits must never drift between walk frames: the face remains anchored.
-    const walkFrame = this.portrait()
-      ? 1
-      : frame % 4 < 2
-        ? 1
-        : frame % 4 === 2
-          ? 0
-          : 2;
+    const walkFrame = this.portrait() ? 1 : frame % 4 < 2 ? 1 : frame % 4 === 2 ? 0 : 2;
     const sourceX = actorColumn * 216;
     const frameOffsetX = walkFrame * 72;
     const animatedSourceX = sourceX + frameOffsetX;
@@ -216,14 +210,9 @@ export class CharacterRendererComponent implements OnDestroy {
     ];
     const resolved = await Promise.all(
       layerAssets.map(async ([layer, assetId]) => {
-        if (
-          assetId?.startsWith('rpg-item-') ||
-          assetId?.startsWith('rare-item-')
-        ) {
+        if (assetId?.startsWith('rpg-item-') || assetId?.startsWith('rare-item-')) {
           const [, , row, column] = assetId.split('-');
-          const folder = assetId.startsWith('rare-item-')
-            ? 'rare-items'
-            : 'items-pack';
+          const folder = assetId.startsWith('rare-item-') ? 'rare-items' : 'items-pack';
           return {
             layer,
             image: await this._loader.loadImage(
@@ -288,13 +277,7 @@ export class CharacterRendererComponent implements OnDestroy {
         context.rect(19, 31, 26, 21);
         context.clip();
       }
-      context.drawImage(
-        item.image,
-        target.x,
-        target.y,
-        target.width,
-        target.height,
-      );
+      context.drawImage(item.image, target.x, target.y, target.width, target.height);
       if (item.layer === 'armor') context.restore();
     }
   }

@@ -38,7 +38,10 @@ export interface CharacterAssetManifest {
   heroSheets?: Record<string, string>;
   heroPresets?: Record<
     RpgClassId,
-    { masculine: { sheet: string; actor: number }; feminine: { sheet: string; actor: number } }
+    {
+      masculine: { sheet: string; actor: number };
+      feminine: { sheet: string; actor: number };
+    }
   >;
   assets: CharacterAssetEntry[];
 }

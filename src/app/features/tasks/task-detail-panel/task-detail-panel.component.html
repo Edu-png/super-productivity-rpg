@@ -98,33 +98,31 @@
       </ng-container>
     </task-detail-item>
   }
-  @if (showTimeEstimate()) {
-    <task-detail-item
-      (collapseParent)="collapseParent()"
-      (editActionTriggered)="estimateTime()"
-      (keyPress)="onItemKeyPress($event)"
-      [inputIcon]="'edit'"
-      class="input-item --estimate"
-    >
-      <ng-container input-title>
-        <mat-icon>hourglass_empty</mat-icon>
-        <span>{{ T.F.TASK.ADDITIONAL_INFO.TIME | translate }}</span>
-      </ng-container>
-      <ng-container input-value>
-        <span class="time-val">
-          <span [innerHTML]="task().timeSpent || 0 | msToString"></span>
-        </span>
-        <span class="separator">/</span>
-        <span
-          [innerHTML]="task().timeEstimate || 0 | msToString"
-          class="time-val"
-        ></span>
-      </ng-container>
-      <ng-container input-additional>
-        <progress-bar [progress]="progress()"></progress-bar>
-      </ng-container>
-    </task-detail-item>
-  }
+  <task-detail-item
+    (collapseParent)="collapseParent()"
+    (editActionTriggered)="estimateTime()"
+    (keyPress)="onItemKeyPress($event)"
+    [inputIcon]="'edit'"
+    class="input-item --estimate"
+  >
+    <ng-container input-title>
+      <mat-icon>hourglass_empty</mat-icon>
+      <span>{{ T.F.TASK.ADDITIONAL_INFO.TIME | translate }}</span>
+    </ng-container>
+    <ng-container input-value>
+      <span class="time-val">
+        <span [innerHTML]="task().timeSpent || 0 | msToString"></span>
+      </span>
+      <span class="separator">/</span>
+      <span
+        [innerHTML]="task().timeEstimate || 0 | msToString"
+        class="time-val"
+      ></span>
+    </ng-container>
+    <ng-container input-additional>
+      <progress-bar [progress]="progress()"></progress-bar>
+    </ng-container>
+  </task-detail-item>
   <task-detail-item
     (collapseParent)="collapseParent()"
     (editActionTriggered)="scheduleTask()"

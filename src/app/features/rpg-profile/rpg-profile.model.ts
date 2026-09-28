@@ -4,6 +4,26 @@ export type RpgAttributeId =
   | 'discipline'
   | 'social'
   | 'finance';
+
+// A player-created attribute. Unlike the core ones it isn't wired into
+// constellations, titles or tier achievements - it tracks hours and shows on the radar.
+export interface RpgCustomAttribute {
+  id: string;
+  label: string;
+  icon: string;
+  /** Self-assessed 0-10 rating, like attributeRatings for the core attributes. */
+  rating: number;
+}
+
+/** An attribute as shown in the UI: a core one (possibly renamed) or a custom one. */
+export interface RpgAttributeDefinition {
+  id: string;
+  label: string;
+  icon: string;
+  isCustom: boolean;
+  rating: number;
+}
+
 export type RpgClassId =
   | 'adventurer'
   | 'mage'
@@ -95,38 +115,104 @@ export interface RpgAppearance {
   accessoryColor: string;
 }
 
+// Every class follows the same progressive ladder, ordered by unlock level:
+// 2 subclasses -> 50 / 100, 3 -> 25 / 50 / 100, mage (4) -> 25 / 50 / 100 / 150.
+// Each later step unlocks a strictly bigger bonus (see RPG_SUBCLASS_BONUSES).
 export const RPG_SUBCLASS_UNLOCK_LEVELS: Record<RpgSubclassId, number> = {
   none: 1,
   scholar: 25,
-  paladin: 35,
-  alchemist: 45,
-  pathfinder: 60,
+  battlemage: 50,
   chronomancer: 100,
-  vanguard: 45,
-  trailblazer: 100,
-  battlemage: 45,
-  archmage: 100,
-  sentinel: 45,
+  archmage: 150,
+  paladin: 25,
+  sentinel: 50,
   templar: 100,
-  artificer: 45,
+  alchemist: 25,
+  artificer: 50,
   tycoon: 100,
-  beastmaster: 45,
+  beastmaster: 25,
+  pathfinder: 50,
   warden: 100,
-  berserker: 45,
+  vanguard: 50,
+  trailblazer: 100,
+  berserker: 50,
   warlord: 100,
-  oracle: 45,
+  oracle: 50,
   saint: 100,
-  assassin: 45,
+  assassin: 50,
   shadowmaster: 100,
-  minstrel: 45,
+  minstrel: 50,
   virtuoso: 100,
-  reaper: 45,
+  reaper: 50,
   lich: 100,
-  sniper: 45,
+  sniper: 50,
   falconer: 100,
-  juggernaut: 45,
+  juggernaut: 50,
   chieftain: 100,
 };
+
+/**
+ * Real effects of each subclass, as fractions (0.1 = +10%). The UI text is
+ * generated from this table, so what's shown is always what's applied.
+ * xp: task XP · gold: coins · quest: daily-quest XP · health: Health points ·
+ * penalty: reduction of XP lost to penalties.
+ */
+export interface RpgSubclassBonus {
+  xp?: number;
+  gold?: number;
+  quest?: number;
+  health?: number;
+  penalty?: number;
+}
+
+export const RPG_SUBCLASS_BONUSES: Record<RpgSubclassId, RpgSubclassBonus> = {
+  none: {},
+  scholar: { xp: 0.05 },
+  battlemage: { xp: 0.1 },
+  chronomancer: { xp: 0.15, quest: 0.1 },
+  archmage: { xp: 0.25, gold: 0.1 },
+  paladin: { health: 0.1 },
+  sentinel: { health: 0.15, penalty: 0.1 },
+  templar: { health: 0.2, xp: 0.1, penalty: 0.1 },
+  alchemist: { gold: 0.1 },
+  artificer: { gold: 0.15 },
+  tycoon: { gold: 0.25, xp: 0.05 },
+  beastmaster: { quest: 0.1 },
+  pathfinder: { quest: 0.15 },
+  warden: { quest: 0.2, xp: 0.1 },
+  vanguard: { xp: 0.1 },
+  trailblazer: { xp: 0.15, quest: 0.1 },
+  berserker: { xp: 0.1 },
+  warlord: { xp: 0.15, gold: 0.1 },
+  oracle: { quest: 0.1 },
+  saint: { quest: 0.1, xp: 0.1, penalty: 0.2 },
+  assassin: { gold: 0.1 },
+  shadowmaster: { xp: 0.15, gold: 0.1 },
+  minstrel: { gold: 0.1 },
+  virtuoso: { gold: 0.1, quest: 0.15 },
+  reaper: { xp: 0.1 },
+  lich: { xp: 0.15, gold: 0.1 },
+  sniper: { xp: 0.1 },
+  falconer: { xp: 0.1, quest: 0.15 },
+  juggernaut: { health: 0.15, penalty: 0.1 },
+  chieftain: { xp: 0.1, gold: 0.1, health: 0.1 },
+};
+
+const SUBCLASS_BONUS_LABELS: Record<keyof RpgSubclassBonus, string> = {
+  xp: 'de XP das tarefas',
+  gold: 'de moedas',
+  quest: 'de XP das missões diárias',
+  health: 'nos pontos de Saúde',
+  penalty: 'de redução nas penalidades',
+};
+
+export const formatSubclassBonus = (bonus: RpgSubclassBonus): string =>
+  (Object.keys(SUBCLASS_BONUS_LABELS) as (keyof RpgSubclassBonus)[])
+    .filter((key) => bonus[key])
+    .map(
+      (key) => `+${Math.round((bonus[key] ?? 0) * 100)}% ${SUBCLASS_BONUS_LABELS[key]}`,
+    )
+    .join(' · ') + '.';
 
 export interface RpgXpEntry {
   taskId: string;
@@ -161,6 +247,60 @@ export interface RpgTrophyClaim {
   claimedAt: number;
   xp: number;
   gold: number;
+  /** Set on `monthly-tier:*` claims - the highest rarity already paid out for that medal. */
+  tier?: RpgMedalTier;
+}
+
+export type RpgMedalTier = 'bronze' | 'silver' | 'gold';
+
+/** One weekly review ("revisão semanal"), keyed by the Monday that starts the week. */
+export interface RpgWeeklyReview {
+  weekStart: string;
+  /** How the week went, 1-5. */
+  rating: number;
+  worked: string;
+  blocked: string;
+  change: string;
+  /** Focus chosen for the NEXT week - shown back at the next review. */
+  nextFocus: string;
+  /** Whether the focus set in the previous review was met. */
+  previousFocusDone: 'yes' | 'partial' | 'no' | null;
+  completedAt: number;
+}
+
+export interface RpgPenaltyLogEntry {
+  penaltyId: string;
+  title: string;
+  at: number;
+  xp: number;
+  coins: number;
+  money: number;
+}
+
+/**
+ * A commitment with a deadline and a stake: meet the target by the deadline
+ * and you earn stakeXp/stakeCoins; miss it and the stake is taken (XP/coins
+ * via a hidden penalty, stakeMoney into the real punishment savings box).
+ */
+export interface RpgContract {
+  id: string;
+  title: string;
+  /** hours: time tracked on tasks in scope · manual: a counter you bump yourself. */
+  metric: 'hours' | 'manual';
+  target: number;
+  scopeKind: 'all' | 'project' | 'tag';
+  scopeId?: string;
+  /** Inclusive YYYY-MM-DD window. */
+  startDay: string;
+  deadlineDay: string;
+  stakeMoney: number;
+  stakeXp: number;
+  stakeCoins: number;
+  manualProgress: number;
+  status: 'active' | 'won' | 'lost';
+  createdAt: number;
+  resolvedAt?: number;
+  finalProgress?: number;
 }
 
 export interface RpgMonthlyMedalConfig {
@@ -170,6 +310,18 @@ export interface RpgMonthlyMedalConfig {
   // for progress tracked outside the Habit Tracker (Academia Arcana, etc.)
   // that this medal has no way to see on its own.
   manualCredit?: number;
+  /** habit (default): days from the linked habits · value: a manual current/target number. */
+  mode?: 'habit' | 'value';
+  valueTarget?: number;
+  valueCurrent?: number;
+  /** Free-text unit for value mode, e.g. "R$", "km", "h", "livros". */
+  valueUnit?: string;
+}
+
+/** Player renames of a monthly medal. */
+export interface RpgMonthlyMedalLabel {
+  title?: string;
+  description?: string;
 }
 
 export type RpgRealmId =
@@ -202,7 +354,12 @@ export interface RpgProfileState {
   appearance: RpgAppearance;
   avatarDataUrl: string | null;
   attributeRatings: Record<RpgAttributeId, number>;
-  projectAttributes: Record<string, RpgAttributeId | null>;
+  /** Project id -> core attribute id or custom attribute id. */
+  projectAttributes: Record<string, string | null>;
+  customAttributes?: RpgCustomAttribute[];
+  monthlyMedalLabels?: Record<string, RpgMonthlyMedalLabel>;
+  /** Player renames/re-icons of the core attributes (ids stay fixed so game systems keep working). */
+  attributeOverrides?: Partial<Record<RpgAttributeId, { label: string; icon: string }>>;
   xpLedger: Record<string, RpgXpEntry>;
   rewards: RpgReward[];
   coinsSpent: number;
@@ -213,6 +370,17 @@ export interface RpgProfileState {
   questBonusXp: number;
   questBonusCoins: number;
   penalties: RpgPenalty[];
+  // Real money (R$) owed to the punishment savings box: running total of every
+  // applied penalty's moneyLoss. Never touches XP/coins. Missing on older states = 0.
+  penaltyMoneyOwed?: number;
+  /** Real money (R$) already moved into the punishment savings box. Pending = owed - transferred. */
+  penaltyMoneyTransferred?: number;
+  contracts?: RpgContract[];
+  weeklyReviews?: Record<string, RpgWeeklyReview>;
+  /** Dated record of every manual penalty application (for the reports tab). Starts empty on older states. */
+  penaltyLog?: RpgPenaltyLogEntry[];
+  /** Dated record of every "Marquei como separado" transfer into the punishment savings box. */
+  penaltyMoneyTransfers?: { at: number; amount: number }[];
   inventory: RpgItem[];
   equippedItems: Partial<Record<RpgItemSlot, string>>;
   lastRewardedLevel: number;
@@ -344,6 +512,19 @@ export interface RpgPenalty {
   // does, once per occurrence. Missing on older entries, which is why every
   // read defaults it to 0.
   timesApplied?: number;
+  /** Real money (R$) to set aside each time this penalty is applied. Purely a real-life ledger - never affects XP/coins. */
+  moneyLoss?: number;
+  /** Physical exercise to do each time this penalty is applied, free text (e.g. "50 flexões, 20 barras"). */
+  exercise?: string;
+  // Running totals actually deducted so far. Editing xpLoss/coinsLoss must only
+  // affect future applications, so the RPG totals read these instead of
+  // `xpLoss * timesApplied`. Missing on older entries - see penaltyAppliedTotals().
+  xpLossApplied?: number;
+  coinsLossApplied?: number;
+  /** Timestamps of this week's applications - each repeat in the same week costs one more multiple (1x, 2x, 3x...). */
+  weekAppliedAt?: number[];
+  /** Set for the hidden penalty created when a contract is lost. */
+  sourceContractId?: string;
   /** Set for penalties auto-generated by markTaskAsFailed (a task marked "not done") - already a one-shot deduction, not a recurring bad-habit template, so the Penalty Dungeon UI hides these instead of offering an "Aplicar" button. */
   sourceTaskId?: string;
 }

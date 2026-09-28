@@ -75,6 +75,7 @@ import { selectTaskByIdWithSubTaskData } from '../../store/task.selectors';
 import { MatIconButton } from '@angular/material/button';
 import { MatTooltip } from '@angular/material/tooltip';
 import { getDbDateStr } from '../../../../util/get-db-date-str';
+import { WorklogService } from '../../../worklog/worklog.service';
 import { PlannerActions } from '../../../planner/store/planner.actions';
 import { addSubTask } from '../../../tasks/store/task.actions';
 import { combineDateAndTime } from '../../../../util/combine-date-and-time';
@@ -139,6 +140,7 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
   private readonly _workContextService = inject(WorkContextService);
   private readonly _taskFocusService = inject(TaskFocusService);
   private readonly _dateService = inject(DateService);
+  private readonly _worklogService = inject(WorklogService);
   private readonly _menuTreeService = inject(MenuTreeService);
   private readonly _addSubtaskInputService = inject(AddSubtaskInputService);
   private readonly _rpgProfileService = inject(RpgProfileService);
@@ -498,6 +500,41 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
       })
       .afterClosed()
       .subscribe(() => this.focusRelatedTaskOrNext());
+  }
+
+  /** Minutes still missing to reach the estimate, for the "complete time" menu entry. */
+  get missingEstimateMinutes(): number {
+    return Math.round((this.task.timeEstimate - this.task.timeSpent) / 60000);
+  }
+
+  /**
+   * Logs the time still missing to reach the estimate - for tasks done away
+   * from the computer (e.g. reading before turning the PC on). It lands on the
+   * task's own day (scheduled day, else the day it was done, else today) so
+   * worklog and reports count it where it belongs.
+   */
+  completeEstimatedTime(): void {
+    const missing = this.task.timeEstimate - this.task.timeSpent;
+    if (missing <= 0) {
+      return;
+    }
+    const day = this.task.dueWithTime
+      ? getDbDateStr(new Date(this.task.dueWithTime))
+      : this.task.dueDay ||
+        (this.task.doneOn
+          ? getDbDateStr(new Date(this.task.doneOn))
+          : this._dateService.todayStr());
+    const timeSpentOnDay = this.task.timeSpentOnDay ?? {};
+    // Past days in the schedule mostly show archived tasks ("Finalizar o dia"),
+    // which a plain update can't reach - updateEverywhere handles both.
+    void this._taskService
+      .updateEverywhere(this.task.id, {
+        timeSpentOnDay: {
+          ...timeSpentOnDay,
+          [day]: (timeSpentOnDay[day] ?? 0) + missing,
+        },
+      })
+      .then(() => this._worklogService.refreshWorklog());
   }
 
   setEstimate(ms: number): void {

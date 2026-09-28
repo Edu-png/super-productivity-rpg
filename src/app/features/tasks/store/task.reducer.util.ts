@@ -13,7 +13,6 @@ import { filterOutId } from '../../../util/filter-out-id';
 import { Update } from '@ngrx/entity';
 import { TaskLog } from '../../../core/log';
 import { devError } from '../../../util/dev-error';
-import { sumSubTaskTimeLeft } from '../util/sum-sub-task-time-left';
 
 export const getTaskById = (taskId: string, state: TaskState): Task => {
   if (!state.entities[taskId]) {
@@ -29,8 +28,9 @@ export const reCalcTimesForParentIfParent = (
   parentId: string,
   state: TaskState,
 ): TaskState => {
-  const stateWithTimeEstimate = reCalcTimeEstimateForParentIfParent(parentId, state);
-  return reCalcTimeSpentForParentIfParent(parentId, stateWithTimeEstimate);
+  // A parent's timeEstimate is its own planned slot and is never derived
+  // from its subtasks' estimates - only time spent rolls up.
+  return reCalcTimeSpentForParentIfParent(parentId, state);
 };
 
 export const reCalcTimeSpentForParentIfParent = (
@@ -77,52 +77,6 @@ export const reCalcTimeSpentForParentIfParent = (
   } else {
     return state;
   }
-};
-
-export const reCalcTimeEstimateForParentIfParent = (
-  parentId: string,
-  state: TaskState,
-  upd?: Update<TaskCopy>,
-): TaskState => {
-  const parentTask = state.entities[parentId];
-  if (!parentTask) {
-    TaskLog.err(
-      `Parent task ${parentId} not found in reCalcTimeEstimateForParentIfParent`,
-    );
-    return state;
-  }
-
-  const subTasks = parentTask.subTaskIds
-    .map((id) => {
-      const task = state.entities[id];
-      if (!task) return null;
-      // we do this since we also need to consider the done value of the update
-      return upd && upd.id === id ? { ...task, ...upd.changes } : task;
-    })
-    .filter((task): task is Task => !!task);
-
-  const recalculated = sumSubTaskTimeLeft(subTasks);
-  // Marking a subtask done/undone (with no estimate change of its own)
-  // must not shrink the parent's total below what it already was - a
-  // schedule block (or the "time left today" total) collapsing the instant
-  // you check something off reads as broken, not as progress. Structural
-  // changes (a subtask added, removed, or re-estimated) still recalculate
-  // freely in either direction.
-  const isPureDoneToggle =
-    !!upd && 'isDone' in upd.changes && !('timeEstimate' in upd.changes);
-  const timeEstimate = isPureDoneToggle
-    ? Math.max(recalculated, parentTask.timeEstimate)
-    : recalculated;
-
-  return taskAdapter.updateOne(
-    {
-      id: parentId,
-      changes: {
-        timeEstimate,
-      },
-    },
-    state,
-  );
 };
 
 export const updateDoneOnForTask = (upd: Update<Task>, state: TaskState): TaskState => {
@@ -268,23 +222,16 @@ export const updateTimeEstimateForTask = (
   newEstimate: number | null = null,
   state: TaskState,
 ): TaskState => {
-  if (typeof newEstimate === 'number' || 'isDone' in upd.changes) {
-    const task = getTaskById(upd.id as string, state);
-    const stateAfterUpdate =
-      typeof newEstimate === 'number'
-        ? taskAdapter.updateOne(
-            {
-              id: upd.id as string,
-              changes: {
-                timeEstimate: newEstimate,
-              },
-            },
-            state,
-          )
-        : state;
-    return task.parentId
-      ? reCalcTimeEstimateForParentIfParent(task.parentId, stateAfterUpdate, upd)
-      : stateAfterUpdate;
+  if (typeof newEstimate === 'number') {
+    return taskAdapter.updateOne(
+      {
+        id: upd.id as string,
+        changes: {
+          timeEstimate: newEstimate,
+        },
+      },
+      state,
+    );
   }
   return state;
 };
@@ -371,7 +318,6 @@ export const removeTaskFromParentSideEffects = (
         ...(isWasLastSubTask && isCopyTimesAfterLast
           ? {
               timeSpentOnDay: taskToRemove.timeSpentOnDay,
-              timeEstimate: taskToRemove.timeEstimate,
             }
           : {}),
       },
@@ -381,7 +327,6 @@ export const removeTaskFromParentSideEffects = (
   // also update time spent for parent if it was not copied over from sub task
   if (!isWasLastSubTask || !isCopyTimesAfterLast) {
     newState = reCalcTimeSpentForParentIfParent(parentId, newState);
-    newState = reCalcTimeEstimateForParentIfParent(parentId, newState);
   }
   return newState;
 };

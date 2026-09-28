@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import {
   ChangeDetectionStrategy,
   Component,
@@ -69,6 +70,14 @@ export const getFolderColor = (folderId: string): string => {
 @Component({
   selector: 'nav-list-tree',
   standalone: true,
+  host: {
+    // Nested-level indentation (see :host-context(.nav-child-item) in the
+    // stylesheet) only makes sense when labels are visible - with the
+    // sidebar collapsed to icon-only, that same left offset pushes each
+    // nested icon toward the edge of the rail instead of keeping it centered
+    // (#collapsed-nav-child-offset).
+    '[class.icon-only]': '!showLabels()',
+  },
   imports: [
     CommonModule,
     NgStyle,

@@ -3,6 +3,7 @@ import { TaskService } from '../tasks/task.service';
 import { LS } from '../../core/persistence/storage-keys.const';
 import {
   DisciplineDay,
+  RpgAttributeDefinition,
   RpgAttributeId,
   RpgClassId,
   RpgDailyQuest,
@@ -14,13 +15,17 @@ import {
   RpgProfilesState,
   RpgPet,
   RpgPetStage,
+  RpgContract,
+  RpgPenalty,
   RpgPetType,
+  RpgWeeklyReview,
   RpgReward,
   RpgAppearance,
   RpgAnnualGoal,
   RpgRealmId,
   RpgSpeciesId,
   RpgSubclassId,
+  RPG_SUBCLASS_BONUSES,
   RPG_SUBCLASS_UNLOCK_LEVELS,
 } from './rpg-profile.model';
 import { RPG_CLASS_TITLES, RpgTitleMetric } from './rpg-class-titles.data';
@@ -46,6 +51,12 @@ import { RPG_CONSTELLATION_STARS } from './rpg-constellations.data';
 import { RpgConstellationBonuses } from './rpg-constellations.model';
 import { DomainStateStore } from '../../core/persistence/domain-state-store.service';
 import { RPG_REALMS } from './rpg-realms.data';
+import {
+  contractProgress,
+  MEDAL_TIER_EXTRA,
+  medalTierFor,
+  startOfWeekMs,
+} from './rpg-contracts.util';
 
 const RPG_REALM_BY_ID = new Map(RPG_REALMS.map((realm) => [realm.id, realm]));
 
@@ -158,6 +169,16 @@ const STARTER_RING: RpgItem = {
 };
 
 const PET_COMPANION_ID = 'active-pet-companion';
+/** XP/coins actually deducted by a penalty so far; older entries predate the running totals. */
+const penaltyAppliedTotals = (penalty: RpgPenalty): { xp: number; coins: number } => ({
+  xp: penalty.xpLossApplied ?? penalty.xpLoss * (penalty.timesApplied ?? 0),
+  coins: penalty.coinsLossApplied ?? penalty.coinsLoss * (penalty.timesApplied ?? 0),
+});
+
+/** Rounds a real-money amount (R$) to cents, never negative. */
+const toMoney = (value: number): number =>
+  Math.max(0, Math.round((Number(value) || 0) * 100) / 100);
+
 const RPG_REWARDS_PENALTIES_SEED_FLAG = 'rpg-rewards-penalties-seed-2026-07-31-v1';
 // One-time manual credit for "O Codificador" (August 2026): the owner's real
 // data-science study days that month were tracked in Academia Arcana, not
@@ -279,10 +300,13 @@ export class RpgProfileService {
     () => this._roster().characters[this._roster().activeCharacterId],
   );
   private readonly _tasks = signal<Task[]>([]);
+  private _tasksLoaded = false;
 
   readonly state = this._state;
   readonly characters = computed(() => Object.values(this._roster().characters));
   readonly activeCharacterId = computed(() => this._roster().activeCharacterId);
+  /** Task id -> id of the character it was credited to (done or failed). */
+  readonly taskOwnerIds = computed(() => this._roster().processedTaskIds);
   readonly equipmentBonuses = computed(() => {
     const bonuses = {
       power: 0,
@@ -310,6 +334,12 @@ export class RpgProfileService {
     }
     return bonuses;
   });
+  // No level check here: level() derives from XP, which uses this bonus (a
+  // computed cycle). _enforceProgressionLocks already resets a subclass the
+  // current level can't hold.
+  private readonly _subclassBonus = computed(
+    () => RPG_SUBCLASS_BONUSES[this._state().subclassId],
+  );
   readonly baseTaskXp = computed(() =>
     Object.values(this._state().xpLedger).reduce((sum, entry) => sum + entry.xp, 0),
   );
@@ -318,9 +348,7 @@ export class RpgProfileService {
     if (this._state().classId === 'warrior') {
       multiplier += 0.05;
     }
-    if (this._state().subclassId === 'scholar') {
-      multiplier += 0.05;
-    }
+    multiplier += this._subclassBonus().xp ?? 0;
     multiplier += (this._state().skills['focus-mastery'] ?? 0) * 0.02;
     multiplier += (this._state().skills['deep-work'] ?? 0) * 0.015;
     multiplier += (this._state().skills['wisdom-core'] ?? 0) * 0.01;
@@ -330,9 +358,7 @@ export class RpgProfileService {
   });
   readonly goldMultiplier = computed(() => {
     let multiplier = this._state().classId === 'merchant' ? 1.2 : 1;
-    if (this._state().subclassId === 'alchemist') {
-      multiplier += 0.1;
-    }
+    multiplier += this._subclassBonus().gold ?? 0;
     if (this._state().classId === 'bard') {
       multiplier += Math.min(0.15, this.streak() * 0.01);
     }
@@ -483,16 +509,16 @@ export class RpgProfileService {
     const mappings = this._state().projectAttributes;
     for (const entry of Object.values(this._state().xpLedger)) {
       const attribute = mappings[entry.projectId];
-      if (attribute && attribute !== 'discipline') {
-        totals[attribute] += entry.xp;
+      // Custom attributes aren't part of the core totals that feed titles,
+      // constellations and tier achievements.
+      if (attribute && attribute !== 'discipline' && attribute in totals) {
+        totals[attribute as RpgAttributeId] += entry.xp;
       }
     }
     if (this._state().classId === 'guardian') {
       totals.health = Math.round(totals.health * 1.15);
     }
-    if (this._state().subclassId === 'paladin') {
-      totals.health = Math.round(totals.health * 1.1);
-    }
+    totals.health = Math.round(totals.health * (1 + (this._subclassBonus().health ?? 0)));
     return totals;
   });
   readonly dailyQuests = computed(() => this._buildDailyQuests(this._tasks()));
@@ -695,9 +721,18 @@ export class RpgProfileService {
       const monthEnded =
         now.getFullYear() > year ||
         (now.getFullYear() === year && now.getMonth() > monthIndex);
-      const history = isHistoryOwner
+      const config = this._state().monthlyMedalConfigs[id];
+      const labels = this._state().monthlyMedalLabels?.[id];
+      const displayTitle = labels?.title || title;
+      const imported = isHistoryOwner
         ? monthlyMedalHistoryFor(year, monthIndex)
         : undefined;
+      // A saved configuration takes over from the imported history, except for
+      // months the history already records as completed (past achievements stay put).
+      const history =
+        imported && (isMonthlyMedalHistoryCompleted(imported) || !config)
+          ? imported
+          : undefined;
 
       // Historical months (imported from the owner's previous external
       // tracking) report their final outcome directly instead of being
@@ -706,13 +741,17 @@ export class RpgProfileService {
       if (history) {
         const completed = isMonthlyMedalHistoryCompleted(history);
         const percentage = monthlyMedalHistoryPercentage(history);
+        const ratio = history.target ? history.progress / history.target : 0;
         return {
           id,
           monthIndex,
-          title,
+          title: displayTitle,
           imageUrl: `assets/rpg/trophies/month-${String(monthIndex + 1).padStart(2, '0')}.png`,
-          description: history.description,
+          description: labels?.description ?? history.description,
           metricType: history.metricType,
+          unit: history.metricType === 'currency' ? 'R$' : '',
+          mode:
+            history.metricType === 'currency' ? ('value' as const) : ('habit' as const),
           percentage,
           completed,
           possible: history.target,
@@ -724,10 +763,40 @@ export class RpgProfileService {
           needsHabitSetup: false,
           isUnlocked: completed,
           hasEnded: monthEnded,
+          ratio,
+          tier: completed ? medalTierFor(ratio) : null,
         };
       }
 
-      const config = this._state().monthlyMedalConfigs[id];
+      if (config?.mode === 'value') {
+        const target = Math.max(1, config.valueTarget ?? 1);
+        const current = Math.max(0, config.valueCurrent ?? 0);
+        const reached = current >= target;
+        const percentage = Math.min(100, Math.round((current / target) * 100));
+        return {
+          id,
+          monthIndex,
+          title: displayTitle,
+          imageUrl: `assets/rpg/trophies/month-${String(monthIndex + 1).padStart(2, '0')}.png`,
+          description: labels?.description ?? imported?.description ?? '',
+          metricType: 'value' as const,
+          unit: config.valueUnit ?? '',
+          mode: 'value' as const,
+          percentage,
+          completed: current,
+          possible: target,
+          completedDays: current,
+          progressPercentage: percentage,
+          targetDays: target,
+          habitIds: config.habitIds ?? [],
+          manualCredit: 0,
+          needsHabitSetup: false,
+          isUnlocked: reached,
+          hasEnded: monthEnded,
+          ratio: current / target,
+          tier: reached ? medalTierFor(current / target) : null,
+        };
+      }
       const stats = this._monthlyHabitStats(year, monthIndex, config?.habitIds);
       const targetDays =
         config?.targetDays ??
@@ -739,10 +808,12 @@ export class RpgProfileService {
       return {
         id,
         monthIndex,
-        title,
+        title: displayTitle,
         imageUrl: `assets/rpg/trophies/month-${String(monthIndex + 1).padStart(2, '0')}.png`,
-        description: '',
+        description: labels?.description ?? '',
         metricType: 'days' as const,
+        unit: '',
+        mode: 'habit' as const,
         percentage,
         completed: stats.completed,
         possible: stats.possible,
@@ -752,8 +823,15 @@ export class RpgProfileService {
         habitIds: config?.habitIds ?? [],
         manualCredit: config?.manualCredit ?? 0,
         needsHabitSetup: !config?.habitIds?.length,
-        isUnlocked: monthEnded && stats.possibleDays > 0 && completedDays >= targetDays,
+        // Delivered as soon as the target is reached - completed days only
+        // grow during the month, so there's no need to wait for it to close.
+        isUnlocked: stats.possibleDays > 0 && completedDays >= targetDays,
         hasEnded: monthEnded,
+        ratio: completedDays / targetDays,
+        tier:
+          stats.possibleDays > 0 && completedDays >= targetDays
+            ? medalTierFor(completedDays / targetDays)
+            : null,
       };
     });
   });
@@ -783,6 +861,8 @@ export class RpgProfileService {
         untracked(() => {
           this._seedMonthlyMedalHistory();
           this.claimAvailableTrophies();
+          this._resolveContracts();
+          this._backfillPenaltyMoneyLog();
           this._persistNewlyUnlockedTierAchievements();
           this._persistTierBaselineTransitions();
         }),
@@ -802,6 +882,7 @@ export class RpgProfileService {
   async refresh(): Promise<void> {
     const tasks = await this._taskService.getAllTasksEverywhere();
     this._tasks.set(tasks);
+    this._tasksLoaded = true;
     const current = this._state();
     const inventoryBeforeRewards = new Set(current.inventory.map((item) => item.id));
     const ledger = { ...current.xpLedger };
@@ -892,6 +973,7 @@ export class RpgProfileService {
     this._claimCompletedDailyQuests();
     this._claimCompletedMonthlyQuests();
     this._claimWeeklyBoss();
+    this._resolveContracts();
     this._grantLevelRewards(inventoryBeforeRewards);
   }
 
@@ -1094,7 +1176,13 @@ export class RpgProfileService {
     return true;
   }
 
-  addPenalty(title: string, xpLoss: number, coinsLoss: number): void {
+  addPenalty(
+    title: string,
+    xpLoss: number,
+    coinsLoss: number,
+    moneyLoss = 0,
+    exercise = '',
+  ): void {
     if (!title.trim()) {
       return;
     }
@@ -1107,21 +1195,294 @@ export class RpgProfileService {
           title: title.trim(),
           xpLoss: Math.max(0, Math.round(xpLoss)),
           coinsLoss: Math.max(0, Math.round(coinsLoss)),
+          moneyLoss: toMoney(moneyLoss),
+          exercise: exercise.trim(),
           createdAt: Date.now(),
           timesApplied: 0,
+          xpLossApplied: 0,
+          coinsLossApplied: 0,
         },
       ],
     });
   }
 
-  applyPenalty(penaltyId: string): void {
+  updatePenalty(
+    penaltyId: string,
+    changes: {
+      title: string;
+      xpLoss: number;
+      coinsLoss: number;
+      moneyLoss: number;
+      exercise: string;
+    },
+  ): void {
+    if (!changes.title.trim()) {
+      return;
+    }
     this._save({
       ...this._state(),
-      penalties: this._state().penalties.map((item) =>
+      penalties: this._state().penalties.map((item) => {
+        if (item.id !== penaltyId) {
+          return item;
+        }
+        // Freeze what was already deducted so the new values only apply from now on.
+        const applied = penaltyAppliedTotals(item);
+        return {
+          ...item,
+          title: changes.title.trim(),
+          xpLoss: Math.max(0, Math.round(changes.xpLoss)),
+          coinsLoss: Math.max(0, Math.round(changes.coinsLoss)),
+          moneyLoss: toMoney(changes.moneyLoss),
+          exercise: changes.exercise.trim(),
+          xpLossApplied: applied.xp,
+          coinsLossApplied: applied.coins,
+        };
+      }),
+    });
+  }
+
+  applyPenalty(penaltyId: string): void {
+    const state = this._state();
+    const penalty = state.penalties.find((item) => item.id === penaltyId);
+    if (!penalty) {
+      return;
+    }
+    const applied = penaltyAppliedTotals(penalty);
+    // Repeating the same penalty within a week escalates it: the nth
+    // application this week costs n times the base values.
+    const now = Date.now();
+    const weekStart = startOfWeekMs(now);
+    const thisWeek = (penalty.weekAppliedAt ?? []).filter((at) => at >= weekStart);
+    const multiplier = thisWeek.length + 1;
+    const addedXp = penalty.xpLoss * multiplier;
+    const addedCoins = penalty.coinsLoss * multiplier;
+    const addedMoney = (penalty.moneyLoss ?? 0) * multiplier;
+    this._save({
+      ...state,
+      penaltyLog: [
+        ...(state.penaltyLog ?? []),
+        {
+          penaltyId,
+          title: penalty.title,
+          at: now,
+          xp: addedXp,
+          coins: addedCoins,
+          money: toMoney(addedMoney),
+        },
+      ],
+      penaltyMoneyOwed: toMoney((state.penaltyMoneyOwed ?? 0) + addedMoney),
+      penalties: state.penalties.map((item) =>
         item.id === penaltyId
-          ? { ...item, timesApplied: (item.timesApplied ?? 0) + 1 }
+          ? {
+              ...item,
+              timesApplied: (item.timesApplied ?? 0) + 1,
+              xpLossApplied: applied.xp + addedXp,
+              coinsLossApplied: applied.coins + addedCoins,
+              weekAppliedAt: [...thisWeek, now],
+            }
           : item,
       ),
+    });
+  }
+
+  /**
+   * Saves (or updates) the weekly review for a week. The XP/coin reward is paid
+   * only the first time a given week is completed.
+   */
+  saveWeeklyReview(
+    review: Omit<RpgWeeklyReview, 'completedAt'>,
+    reward: { xp: number; coins: number },
+  ): boolean {
+    const state = this._state();
+    const isFirstTime = !state.weeklyReviews?.[review.weekStart];
+    this._save({
+      ...state,
+      weeklyReviews: {
+        ...state.weeklyReviews,
+        [review.weekStart]: { ...review, completedAt: Date.now() },
+      },
+      questBonusXp: state.questBonusXp + (isFirstTime ? reward.xp : 0),
+      questBonusCoins: state.questBonusCoins + (isFirstTime ? reward.coins : 0),
+    });
+    return isFirstTime;
+  }
+
+  /** Marks everything still pending as moved into the real punishment savings box. */
+  markPenaltyMoneyTransferred(): void {
+    const state = this._state();
+    const amount = toMoney(
+      (state.penaltyMoneyOwed ?? 0) - (state.penaltyMoneyTransferred ?? 0),
+    );
+    if (amount <= 0) return;
+    this._save({
+      ...state,
+      penaltyMoneyTransferred: state.penaltyMoneyOwed ?? 0,
+      penaltyMoneyTransfers: [
+        ...(state.penaltyMoneyTransfers ?? []),
+        { at: Date.now(), amount },
+      ],
+    });
+  }
+
+  addContract(
+    input: Pick<
+      RpgContract,
+      | 'title'
+      | 'metric'
+      | 'target'
+      | 'scopeKind'
+      | 'scopeId'
+      | 'deadlineDay'
+      | 'stakeMoney'
+      | 'stakeXp'
+      | 'stakeCoins'
+    >,
+  ): void {
+    const startDay = getDbDateStr(new Date());
+    if (!input.title.trim() || input.target <= 0 || input.deadlineDay < startDay) {
+      return;
+    }
+    const state = this._state();
+    const contract: RpgContract = {
+      ...input,
+      id: crypto.randomUUID(),
+      title: input.title.trim(),
+      scopeId: input.scopeKind === 'all' ? undefined : input.scopeId,
+      startDay,
+      stakeMoney: toMoney(input.stakeMoney),
+      stakeXp: Math.max(0, Math.round(input.stakeXp)),
+      stakeCoins: Math.max(0, Math.round(input.stakeCoins)),
+      manualProgress: 0,
+      status: 'active',
+      createdAt: Date.now(),
+    };
+    this._save({ ...state, contracts: [...(state.contracts ?? []), contract] });
+  }
+
+  removeContract(contractId: string): void {
+    const state = this._state();
+    this._save({
+      ...state,
+      contracts: (state.contracts ?? []).filter((item) => item.id !== contractId),
+    });
+  }
+
+  adjustContractProgress(contractId: string, delta: number): void {
+    const state = this._state();
+    this._save({
+      ...state,
+      contracts: (state.contracts ?? []).map((item) =>
+        item.id === contractId && item.status === 'active' && item.metric === 'manual'
+          ? { ...item, manualProgress: Math.max(0, item.manualProgress + delta) }
+          : item,
+      ),
+    });
+  }
+
+  contractProgress(contract: RpgContract): number {
+    return contract.finalProgress ?? contractProgress(contract, this._tasks());
+  }
+
+  /**
+   * One-time, idempotent: money owed/transferred before the dated logs existed
+   * has no entry, so the reports tab couldn't place it in any period. The
+   * real-money box only shipped on 2026-09-25, so any unlogged amount was
+   * applied on that day - record the difference once as a single entry.
+   */
+  private _backfillPenaltyMoneyLog(): void {
+    const state = this._state();
+    const loggedOwed =
+      (state.penaltyLog ?? []).reduce((sum, entry) => sum + entry.money, 0) +
+      (state.contracts ?? [])
+        .filter((contract) => contract.status === 'lost')
+        .reduce((sum, contract) => sum + contract.stakeMoney, 0);
+    const missingOwed = toMoney((state.penaltyMoneyOwed ?? 0) - loggedOwed);
+    const loggedTransferred = (state.penaltyMoneyTransfers ?? []).reduce(
+      (sum, transfer) => sum + transfer.amount,
+      0,
+    );
+    const missingTransferred = toMoney(
+      (state.penaltyMoneyTransferred ?? 0) - loggedTransferred,
+    );
+    if (missingOwed < 0.01 && missingTransferred < 0.01) return;
+    const at = new Date(2026, 8, 25, 12).getTime();
+    this._save({
+      ...state,
+      penaltyLog:
+        missingOwed >= 0.01
+          ? [
+              ...(state.penaltyLog ?? []),
+              {
+                penaltyId: 'legacy-before-log',
+                title: 'Punições antes do registro',
+                at,
+                xp: 0,
+                coins: 0,
+                money: missingOwed,
+              },
+            ]
+          : state.penaltyLog,
+      penaltyMoneyTransfers:
+        missingTransferred >= 0.01
+          ? [...(state.penaltyMoneyTransfers ?? []), { at, amount: missingTransferred }]
+          : state.penaltyMoneyTransfers,
+    });
+  }
+
+  /**
+   * Settles active contracts: reaching the target wins the stake right away;
+   * a deadline that passed without it loses the stake (XP/coins through a
+   * hidden penalty entry, money into the punishment savings box).
+   */
+  private _resolveContracts(): void {
+    // Hour-based progress reads the task list - resolving before refresh()
+    // has loaded it would wrongly fail every contract past its deadline.
+    if (!this._tasksLoaded) return;
+    const state = this._state();
+    const contracts = state.contracts ?? [];
+    if (!contracts.some((item) => item.status === 'active')) return;
+    const today = getDbDateStr(new Date());
+    const now = Date.now();
+    let owed = state.penaltyMoneyOwed ?? 0;
+    let bonusXp = state.questBonusXp;
+    let bonusCoins = state.questBonusCoins;
+    const newPenalties: RpgPenalty[] = [];
+    let changed = false;
+    const next = contracts.map((contract): RpgContract => {
+      if (contract.status !== 'active') return contract;
+      const progress = contractProgress(contract, this._tasks());
+      if (progress >= contract.target) {
+        changed = true;
+        bonusXp += contract.stakeXp;
+        bonusCoins += contract.stakeCoins;
+        return { ...contract, status: 'won', resolvedAt: now, finalProgress: progress };
+      }
+      if (today > contract.deadlineDay) {
+        changed = true;
+        owed = toMoney(owed + contract.stakeMoney);
+        newPenalties.push({
+          id: crypto.randomUUID(),
+          title: `Contrato quebrado: ${contract.title}`,
+          xpLoss: contract.stakeXp,
+          coinsLoss: contract.stakeCoins,
+          createdAt: now,
+          timesApplied: 1,
+          xpLossApplied: contract.stakeXp,
+          coinsLossApplied: contract.stakeCoins,
+          sourceContractId: contract.id,
+        });
+        return { ...contract, status: 'lost', resolvedAt: now, finalProgress: progress };
+      }
+      return contract;
+    });
+    if (!changed) return;
+    this._save({
+      ...state,
+      contracts: next,
+      penaltyMoneyOwed: owed,
+      questBonusXp: bonusXp,
+      questBonusCoins: bonusCoins,
+      penalties: [...state.penalties, ...newPenalties],
     });
   }
 
@@ -1559,23 +1920,51 @@ export class RpgProfileService {
     });
   }
 
-  updateMonthlyMedalConfig(
+  updateMonthlyMedal(
     medalId: string,
-    habitIds: string[],
-    targetDays: number,
-    manualCredit = 0,
+    input: {
+      title: string;
+      description: string;
+      mode: 'habit' | 'value';
+      habitIds: string[];
+      targetDays: number;
+      manualCredit: number;
+      valueTarget: number;
+      valueCurrent: number;
+      valueUnit: string;
+    },
   ): void {
-    const selected = [...new Set(habitIds)];
-    if (!selected.length) return;
+    const selected = [...new Set(input.habitIds)];
+    if (input.mode === 'habit' && !selected.length) return;
+    if (input.mode === 'value' && !(input.valueTarget > 0)) return;
+    const state = this._state();
     this._save({
-      ...this._state(),
-      monthlyMedalConfigs: {
-        ...this._state().monthlyMedalConfigs,
+      ...state,
+      monthlyMedalLabels: {
+        ...state.monthlyMedalLabels,
         [medalId]: {
-          habitIds: selected,
-          targetDays: Math.max(1, Math.min(31, Math.round(targetDays))),
-          manualCredit: Math.max(0, Math.round(manualCredit)),
+          title: input.title.trim() || undefined,
+          description: input.description.trim() || undefined,
         },
+      },
+      monthlyMedalConfigs: {
+        ...state.monthlyMedalConfigs,
+        [medalId]:
+          input.mode === 'value'
+            ? {
+                habitIds: [],
+                targetDays: 1,
+                mode: 'value',
+                valueTarget: Math.max(0, Number(input.valueTarget)),
+                valueCurrent: Math.max(0, Number(input.valueCurrent) || 0),
+                valueUnit: input.valueUnit.trim(),
+              }
+            : {
+                habitIds: selected,
+                targetDays: Math.max(1, Math.min(31, Math.round(input.targetDays))),
+                manualCredit: Math.max(0, Math.round(input.manualCredit)),
+                mode: 'habit',
+              },
       },
     });
   }
@@ -1632,7 +2021,8 @@ export class RpgProfileService {
   private _monthlyMedalHistoryOwnerId(): string {
     return (
       localStorage.getItem(RPG_MONTHLY_MEDAL_HISTORY_OWNER_KEY) ??
-      getEmergencyRecoveryCharacter().id
+      getEmergencyRecoveryCharacter()?.id ??
+      ''
     );
   }
 
@@ -1730,6 +2120,30 @@ export class RpgProfileService {
       claims[key] = { claimedAt: Date.now(), ...reward };
       xp += reward.xp;
       gold += reward.gold;
+      changed = true;
+    }
+    // Rarity upgrades live under their own key: the historical-medal seed
+    // rewrites `monthly:*` claims to fixed values, so upgrades stored there
+    // would be wiped. Each upgrade pays only the difference to the tier
+    // already paid (bronze is the regular claim above).
+    for (const medal of this.monthlyMedals()) {
+      if (!medal.tier) continue;
+      const key = `monthly-tier:${medal.id}`;
+      const existing = claims[key];
+      const extra =
+        MEDAL_TIER_EXTRA[medal.tier] - MEDAL_TIER_EXTRA[existing?.tier ?? 'bronze'];
+      if (extra <= 0) continue;
+      const base = this.trophyReward('monthly', medal.possible);
+      const extraXp = base.xp * extra;
+      const extraGold = base.gold * extra;
+      claims[key] = {
+        claimedAt: Date.now(),
+        xp: (existing?.xp ?? 0) + extraXp,
+        gold: (existing?.gold ?? 0) + extraGold,
+        tier: medal.tier,
+      };
+      xp += extraXp;
+      gold += extraGold;
       changed = true;
     }
     for (const goal of state.annualGoals) {
@@ -1876,7 +2290,91 @@ export class RpgProfileService {
     this._save({ ...this._state(), displayName: displayName.trim(), avatarDataUrl });
   }
 
-  mapProject(projectId: string, attribute: RpgAttributeId | null): void {
+  /**
+   * Every attribute in display order: the core ones (with the player's
+   * renames applied), discipline, then custom ones.
+   */
+  readonly attributeDefinitions = computed((): RpgAttributeDefinition[] => {
+    const state = this._state();
+    const core: { id: RpgAttributeId; label: string; icon: string }[] = [
+      { id: 'health', label: 'Saúde', icon: 'favorite' },
+      { id: 'intelligence', label: 'Inteligência', icon: 'psychology' },
+      { id: 'finance', label: 'Finanças', icon: 'savings' },
+      { id: 'social', label: 'Social', icon: 'groups' },
+      { id: 'discipline', label: 'Disciplina', icon: 'military_tech' },
+    ];
+    return [
+      ...core.map((attribute) => ({
+        ...attribute,
+        ...state.attributeOverrides?.[attribute.id],
+        isCustom: false,
+        rating: state.attributeRatings[attribute.id] ?? 0,
+      })),
+      ...(state.customAttributes ?? []).map((attribute) => ({
+        ...attribute,
+        isCustom: true,
+      })),
+    ];
+  });
+
+  addCustomAttribute(label: string, icon: string): string | null {
+    if (!label.trim()) return null;
+    const state = this._state();
+    const id = `custom-${crypto.randomUUID()}`;
+    this._save({
+      ...state,
+      customAttributes: [
+        ...(state.customAttributes ?? []),
+        {
+          id,
+          label: label.trim(),
+          icon: icon || 'star',
+          rating: 5,
+        },
+      ],
+    });
+    return id;
+  }
+
+  updateAttribute(id: string, changes: { label: string; icon: string }): void {
+    if (!changes.label.trim()) return;
+    const state = this._state();
+    const next = { label: changes.label.trim(), icon: changes.icon || 'star' };
+    const custom = state.customAttributes ?? [];
+    if (custom.some((attribute) => attribute.id === id)) {
+      this._save({
+        ...state,
+        customAttributes: custom.map((attribute) =>
+          attribute.id === id ? { ...attribute, ...next } : attribute,
+        ),
+      });
+      return;
+    }
+    this._save({
+      ...state,
+      attributeOverrides: { ...state.attributeOverrides, [id]: next },
+    });
+  }
+
+  removeCustomAttribute(id: string): void {
+    const state = this._state();
+    // Projects mapped to it fall back to "no attribute".
+    const projectAttributes = Object.fromEntries(
+      Object.entries(state.projectAttributes).map(([projectId, attribute]) => [
+        projectId,
+        attribute === id ? null : attribute,
+      ]),
+    );
+    this._save({
+      ...state,
+      projectAttributes,
+      customAttributes: (state.customAttributes ?? []).filter(
+        (attribute) => attribute.id !== id,
+      ),
+    });
+  }
+
+  mapProject(projectId: string, attribute: string | null): void {
     this._save({
       ...this._state(),
       projectAttributes: {
@@ -1886,13 +2384,21 @@ export class RpgProfileService {
     });
   }
 
-  setAttributeRating(attribute: RpgAttributeId, rating: number): void {
+  setAttributeRating(attribute: string, rating: number): void {
+    const value = Math.max(0, Math.min(10, Math.round(rating)));
+    const state = this._state();
+    if (attribute.startsWith('custom-')) {
+      this._save({
+        ...state,
+        customAttributes: (state.customAttributes ?? []).map((item) =>
+          item.id === attribute ? { ...item, rating: value } : item,
+        ),
+      });
+      return;
+    }
     this._save({
-      ...this._state(),
-      attributeRatings: {
-        ...this._state().attributeRatings,
-        [attribute]: Math.max(0, Math.min(10, Math.round(rating))),
-      },
+      ...state,
+      attributeRatings: { ...state.attributeRatings, [attribute]: value },
     });
   }
 
@@ -1920,8 +2426,11 @@ export class RpgProfileService {
 
   chooseSubclass(subclassId: RpgSubclassId): void {
     const state = this._state();
+    // Subclass can be switched freely between any already-unlocked option for
+    // the current class - it isn't a one-time commitment (the UI now always
+    // offers the full list with locked ones disabled, see rpg-profile
+    // .component.html's Subclasse selector).
     if (
-      state.subclassId !== 'none' ||
       subclassId === 'none' ||
       this.level() < RPG_SUBCLASS_UNLOCK_LEVELS[subclassId] ||
       !this._subclassBelongsToClass(subclassId, state.classId)
@@ -2031,6 +2540,24 @@ export class RpgProfileService {
     return true;
   }
 
+  updateReward(rewardId: string, changes: { title: string; cost: number }): void {
+    if (!changes.title.trim()) {
+      return;
+    }
+    this._save({
+      ...this._state(),
+      rewards: this._state().rewards.map((item) =>
+        item.id === rewardId
+          ? {
+              ...item,
+              title: changes.title.trim(),
+              cost: Math.max(1, Math.round(changes.cost)),
+            }
+          : item,
+      ),
+    });
+  }
+
   removeReward(rewardId: string): void {
     this._save({
       ...this._state(),
@@ -2118,12 +2645,9 @@ export class RpgProfileService {
         ? Math.round((completed / relevantTodayTasks.length) * 100)
         : 0;
     const questXpMultiplier =
-      this._state().classId === 'ranger' ||
-      this._state().classId === 'archer' ||
-      this._state().subclassId === 'pathfinder' ||
-      this._state().subclassId === 'chronomancer'
+      (this._state().classId === 'ranger' || this._state().classId === 'archer'
         ? 1.1
-        : 1;
+        : 1) + (this._subclassBonus().quest ?? 0);
 
     return [
       this._quest(
@@ -2298,21 +2822,24 @@ export class RpgProfileService {
     const today = this._dateFromDbStr(getDbDateStr());
     const days: DisciplineDay[] = [];
     while (cursor <= today) {
-      const dayOfWeek = cursor.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        const dateStr = getDbDateStr(cursor);
-        const habits = this._habitTracker.habitsForDate(dateStr, [characterId]);
-        if (habits.length) {
-          const completed = habits.filter((habit) =>
-            this._habitTracker.isComplete(habit.id, dateStr),
-          ).length;
-          days.push({
-            date: dateStr,
-            completed,
-            total: habits.length,
-            percentage: (completed / habits.length) * 100,
-          });
-        }
+      // habitsForDate is already weekday-aware (see TaskHabitService.isActiveOn /
+      // _matchesWeekday) - it returns exactly the habits configured for this
+      // specific date, so a weekend with fewer (or zero) active habits than a
+      // weekday is already reflected in `total` without special-casing it here.
+      // Blanket-skipping Saturday/Sunday hid genuinely tracked weekend habits
+      // instead of showing their own (smaller) total (#discipline-weekend-total).
+      const dateStr = getDbDateStr(cursor);
+      const habits = this._habitTracker.habitsForDate(dateStr, [characterId]);
+      if (habits.length) {
+        const completed = habits.filter((habit) =>
+          this._habitTracker.isComplete(habit.id, dateStr),
+        ).length;
+        days.push({
+          date: dateStr,
+          completed,
+          total: habits.length,
+          percentage: (completed / habits.length) * 100,
+        });
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -2339,7 +2866,7 @@ export class RpgProfileService {
 
   private _penaltyXp(): number {
     const raw = this._state().penalties.reduce(
-      (sum, item) => sum + item.xpLoss * (item.timesApplied ?? 0),
+      (sum, item) => sum + penaltyAppliedTotals(item).xp,
       0,
     );
     const resilienceReduction = (this._state().skills['resilience'] ?? 0) * 0.05;
@@ -2350,12 +2877,15 @@ export class RpgProfileService {
       resilienceReduction + ironWillReduction + secondChanceReduction,
     );
     const classReduction = this._state().classId === 'cleric' ? 0.2 : 0;
-    return Math.round(raw * Math.max(0.2, 1 - skillReduction - classReduction));
+    const subclassReduction = this._subclassBonus().penalty ?? 0;
+    return Math.round(
+      raw * Math.max(0.2, 1 - skillReduction - classReduction - subclassReduction),
+    );
   }
 
   private _penaltyCoins(): number {
     return this._state().penalties.reduce(
-      (sum, item) => sum + item.coinsLoss * (item.timesApplied ?? 0),
+      (sum, item) => sum + penaltyAppliedTotals(item).coins,
       0,
     );
   }
@@ -2455,23 +2985,24 @@ export class RpgProfileService {
   }
 
   private _calculateCurrentStreak(): number {
+    const disciplineDays = this.disciplineDays();
+    const trackedDays = new Set(disciplineDays.map((day) => day.date));
     const completedDays = new Set(
-      this.disciplineDays()
-        .filter((day) => day.percentage >= 70)
-        .map((day) => day.date),
+      disciplineDays.filter((day) => day.percentage >= 70).map((day) => day.date),
     );
     const cursor = new Date();
     let streak = 0;
     for (let index = 0; index < 366; index++) {
-      // disciplineDays() excludes weekends entirely - skip them here too so
-      // they neither break nor extend the streak, instead of reading as a
-      // missed day just because there's no entry to look up.
-      const dayOfWeek = cursor.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
+      const date = getDbDateStr(cursor);
+      // A day with no applicable habits at all (nothing configured for that
+      // weekday - which may or may not be a weekend now that disciplineDays()
+      // reflects each day's own habit set) neither breaks nor extends the
+      // streak, instead of reading as a missed day just because there's no
+      // entry to look up.
+      if (!trackedDays.has(date)) {
         cursor.setDate(cursor.getDate() - 1);
         continue;
       }
-      const date = getDbDateStr(cursor);
       if (!completedDays.has(date)) {
         if (index === 0) {
           cursor.setDate(cursor.getDate() - 1);
@@ -2788,11 +3319,19 @@ export class RpgProfileService {
       ringLeft: { name: 'Anel do Tempo', icon: 'radio_button_checked' },
       ringRight: { name: 'Anel da Constância', icon: 'radio_button_checked' },
       boots: { name: 'Botas do Caminho', icon: 'ice_skating' },
-      companion: { name: 'Companheiro Rúnico', icon: 'pets' },
-      pet: { name: 'Runa do Companheiro', icon: 'pets' },
+      companion: { name: 'Runa do Companheiro', icon: 'pets' },
+      pet: { name: 'Companheiro Rúnico', icon: 'pets' },
       relic: { name: 'Relíquia do Destino', icon: 'auto_awesome' },
     };
-    const slots = Object.keys(templates) as RpgItemSlot[];
+    // 'pet' is excluded here: that slot is reserved for the synthetic bonded-
+    // companion item (see _syncPetCompanion) and drives the MASCOTE showcase
+    // directly from equippedItems.pet - a random drop landing there and later
+    // getting equipped displaces the player's actual pet with a generic item
+    // (#pet-slot-loot-collision). 'companion' is the real equipable slot for
+    // pet-themed accessories.
+    const slots = (Object.keys(templates) as RpgItemSlot[]).filter(
+      (slot) => slot !== 'pet',
+    );
     const slot = slots[Math.floor(Math.random() * slots.length)];
     const usesRarePack = ['rare', 'epic', 'legendary', 'mythic'].includes(rarity);
     const slotAssets = usesRarePack ? RARE_ITEM_ASSETS[slot] : ITEM_PACK_ASSETS[slot];
@@ -3082,12 +3621,27 @@ export class RpgProfileService {
       obtainedAt: state.createdAt || Date.now(),
       source: 'starter',
     };
-    const inventory = state.inventory.filter((candidate) => candidate.id !== item.id);
+    // A prior version could generate random loot targeting the 'pet' slot,
+    // which the normal equip flow then wrote straight into equippedItems.pet -
+    // displacing the MASCOTE showcase (driven directly by that slot) with a
+    // generic item instead of the bonded companion (#pet-slot-loot-collision).
+    // Retarget any such item to the companion accessory slot, where it's a
+    // sensible fit, instead of leaving it stuck unequippable.
+    const inventory = state.inventory
+      .filter((candidate) => candidate.id !== item.id)
+      .map((candidate) =>
+        candidate.slot === 'pet'
+          ? { ...candidate, slot: 'companion' as const }
+          : candidate,
+      );
     const equippedItems = { ...state.equippedItems };
     if (equippedItems.companion === PET_COMPANION_ID) {
       delete equippedItems.companion;
-      equippedItems.pet = PET_COMPANION_ID;
     }
+    // The pet slot is reserved for the bonded companion showcase - always
+    // keep it pointed at the real pet, regardless of what a prior save had
+    // equipped there.
+    equippedItems.pet = PET_COMPANION_ID;
     return { ...state, pet, equippedItems, inventory: [item, ...inventory] };
   }
 
@@ -3201,6 +3755,7 @@ export class RpgProfileService {
     if (localStorage.getItem(RPG_EMERGENCY_RECOVERY_FLAG)) return;
     localStorage.setItem(RPG_EMERGENCY_RECOVERY_FLAG, String(Date.now()));
     const recovered = getEmergencyRecoveryCharacter();
+    if (!recovered) return;
     const roster = this._roster();
     // Only step in if the character slot Academy Arcana's migrated data is
     // keyed to doesn't already hold a proper mage - never overwrite an

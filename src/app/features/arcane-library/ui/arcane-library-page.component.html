@@ -6,13 +6,29 @@
       <p>Cada página lida fortalece sua jornada.</p>
     </div>
     <div class="goal">
-      <span>Meta {{ library.settings().annualGoal }} livros</span
+      <span
+        >Meta<input
+          type="number"
+          min="1"
+          class="goal-input"
+          title="Editar meta anual de livros"
+          [ngModel]="library.settings().annualGoal"
+          (ngModelChange)="updateAnnualGoal($event)"
+        />livros/ano</span
       ><strong
-        >{{ library.finished().length }} / {{ library.settings().annualGoal }}</strong
+        >{{ finishedThisYear().length }} / {{ library.settings().annualGoal }}</strong
       ><progress
-        [value]="library.finished().length"
+        [value]="finishedThisYear().length"
         [max]="library.settings().annualGoal"
       ></progress>
+      @if (weeklyPaceNeeded(); as pace) {
+        <small class="pace-hint"
+          >Faltam {{ pace.remaining }} livro(s) em {{ pace.weeksLeft }} semana(s) · leia
+          {{ pace.perWeek }}/semana para bater a meta</small
+        >
+      } @else {
+        <small class="pace-hint">Meta batida! 🎉</small>
+      }
     </div>
   </header>
 
@@ -595,6 +611,13 @@
               <small>Concluído · {{ book.format }}</small>
               <h3>{{ book.title }}</h3>
               <p>{{ book.author || 'Autor não informado' }}</p>
+              @if (selectedGenres(book).length) {
+                <div class="genre-tags">
+                  @for (genre of selectedGenres(book); track genre) {
+                    <span class="genre-tag">{{ genre }}</span>
+                  }
+                </div>
+              }
               <progress
                 [value]="book.pages || 1"
                 [max]="book.pages || 1"
@@ -604,6 +627,14 @@
                 <b class="reading-time done"
                   ><mat-icon>event_available</mat-icon>Concluído em {{ days }} dia(s)</b
                 >
+              }
+              @if (book.rating) {
+                <div
+                  class="book-rating"
+                  [attr.aria-label]="book.rating + ' de 5 estrelas'"
+                >
+                  {{ ratingStars(book.rating) }}
+                </div>
               }
             </div>
             <button
@@ -960,7 +991,15 @@
               type="month"
               [(ngModel)]="book.plannedMonth" /></label
           ><label
-            >Nota<input
+            >Formato<select [(ngModel)]="book.format">
+              <option value="physical">Físico</option>
+              <option value="kindle">Kindle</option>
+              <option value="audiobook">Audiobook</option>
+              <option value="pdf">PDF</option>
+            </select></label
+          ><label [class.required-missing]="isCompletionInfoMissing(book)"
+            >Nota{{ book.status === 'finished' ? ' (obrigatória)' : ''
+            }}<input
               type="number"
               min="0"
               max="5"
@@ -993,6 +1032,9 @@
           </label>
         </div>
         <footer>
+          @if (isCompletionInfoMissing(book)) {
+            <p class="completion-hint">Dê uma nota ao livro para concluí-lo.</p>
+          }
           <button
             class="danger"
             (click)="library.removeBook(book.id); editingBook.set(null)"
@@ -1000,6 +1042,7 @@
             Excluir</button
           ><button
             class="gold"
+            [disabled]="isCompletionInfoMissing(book)"
             (click)="saveBook()"
           >
             Salvar ficha

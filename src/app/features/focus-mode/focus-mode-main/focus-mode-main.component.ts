@@ -439,8 +439,10 @@ export class FocusModeMainComponent {
       // indefinitely, see autoRestartCountdownOnCompletion$) against whatever
       // task the user ends up picking. Picking a task only switches which
       // task is tracked (switchToTask -> taskService.setCurrentId); starting
-      // a new session on it is a separate, explicit action (the play
-      // button), so nothing should auto-run until the user asks for it.
+      // a session on it happens as soon as the user picks it from the
+      // selector - see onTaskSelected/_switchToTaskAndStart - rather than
+      // auto-picking one ourselves, which risked grabbing the wrong task
+      // (#focus-auto-next-wrong-pick).
       this._store.dispatch(pauseFocusSession({ pausedTaskId: id }));
       this.openTaskSelector();
     } else {
@@ -499,6 +501,23 @@ export class FocusModeMainComponent {
 
   adjustTime(amountMs: number): void {
     this._store.dispatch(adjustRemainingTime({ amountMs }));
+  }
+
+  // Starts a session on `taskId` right after switching to it. Countdown mode's
+  // switchToTask() pulls the new task's estimate in via an async live-query
+  // before the session duration is ready - starting immediately here would
+  // race it and launch with the just-finished task's stale duration, so this
+  // waits on that same lookup first. Other modes have no such async step.
+  private _switchToTaskAndStart(taskId: string): void {
+    this.switchToTask(taskId);
+    if (this.mode() === FocusModeMode.Countdown) {
+      this.taskService
+        .getByIdLive$(taskId)
+        .pipe(take(1))
+        .subscribe(() => this.startSession());
+      return;
+    }
+    this.startSession();
   }
 
   switchToTask(taskId: string): void {
@@ -684,7 +703,10 @@ export class FocusModeMainComponent {
   }
 
   onTaskSelected(taskId: string): void {
-    this.switchToTask(taskId);
+    // Manually picking a task from the selector is the explicit "start
+    // working on this" action, so start its session immediately instead of
+    // requiring a separate press of play.
+    this._switchToTaskAndStart(taskId);
     this.closeTaskSelector();
   }
 

@@ -193,25 +193,30 @@
         </div>
         <div class="class-readonly">
           <span>Subclasse</span>
-          @if (profile.state().subclassId !== 'none') {
-            <strong>{{ selectedSubclass()?.name }}</strong>
-          } @else if (unlockedSubclasses().length) {
+          @if (availableSubclasses().length) {
             <select
-              aria-label="Escolher subclasse desbloqueada"
-              (change)="chooseSubclass($any($event.target).value)"
+              aria-label="Escolher subclasse"
+              [ngModel]="profile.state().subclassId"
+              (ngModelChange)="chooseSubclass($event)"
             >
               <option value="none">Escolha sua subclasse</option>
-              @for (subclass of unlockedSubclasses(); track subclass.id) {
-                <option [value]="subclass.id">
-                  {{ subclass.name }} — {{ subclass.bonus }}
+              @for (subclass of availableSubclasses(); track subclass.id) {
+                <option
+                  [value]="subclass.id"
+                  [disabled]="profile.level() < subclassUnlockLevel(subclass.id)"
+                >
+                  {{ profile.level() < subclassUnlockLevel(subclass.id) ? '🔒 ' : '' }}
+                  {{ subclass.name }} — {{ subclass.bonus
+                  }}{{
+                    profile.level() < subclassUnlockLevel(subclass.id)
+                      ? ' (nível ' + subclassUnlockLevel(subclass.id) + ')'
+                      : ''
+                  }}
                 </option>
               }
             </select>
           } @else {
-            <strong>Bloqueada</strong>
-            @if (nextSubclassUnlockLevel(); as unlockLevel) {
-              <small>Libera no nível {{ unlockLevel }}</small>
-            }
+            <strong>Nenhuma</strong>
           }
         </div>
         <div class="perk">
@@ -422,23 +427,19 @@
       <div class="radar-wrap">
         <svg
           class="radar"
-          viewBox="0 0 200 200"
+          viewBox="-46 -14 292 228"
           role="img"
           aria-label="Gráfico de atributos do personagem"
         >
-          <polygon
-            class="radar-grid outer"
-            points="100,22 174,76 146,163 54,163 26,76"
-          />
-          <polygon
-            class="radar-grid"
-            points="100,48 150,84 131,143 69,143 50,84"
-          />
-          <polygon
-            class="radar-grid"
-            points="100,74 125,92 115,121 85,121 75,92"
-          />
-          @for (axis of radarAxes; track axis.label) {
+          @let radarData = radar();
+          @for (grid of radarData.grids; track $index) {
+            <polygon
+              class="radar-grid"
+              [class.outer]="$first"
+              [attr.points]="grid"
+            />
+          }
+          @for (axis of radarData.axes; track $index) {
             <line
               class="radar-axis"
               x1="100"
@@ -449,25 +450,34 @@
           }
           <polygon
             class="radar-value"
-            [attr.points]="radarPoints()"
+            [attr.points]="radarData.value"
           />
-          @for (point of radarPoints().split(' '); track $index) {
+          @for (point of radarData.points; track $index) {
             <circle
               class="radar-point"
-              [attr.cx]="+point.split(',')[0]"
-              [attr.cy]="+point.split(',')[1]"
+              [attr.cx]="point.x"
+              [attr.cy]="point.y"
               r="3"
             />
           }
+          @for (label of radarData.labels; track label.id) {
+            <text
+              class="radar-text"
+              [attr.x]="label.x"
+              [attr.y]="label.y"
+              [attr.text-anchor]="label.anchor"
+              dominant-baseline="middle"
+            >
+              {{ label.text }}
+            </text>
+          }
         </svg>
-        <div class="radar-label health">Saúde</div>
-        <div class="radar-label intelligence">Inteligência</div>
-        <div class="radar-label finance">Finanças</div>
-        <div class="radar-label social">Social</div>
-        <div class="radar-label discipline-label">Disciplina</div>
       </div>
-      @for (attribute of attributes; track attribute.id) {
-        <div class="attribute-row">
+      @for (attribute of profile.attributeDefinitions(); track attribute.id) {
+        <div
+          class="attribute-row"
+          [class.discipline]="attribute.id === 'discipline'"
+        >
           <mat-icon>{{ attribute.icon }}</mat-icon>
           <span>{{ attribute.label }}</span>
           <input
@@ -476,28 +486,13 @@
             min="0"
             max="10"
             step="1"
-            [value]="profile.state().attributeRatings[attribute.id]"
+            [value]="attribute.rating"
             (input)="setAttributeRating(attribute.id, $any($event.target).value)"
             [attr.aria-label]="'Nota de ' + attribute.label"
           />
-          <strong>{{ profile.state().attributeRatings[attribute.id] }}/10</strong>
+          <strong>{{ attribute.rating }}/10</strong>
         </div>
       }
-      <div class="attribute-row discipline">
-        <mat-icon>military_tech</mat-icon>
-        <span>Disciplina</span>
-        <input
-          class="attribute-rating"
-          type="range"
-          min="0"
-          max="10"
-          step="1"
-          [value]="profile.state().attributeRatings.discipline"
-          (input)="setAttributeRating('discipline', $any($event.target).value)"
-          aria-label="Nota de Disciplina"
-        />
-        <strong>{{ profile.state().attributeRatings.discipline }}/10</strong>
-      </div>
       <p class="hint">
         Dê uma nota de 0 a 10 para cada atributo. A teia muda imediatamente. Sua
         disciplina automática atual é {{ profile.discipline() | number: '1.0-1' }}%.
@@ -598,6 +593,89 @@
         O XP já conquistado é redistribuído automaticamente quando você altera uma
         associação.
       </p>
+      <div class="attribute-manager">
+        <strong>Atributos</strong>
+        <div class="attribute-chips">
+          @for (attribute of profile.attributeDefinitions(); track attribute.id) {
+            <button
+              type="button"
+              class="attribute-chip"
+              [class.active]="editingAttributeId() === attribute.id"
+              title="Editar nome e ícone"
+              (click)="startEditAttribute(attribute)"
+            >
+              <mat-icon>{{ attribute.icon }}</mat-icon>
+              {{ attribute.label }}
+              <mat-icon class="chip-edit">edit</mat-icon>
+            </button>
+          }
+        </div>
+        @if (editingAttribute(); as attribute) {
+          <form
+            class="attribute-edit"
+            (ngSubmit)="saveAttributeEdit()"
+          >
+            <input
+              name="label"
+              [(ngModel)]="attributeDraft.label"
+              aria-label="Nome do atributo"
+            />
+            <div
+              class="icon-picker"
+              role="group"
+              aria-label="Ícone do atributo"
+            >
+              @for (icon of ATTRIBUTE_ICONS; track icon) {
+                <button
+                  type="button"
+                  [class.selected]="attributeDraft.icon === icon"
+                  [attr.aria-label]="icon"
+                  (click)="attributeDraft.icon = icon"
+                >
+                  <mat-icon>{{ icon }}</mat-icon>
+                </button>
+              }
+            </div>
+            <div class="attribute-edit-actions">
+              @if (attribute.isCustom) {
+                <button
+                  type="button"
+                  class="ghost-btn danger"
+                  (click)="removeAttribute(attribute)"
+                >
+                  Excluir
+                </button>
+              }
+              <button
+                type="button"
+                class="ghost-btn"
+                (click)="editingAttributeId.set(null)"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                class="apply-btn redeem-btn"
+              >
+                Salvar
+              </button>
+            </div>
+          </form>
+        }
+        <div class="new-attribute">
+          <input
+            [(ngModel)]="newAttributeLabel"
+            placeholder="Novo atributo (ex.: Criatividade)"
+            (keydown.enter)="addAttribute()"
+          />
+          <button
+            mat-button
+            (click)="addAttribute()"
+          >
+            Criar atributo
+          </button>
+        </div>
+      </div>
       <div class="project-list">
         @for (project of projects(); track project.id) {
           <label class="project-row">
@@ -611,7 +689,7 @@
               (ngModelChange)="mapProject(project.id, $event)"
             >
               <option value="">Sem atributo</option>
-              @for (attribute of attributes; track attribute.id) {
+              @for (attribute of attributes(); track attribute.id) {
                 <option [value]="attribute.id">{{ attribute.label }}</option>
               }
             </select>
@@ -633,8 +711,9 @@
       <h2><span>🏛️</span> Salão de troféus</h2>
       <p class="trophy-intro">
         Medalhas calculadas automaticamente pelos hábitos concluídos. Os meses exigem pelo
-        menos 80% de consistência e são entregues ao fechar o mês. Este salão e suas
-        recompensas pertencem somente a
+        menos 80% de consistência e são entregues assim que você bate a meta: 100% rende
+        bronze, 120% prata (recompensa ×2) e 150% ouro (×3). Este salão e suas recompensas
+        pertencem somente a
         <b>{{ profile.state().displayName }}</b
         >.
       </p>
@@ -651,6 +730,9 @@
           <article
             class="trophy-card"
             [class.unlocked]="medal.isUnlocked"
+            [class.tier-bronze]="medal.tier === 'bronze'"
+            [class.tier-silver]="medal.tier === 'silver'"
+            [class.tier-gold]="medal.tier === 'gold'"
             [class.editing]="editingMonthlyMedalId === medal.id"
           >
             <button
@@ -658,7 +740,7 @@
               mat-icon-button
               class="monthly-medal-settings"
               title="Editar meta e hábitos desta medalha"
-              (click)="editMonthlyMedal(medal)"
+              (click)="editMonthlyMedal(medal, $event)"
             >
               <mat-icon>settings</mat-icon>
             </button>
@@ -699,8 +781,9 @@
               <small>
                 @if (medal.needsHabitSetup) {
                   Associe um hábito nas configurações ⚙️ para acompanhar esta medalha.
-                } @else if (medal.metricType === 'currency') {
-                  R$ {{ medal.completedDays }} / R$ {{ medal.targetDays }} ·
+                } @else if (medal.metricType !== 'days') {
+                  {{ formatMedalValue(medal.completedDays, medal.unit) }} /
+                  {{ formatMedalValue(medal.targetDays, medal.unit) }} ·
                   {{ medal.percentage }}%
                 } @else {
                   {{ medal.completedDays }}/{{ medal.targetDays }} dias ·
@@ -716,8 +799,13 @@
               <div class="trophy-progress">
                 <span [style.width.%]="medal.progressPercentage"></span>
               </div>
+              @if (medal.isUnlocked && medalNextTierHint(medal); as nextTier) {
+                <small class="next-tier">{{ nextTier }}</small>
+              }
               <b>
-                @if (medal.isUnlocked) {
+                @if (medal.isUnlocked && medal.tier) {
+                  {{ MEDAL_TIER_LABEL[medal.tier] }}
+                } @else if (medal.isUnlocked) {
                   CONQUISTADA
                 } @else if (medal.hasEnded) {
                   NÃO CONCLUÍDA
@@ -727,63 +815,125 @@
               </b>
             </div>
             @if (editingMonthlyMedalId === medal.id) {
-              <div class="monthly-medal-editor">
-                <label>
-                  Dias necessários no mês
-                  <span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      [(ngModel)]="monthlyMedalTarget"
-                    />
-                    dias
-                  </span>
-                </label>
-                <label>
-                  Dias já cumpridos (crédito manual)
-                  <span>
+              <div
+                class="monthly-medal-editor"
+                [style.top.px]="monthlyEditorPosition()?.top"
+                [style.left.px]="monthlyEditorPosition()?.left"
+              >
+                <div class="medal-text-fields">
+                  <input
+                    [(ngModel)]="monthlyMedalTitle"
+                    placeholder="Título da medalha"
+                    aria-label="Título da medalha"
+                  />
+                  <input
+                    [(ngModel)]="monthlyMedalDescription"
+                    placeholder="Descrição (opcional)"
+                    aria-label="Descrição da medalha"
+                  />
+                </div>
+                <div
+                  class="medal-mode-toggle"
+                  role="group"
+                  aria-label="Tipo de meta"
+                >
+                  <button
+                    type="button"
+                    [class.active]="monthlyMedalMode === 'habit'"
+                    (click)="monthlyMedalMode = 'habit'"
+                  >
+                    Hábito (dias)
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="monthlyMedalMode === 'value'"
+                    (click)="monthlyMedalMode = 'value'"
+                  >
+                    Valor
+                  </button>
+                </div>
+                @if (monthlyMedalMode === 'value') {
+                  <label>
+                    Meta
                     <input
                       type="number"
                       min="0"
-                      [(ngModel)]="monthlyMedalEditCredit"
+                      [(ngModel)]="monthlyMedalValueTarget"
                     />
-                    dias
-                  </span>
-                </label>
-                <div class="monthly-habit-picker">
-                  <strong>Hábitos acompanhados</strong>
-                  @if (!monthlyMedalHabitIds().size) {
-                    <small
-                      >Selecione ao menos um hábito para acompanhar esta medalha.</small
-                    >
-                  }
-                  @for (
-                    habit of habitTracker.habitsForCharacters([profile.state().id]);
-                    track habit.id
-                  ) {
-                    <button
-                      type="button"
-                      [class.selected]="monthlyMedalHabitIds().has(habit.id)"
-                      (click)="toggleMonthlyMedalHabit(habit.id)"
-                    >
-                      <mat-icon>
-                        {{
-                          monthlyMedalHabitIds().has(habit.id)
-                            ? 'check_box'
-                            : 'check_box_outline_blank'
-                        }}
-                      </mat-icon>
-                      {{ habit.title }}
-                    </button>
-                  } @empty {
-                    <small>Crie hábitos na aba Habit Tracker primeiro.</small>
-                  }
-                </div>
+                  </label>
+                  <label>
+                    Atual
+                    <input
+                      type="number"
+                      min="0"
+                      [(ngModel)]="monthlyMedalValueCurrent"
+                    />
+                  </label>
+                  <label>
+                    Unidade
+                    <input
+                      [(ngModel)]="monthlyMedalValueUnit"
+                      placeholder="R$, km, h…"
+                    />
+                  </label>
+                } @else {
+                  <label>
+                    Dias necessários no mês
+                    <span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        [(ngModel)]="monthlyMedalTarget"
+                      />
+                      dias
+                    </span>
+                  </label>
+                  <label>
+                    Dias já cumpridos (crédito manual)
+                    <span>
+                      <input
+                        type="number"
+                        min="0"
+                        [(ngModel)]="monthlyMedalEditCredit"
+                      />
+                      dias
+                    </span>
+                  </label>
+                  <div class="monthly-habit-picker">
+                    <strong>Hábitos acompanhados</strong>
+                    @if (!monthlyMedalHabitIds().size) {
+                      <small
+                        >Selecione ao menos um hábito para acompanhar esta medalha.</small
+                      >
+                    }
+                    @for (
+                      habit of habitTracker.habitsForCharacters([profile.state().id]);
+                      track habit.id
+                    ) {
+                      <button
+                        type="button"
+                        [class.selected]="monthlyMedalHabitIds().has(habit.id)"
+                        (click)="toggleMonthlyMedalHabit(habit.id)"
+                      >
+                        <mat-icon>
+                          {{
+                            monthlyMedalHabitIds().has(habit.id)
+                              ? 'check_box'
+                              : 'check_box_outline_blank'
+                          }}
+                        </mat-icon>
+                        {{ habit.title }}
+                      </button>
+                    } @empty {
+                      <small>Crie hábitos na aba Habit Tracker primeiro.</small>
+                    }
+                  </div>
+                }
                 <button
                   type="button"
                   class="save-monthly-config"
-                  [disabled]="!monthlyMedalHabitIds().size"
+                  [disabled]="!canSaveMonthlyMedal()"
                   (click)="saveMonthlyMedalConfig()"
                 >
                   Salvar configuração
@@ -884,7 +1034,7 @@
               mat-icon-button
               class="monthly-medal-settings"
               title="Editar meta e hábitos desta conquista"
-              (click)="editAnnualGoal(goal)"
+              (click)="editAnnualGoal(goal, $event)"
             >
               <mat-icon>settings</mat-icon>
             </button>
@@ -933,7 +1083,11 @@
               </b>
             </div>
             @if (editingAnnualGoalId === goal.id) {
-              <div class="monthly-medal-editor">
+              <div
+                class="monthly-medal-editor"
+                [style.top.px]="annualEditorPosition()?.top"
+                [style.left.px]="annualEditorPosition()?.left"
+              >
                 <label>
                   Dias necessários
                   <span>
@@ -1026,8 +1180,20 @@
         </button>
       </div>
       <div class="reward-card-grid">
-        @for (reward of profile.state().rewards; track reward.id) {
+        @for (reward of sortedRewards(); track reward.id) {
           <article class="reward-card">
+            @if (editingRewardId() !== reward.id) {
+              <button
+                type="button"
+                mat-icon-button
+                class="card-edit"
+                aria-label="Editar recompensa"
+                title="Editar"
+                (click)="startEditReward(reward)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+            }
             <button
               type="button"
               mat-icon-button
@@ -1058,26 +1224,63 @@
                 (change)="onRewardImageSelected(reward.id, $event)"
               />
             </label>
-            <div class="card-copy">
-              <strong>{{ reward.title }}</strong>
-              @if (reward.purchasedCount) {
-                <small>Resgatada {{ reward.purchasedCount }}x</small>
-              }
-            </div>
-            <div class="stat-row">
-              <span class="stat-pill gold-pill"
-                ><mat-icon>paid</mat-icon> {{ reward.cost }}</span
+            @if (editingRewardId() === reward.id) {
+              <form
+                class="card-edit-form"
+                (ngSubmit)="saveRewardEdit()"
               >
-            </div>
-            <div class="card-actions">
-              <button
-                type="button"
-                class="apply-btn redeem-btn"
-                (click)="buyReward(reward.id)"
-              >
-                Resgatar
-              </button>
-            </div>
+                <input
+                  name="title"
+                  [(ngModel)]="rewardDraft.title"
+                  aria-label="Nome da recompensa"
+                />
+                <label
+                  ><span>Moedas</span>
+                  <input
+                    name="cost"
+                    [(ngModel)]="rewardDraft.cost"
+                    type="number"
+                    min="1"
+                  />
+                </label>
+                <div class="edit-actions">
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    (click)="editingRewardId.set(null)"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    class="apply-btn redeem-btn"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            } @else {
+              <div class="card-copy">
+                <strong>{{ reward.title }}</strong>
+                @if (reward.purchasedCount) {
+                  <small>Resgatada {{ reward.purchasedCount }}x</small>
+                }
+              </div>
+              <div class="stat-row">
+                <span class="stat-pill gold-pill"
+                  ><mat-icon>paid</mat-icon> {{ reward.cost }}</span
+                >
+              </div>
+              <div class="card-actions">
+                <button
+                  type="button"
+                  class="apply-btn redeem-btn"
+                  (click)="buyReward(reward.id)"
+                >
+                  Resgatar
+                </button>
+              </div>
+            }
           </article>
         } @empty {
           <p class="empty">Crie recompensas pessoais para gastar suas moedas.</p>
@@ -1091,13 +1294,43 @@
     <section class="card quest-card penalty-dungeon">
       <h2><span>☠</span> Calabouço de penalidades</h2>
       <p class="hint">
-        Registre deslizes conscientemente. Penalidades reduzem o saldo, mas nunca deixam
-        XP ou moedas negativos.
+        XP e moedas afetam só o RPG. O valor em R$ é dinheiro de verdade: cada punição
+        aplicada soma na caixinha de punições, sem mexer no jogo. Repetir a mesma punição
+        na semana multiplica o custo (2ª vez ×2, 3ª ×3...).
       </p>
+
+      <div class="penalty-jar">
+        <mat-icon class="jar-icon">savings</mat-icon>
+        <div class="jar-pending">
+          <small>A separar na caixinha</small>
+          <strong [class.is-clear]="!penaltyMoneyPending()">{{
+            formatMoney(penaltyMoneyPending())
+          }}</strong>
+        </div>
+        <dl class="jar-stats">
+          <div>
+            <dt>Já separado</dt>
+            <dd>{{ formatMoney(penaltyMoneyTransferred()) }}</dd>
+          </div>
+          <div>
+            <dt>Total acumulado</dt>
+            <dd>{{ formatMoney(penaltyMoneyOwed()) }}</dd>
+          </div>
+        </dl>
+        <button
+          type="button"
+          class="apply-btn jar-btn"
+          [disabled]="!penaltyMoneyPending()"
+          (click)="markPenaltyMoneyTransferred()"
+        >
+          Marquei como separado
+        </button>
+      </div>
+
       <div class="penalty-form">
         <input
           [(ngModel)]="penaltyTitle"
-          placeholder="O que aconteceu?"
+          placeholder="Nova punição (ex.: pulou o treino)"
         />
         <label
           >XP
@@ -1115,16 +1348,44 @@
             min="0"
           />
         </label>
+        <label class="money-label"
+          >R$ real
+          <input
+            [(ngModel)]="penaltyMoney"
+            type="number"
+            min="0"
+            step="0.01"
+          />
+        </label>
         <button
           mat-button
           (click)="addPenalty()"
         >
-          Aplicar
+          Criar
         </button>
+        <label class="exercise-label"
+          >Exercícios físicos
+          <input
+            [(ngModel)]="penaltyExercise"
+            placeholder="Ex.: 50 flexões, 20 barras, 20 agachamentos"
+          />
+        </label>
       </div>
       <div class="penalty-card-grid">
         @for (penalty of manualPenalties(); track penalty.id) {
           <article class="penalty-card">
+            @if (editingPenaltyId() !== penalty.id) {
+              <button
+                type="button"
+                mat-icon-button
+                class="card-edit"
+                aria-label="Editar penalidade"
+                title="Editar"
+                (click)="startEditPenalty(penalty)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+            }
             <button
               type="button"
               mat-icon-button
@@ -1155,32 +1416,315 @@
                 (change)="onPenaltyImageSelected(penalty.id, $event)"
               />
             </label>
-            <div class="card-copy">
-              <strong>{{ penalty.title }}</strong>
-              @if (penalty.timesApplied) {
-                <small>Registrada {{ penalty.timesApplied }}x</small>
-              }
-            </div>
-            <div class="stat-row">
-              <span class="stat-pill xp-pill">
-                <span class="pill-badge xp-badge">XP</span> -{{ penalty.xpLoss }}
-              </span>
-              <span class="stat-pill gold-pill"
-                ><mat-icon>paid</mat-icon> -{{ penalty.coinsLoss }}</span
+            @if (editingPenaltyId() === penalty.id) {
+              <form
+                class="card-edit-form"
+                (ngSubmit)="savePenaltyEdit()"
               >
-            </div>
-            <div class="card-actions">
-              <button
-                type="button"
-                class="apply-btn"
-                (click)="profile.applyPenalty(penalty.id)"
-              >
-                Aplicar
-              </button>
-            </div>
+                <input
+                  name="title"
+                  [(ngModel)]="penaltyDraft.title"
+                  aria-label="Nome da penalidade"
+                />
+                <div class="edit-grid">
+                  <label
+                    ><span>XP</span>
+                    <input
+                      name="xpLoss"
+                      [(ngModel)]="penaltyDraft.xpLoss"
+                      type="number"
+                      min="0"
+                    />
+                  </label>
+                  <label
+                    ><span>Moedas</span>
+                    <input
+                      name="coinsLoss"
+                      [(ngModel)]="penaltyDraft.coinsLoss"
+                      type="number"
+                      min="0"
+                    />
+                  </label>
+                  <label class="money-label"
+                    ><span>R$ real</span>
+                    <input
+                      name="moneyLoss"
+                      [(ngModel)]="penaltyDraft.moneyLoss"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                    />
+                  </label>
+                  <label class="exercise-label"
+                    ><span>Exercícios físicos</span>
+                    <input
+                      name="exercise"
+                      [(ngModel)]="penaltyDraft.exercise"
+                      placeholder="Ex.: 50 flexões"
+                    />
+                  </label>
+                </div>
+                <small class="edit-note">Vale só para as próximas aplicações.</small>
+                <div class="edit-actions">
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    (click)="editingPenaltyId.set(null)"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    class="apply-btn"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            } @else {
+              @let mult = penaltyNextMultiplier(penalty);
+              <div class="card-copy">
+                <strong>{{ penalty.title }}</strong>
+                @if (penalty.timesApplied) {
+                  <small>Registrada {{ penalty.timesApplied }}x</small>
+                }
+                @if (mult > 1) {
+                  <small class="escalation-note"
+                    ><mat-icon>trending_up</mat-icon> Reincidência: próxima vale ×{{
+                      mult
+                    }}</small
+                  >
+                }
+              </div>
+              <div class="stat-row">
+                <span class="stat-pill xp-pill">
+                  <span class="pill-badge xp-badge">XP</span> -{{ penalty.xpLoss * mult }}
+                </span>
+                <span class="stat-pill gold-pill"
+                  ><mat-icon>paid</mat-icon> -{{ penalty.coinsLoss * mult }}</span
+                >
+                <span
+                  class="stat-pill money-pill"
+                  [class.is-zero]="!penalty.moneyLoss"
+                  ><mat-icon>savings</mat-icon>
+                  {{ formatMoney((penalty.moneyLoss ?? 0) * mult) }}</span
+                >
+                @if (penalty.exercise) {
+                  <span class="stat-pill exercise-pill"
+                    ><mat-icon>fitness_center</mat-icon> {{ penalty.exercise }}</span
+                  >
+                }
+              </div>
+              <div class="card-actions">
+                <button
+                  type="button"
+                  class="apply-btn"
+                  (click)="profile.applyPenalty(penalty.id)"
+                >
+                  Aplicar
+                </button>
+              </div>
+            }
           </article>
         } @empty {
           <p class="empty">O calabouço está vazio.</p>
+        }
+      </div>
+    </section>
+
+    <section class="card quest-card contracts-card">
+      <h2><span>📜</span> Contratos</h2>
+      <p class="hint">
+        Assuma um compromisso com prazo e aposta. Cumpriu a meta: ganha o XP e as moedas
+        apostados na hora. Venceu o prazo sem cumprir: perde XP e moedas, e o valor em R$
+        vai para a caixinha de punições automaticamente.
+      </p>
+      <div class="contract-form">
+        <input
+          class="contract-title"
+          [(ngModel)]="contractTitle"
+          placeholder="Ex.: estudar 20h esta semana"
+        />
+        <label
+          >Tipo
+          <select [(ngModel)]="contractMetric">
+            <option value="hours">Horas registradas</option>
+            <option value="manual">Contagem manual</option>
+          </select>
+        </label>
+        <label
+          >{{ contractMetric === 'hours' ? 'Meta (horas)' : 'Meta (vezes)' }}
+          <input
+            [(ngModel)]="contractTarget"
+            type="number"
+            min="1"
+          />
+        </label>
+        @if (contractMetric === 'hours') {
+          <label
+            >Contar horas de
+            <select [(ngModel)]="contractScope">
+              <option value="all">Todas as tarefas</option>
+              @for (project of projects(); track project.id) {
+                <option [value]="'project:' + project.id">
+                  Projeto: {{ project.title }}
+                </option>
+              }
+              @for (tag of contractTags(); track tag.id) {
+                <option [value]="'tag:' + tag.id">Tag: {{ tag.title }}</option>
+              }
+            </select>
+          </label>
+        }
+        <label
+          >Prazo
+          <input
+            [(ngModel)]="contractDeadline"
+            type="date"
+            [min]="today"
+          />
+        </label>
+        <label class="money-label"
+          >Aposta R$
+          <input
+            [(ngModel)]="contractMoney"
+            type="number"
+            min="0"
+            step="0.01"
+          />
+        </label>
+        <label
+          >XP em jogo
+          <input
+            [(ngModel)]="contractXp"
+            type="number"
+            min="0"
+          />
+        </label>
+        <label
+          >Moedas em jogo
+          <input
+            [(ngModel)]="contractCoins"
+            type="number"
+            min="0"
+          />
+        </label>
+        <button
+          type="button"
+          class="apply-btn contract-sign"
+          (click)="addContract()"
+        >
+          Assinar contrato
+        </button>
+      </div>
+
+      <div class="contract-list">
+        @for (row of contracts(); track row.contract.id) {
+          @let contract = row.contract;
+          <article
+            class="contract"
+            [class.won]="contract.status === 'won'"
+            [class.lost]="contract.status === 'lost'"
+          >
+            <header>
+              <div>
+                <strong>{{ contract.title }}</strong>
+                <small>
+                  {{ contractScopeLabel(contract) }} ·
+                  {{ formatDay(contract.startDay) }} →
+                  {{ formatDay(contract.deadlineDay) }}
+                </small>
+              </div>
+              @if (contract.status === 'won') {
+                <span class="contract-status">CUMPRIDO</span>
+              } @else if (contract.status === 'lost') {
+                <span class="contract-status">QUEBRADO</span>
+              } @else {
+                @let daysLeft = contractDaysLeft(contract);
+                <span class="contract-status">
+                  {{
+                    daysLeft === 0
+                      ? 'VENCE HOJE'
+                      : daysLeft === 1
+                        ? 'FALTA 1 DIA'
+                        : 'FALTAM ' + daysLeft + ' DIAS'
+                  }}
+                </span>
+              }
+              <button
+                type="button"
+                mat-icon-button
+                class="contract-remove"
+                [attr.aria-label]="
+                  contract.status === 'active'
+                    ? 'Cancelar contrato'
+                    : 'Remover do histórico'
+                "
+                (click)="removeContract(contract)"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </header>
+            <div class="contract-progress">
+              <div class="trophy-progress">
+                <span [style.width.%]="row.percentage"></span>
+              </div>
+              <span>
+                @if (contract.metric === 'hours') {
+                  {{ row.progress | number: '1.0-1' }}h / {{ contract.target }}h
+                } @else {
+                  {{ row.progress }} / {{ contract.target }}
+                }
+              </span>
+              @if (contract.metric === 'manual' && contract.status === 'active') {
+                <button
+                  type="button"
+                  mat-icon-button
+                  aria-label="Diminuir progresso"
+                  (click)="profile.adjustContractProgress(contract.id, -1)"
+                >
+                  <mat-icon>remove</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  mat-icon-button
+                  aria-label="Aumentar progresso"
+                  (click)="profile.adjustContractProgress(contract.id, 1)"
+                >
+                  <mat-icon>add</mat-icon>
+                </button>
+              }
+            </div>
+            <div class="stat-row">
+              <span class="stat-pill xp-pill"
+                ><span class="pill-badge xp-badge">XP</span>
+                {{
+                  contract.status === 'won'
+                    ? '+'
+                    : contract.status === 'lost'
+                      ? '-'
+                      : '±'
+                }}{{ contract.stakeXp }}</span
+              >
+              <span class="stat-pill gold-pill"
+                ><mat-icon>paid</mat-icon>
+                {{
+                  contract.status === 'won'
+                    ? '+'
+                    : contract.status === 'lost'
+                      ? '-'
+                      : '±'
+                }}{{ contract.stakeCoins }}</span
+              >
+              <span
+                class="stat-pill money-pill"
+                [class.is-zero]="!contract.stakeMoney || contract.status === 'won'"
+                ><mat-icon>savings</mat-icon> {{ formatMoney(contract.stakeMoney) }}</span
+              >
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">Nenhum contrato assinado.</p>
         }
       </div>
     </section>
@@ -1556,13 +2100,15 @@
                 [attr.cy]="disciplineChartY(day.percentage)"
                 r="3"
               ></circle>
-              <text
-                class="date-label"
-                [attr.x]="disciplineChartX(index, disciplineChartDays().length)"
-                y="210"
-              >
-                {{ day.date.slice(5) }}
-              </text>
+              @if (shouldShowDateLabel(index, disciplineChartDays().length)) {
+                <text
+                  class="date-label"
+                  [attr.x]="disciplineChartX(index, disciplineChartDays().length)"
+                  y="210"
+                >
+                  {{ day.date.slice(5) }}
+                </text>
+              }
             }
           </svg>
         </div>

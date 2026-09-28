@@ -431,13 +431,18 @@
   span {
     display: block;
     height: 100%;
+    // Fixed-pixel segment period (not a % of this span's own width) so each
+    // block stays the same size regardless of how full the bar is - a %-based
+    // period always draws the same ~10 segments and just stretches/squashes
+    // them as the fill width changes, which reads as inconsistent segmentation
+    // between a low-progress and a high-progress bar (#xp-bar-segment-scaling).
     background:
       repeating-linear-gradient(
         90deg,
         transparent 0,
-        transparent calc(10% - 2px),
-        rgba(15, 12, 25, 0.55) calc(10% - 2px),
-        rgba(15, 12, 25, 0.55) 10%
+        transparent 10px,
+        rgba(15, 12, 25, 0.55) 10px,
+        rgba(15, 12, 25, 0.55) 12px
       ),
       linear-gradient(90deg, #8e5bd9, #35b9ff);
   }
@@ -452,7 +457,7 @@
 
 .class-selector {
   display: grid;
-  grid-template-columns: 150px 170px 1fr;
+  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   margin-top: 16px;
 
@@ -795,9 +800,130 @@ h2 {
 
 .radar-wrap {
   position: relative;
-  width: min(100%, 360px);
+  width: min(100%, 400px);
   margin: 0 auto 20px;
-  padding: 18px 42px 24px;
+}
+
+.radar-text {
+  fill: #cfc9e4;
+  font-family: monospace;
+  font-size: 9px;
+}
+
+.attribute-edit {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--extra-border-color);
+}
+
+.icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 1px solid #3f3b50;
+    border-radius: 6px;
+    background: #1b1b2c;
+    color: #c9c0df;
+    cursor: pointer;
+
+    &.selected {
+      border-color: var(--rpg-gold);
+      color: var(--rpg-gold);
+    }
+
+    mat-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+    }
+  }
+}
+
+.attribute-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+
+  .apply-btn {
+    width: auto;
+    padding-inline: 18px;
+  }
+
+  .danger {
+    margin-right: auto;
+    border-color: rgba(239, 102, 117, 0.5);
+    color: #ff9b9b;
+  }
+}
+
+.attribute-manager {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--extra-border-color);
+
+  > strong {
+    color: var(--rpg-gold);
+    font-family: monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .new-attribute {
+    margin-top: 0;
+  }
+}
+
+.attribute-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attribute-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid #4b4660;
+  border-radius: 999px;
+  background: #1b1b2c;
+  color: #e6e0f5;
+  cursor: pointer;
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    color: #9d87e8;
+    font-size: 16px;
+  }
+
+  .chip-edit {
+    width: 14px;
+    height: 14px;
+    color: #8a849e;
+    font-size: 14px;
+  }
+
+  &:hover,
+  &.active {
+    border-color: var(--rpg-gold);
+  }
+}
+
+.new-attribute {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .radar {
@@ -832,39 +958,6 @@ h2 {
   fill: var(--rpg-gold);
   stroke: #2b1b06;
   stroke-width: 1;
-}
-
-.radar-label {
-  position: absolute;
-  color: #cfc9e4;
-  font-family: monospace;
-  font-size: 10px;
-
-  &.health {
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  &.intelligence {
-    top: 34%;
-    right: 0;
-  }
-
-  &.finance {
-    right: 8%;
-    bottom: 0;
-  }
-
-  &.social {
-    bottom: 0;
-    left: 10%;
-  }
-
-  &.discipline-label {
-    top: 34%;
-    left: 0;
-  }
 }
 
 .discipline {
@@ -929,6 +1022,345 @@ input {
     font-family: monospace;
     font-size: 10px;
   }
+}
+
+.penalty-form {
+  grid-template-columns: 1fr 80px 80px 96px auto;
+}
+
+.money-label {
+  color: #7fd9a4 !important;
+}
+
+.penalty-form .exercise-label,
+.card-edit-form .edit-grid .exercise-label {
+  grid-column: 1 / -1;
+  color: #8fb8ff !important;
+}
+
+.exercise-pill {
+  flex-basis: 100%;
+  border-color: rgba(120, 165, 255, 0.45);
+  color: #b9d0ff;
+  text-align: left;
+  line-height: 1.3;
+
+  mat-icon {
+    flex-shrink: 0;
+  }
+}
+
+// Real-money punishment box - kept visually apart from the XP/coin economy.
+.penalty-jar {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(111, 211, 155, 0.35);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(40, 90, 64, 0.35), transparent), #171521;
+
+  .jar-icon {
+    width: 34px;
+    height: 34px;
+    color: #7fd9a4;
+    font-size: 34px;
+  }
+
+  .jar-pending {
+    display: grid;
+    gap: 2px;
+
+    small {
+      color: #aaa3c2;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    strong {
+      color: #ff9b9b;
+      font-size: 24px;
+
+      &.is-clear {
+        color: #7fd9a4;
+      }
+    }
+  }
+
+  .jar-stats {
+    display: flex;
+    gap: 16px;
+    margin: 0;
+
+    div {
+      display: grid;
+      gap: 2px;
+    }
+
+    dt {
+      color: #aaa3c2;
+      font-size: 11px;
+    }
+
+    dd {
+      margin: 0;
+      color: #f1edf9;
+      font-weight: 700;
+    }
+  }
+
+  .jar-btn {
+    width: auto;
+    border-color: rgba(111, 211, 155, 0.6);
+    background: linear-gradient(180deg, #2f6b4b, #1c4230);
+    color: #d9ffe9;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+      filter: none;
+    }
+  }
+}
+
+.card-edit {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(10, 8, 16, 0.72);
+  color: var(--rpg-gold);
+
+  mat-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+  }
+}
+
+.card-edit-form {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+
+  input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 8px;
+  }
+
+  label {
+    display: grid;
+    gap: 3px;
+    color: #aaa3c2;
+    font-size: 10px;
+    font-family: monospace;
+  }
+
+  .edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+
+    .money-label {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .edit-note {
+    color: #aaa3c2;
+    font-size: 10px;
+  }
+
+  .edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+}
+
+.ghost-btn {
+  padding: 8px;
+  border: 1px solid #68627e;
+  border-radius: 6px;
+  background: transparent;
+  color: #c9c0df;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #aaa3c2;
+  }
+}
+
+.penalty-card .stat-row {
+  flex-wrap: wrap;
+}
+
+.money-pill {
+  flex-basis: 100%;
+  border-color: rgba(111, 211, 155, 0.45);
+  color: #7fd9a4;
+
+  &.is-zero {
+    opacity: 0.45;
+  }
+}
+
+.escalation-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #ff9b9b;
+  font-weight: 700;
+
+  mat-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+}
+
+.contracts-card {
+  grid-column: 1 / -1;
+}
+
+.contract-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 14px;
+
+  .contract-title {
+    grid-column: 1 / -1;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: #aaa3c2;
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  input,
+  select {
+    min-width: 0;
+  }
+
+  .contract-sign {
+    grid-column: 1 / -1;
+  }
+}
+
+.contract-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.contract {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 10px;
+  border: 1px solid #68627e;
+  border-left: 4px solid var(--rpg-gold);
+  border-radius: 6px;
+  background: #191826;
+
+  header {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 10px 6px 0 12px;
+
+    > div {
+      display: grid;
+      flex: 1;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    small {
+      color: #aaa3c2;
+      font-size: 11px;
+    }
+  }
+
+  .contract-status {
+    padding: 3px 7px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    color: var(--rpg-gold);
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .contract-remove {
+    width: 28px;
+    height: 28px;
+    padding: 2px;
+    color: #aaa3c2;
+
+    mat-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+    }
+  }
+
+  .contract-progress {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-inline: 12px;
+    font-family: monospace;
+    font-size: 12px;
+
+    .trophy-progress {
+      flex: 1;
+      margin: 0;
+    }
+  }
+
+  &.won {
+    border-left-color: #52df9d;
+
+    .contract-status {
+      color: #52df9d;
+    }
+  }
+
+  &.lost {
+    border-left-color: #ef6675;
+    opacity: 0.8;
+
+    .contract-status {
+      color: #ef6675;
+    }
+  }
+}
+
+.next-tier {
+  display: block;
+  margin-top: 4px;
+  color: #c9c0df;
+  font-family: monospace;
 }
 
 .penalty-row {
@@ -2691,6 +3123,11 @@ input {
   &.editing {
     z-index: 10;
     overflow: visible;
+    // The editor popup is `position: fixed` to the viewport (see
+    // .monthly-medal-editor) so it stays fully reachable regardless of where
+    // the card sits in the grid. A `transform` here would otherwise create a
+    // new containing block and re-confine that fixed popup to this card.
+    transform: none;
   }
 }
 
@@ -2720,13 +3157,16 @@ input {
 }
 
 .monthly-medal-editor {
-  position: absolute;
-  z-index: 12;
-  top: 42px;
-  right: 8px;
+  // Fixed to the viewport (top/left set inline from the triggering click,
+  // clamped to stay on-screen) rather than absolute within the card - see
+  // _computeEditorPosition in rpg-profile.component.ts for why.
+  position: fixed;
+  z-index: 1000;
   display: grid;
   gap: 12px;
-  width: min(320px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(480px, calc(100vh - 24px));
+  overflow-y: auto;
   padding: 14px;
   border: 1px solid #d3a132;
   color: #f5eedb;
@@ -2747,11 +3187,45 @@ input {
     }
 
     input {
-      width: 64px;
+      width: 110px;
       padding: 7px;
       border: 1px solid #5d5668;
       color: #fff;
       background: #0d0d17;
+    }
+  }
+}
+
+.medal-text-fields {
+  display: grid;
+  gap: 6px;
+
+  input {
+    padding: 7px;
+    border: 1px solid #5d5668;
+    color: #fff;
+    background: #0d0d17;
+  }
+}
+
+.medal-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid #5d5668;
+  border-radius: 6px;
+
+  button {
+    padding: 7px;
+    border: 0;
+    background: transparent;
+    color: #c9c0df;
+    cursor: pointer;
+
+    &.active {
+      background: #3a2f63;
+      color: #fff;
+      font-weight: 700;
     }
   }
 }
@@ -2876,6 +3350,32 @@ input {
 
 .trophy-card.unlocked .trophy-copy b {
   color: #52df9d;
+}
+
+.trophy-card.tier-bronze {
+  border-color: #b87333;
+
+  .trophy-copy b {
+    color: #e0995a;
+  }
+}
+
+.trophy-card.tier-silver {
+  border-color: #c8d0dc;
+  box-shadow: 0 0 12px rgba(200, 208, 220, 0.25);
+
+  .trophy-copy b {
+    color: #e3e8f0;
+  }
+}
+
+.trophy-card.tier-gold {
+  border-color: #f2c45e;
+  box-shadow: 0 0 16px rgba(242, 196, 94, 0.4);
+
+  .trophy-copy b {
+    color: #ffd76a;
+  }
 }
 
 .trophy-copy .trophy-reward {
@@ -3047,6 +3547,15 @@ input {
   .campaign-form,
   .chapter-form {
     grid-template-columns: 1fr;
+  }
+
+  .penalty-jar {
+    grid-template-columns: auto 1fr;
+
+    .jar-stats,
+    .jar-btn {
+      grid-column: 1 / -1;
+    }
   }
 
   .party-bar,

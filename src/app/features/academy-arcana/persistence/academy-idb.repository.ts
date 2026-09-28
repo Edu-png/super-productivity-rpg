@@ -11,6 +11,8 @@ import {
   StudyMaterial,
   StudyNode,
   StudySession,
+  TopicReviewLog,
+  TopicReviewState,
 } from '../domain/academy.models';
 import { AcademyRepository } from '../domain/academy.repository';
 
@@ -66,10 +68,23 @@ interface AcademyDbSchema extends DBSchema {
     indexes: { 'by-profile-date': [string, string] };
   };
   settings: { key: string; value: AcademySettings };
+  topicReviews: {
+    key: string;
+    value: TopicReviewState;
+    indexes: { 'by-profile-due': [string, number] };
+  };
+  topicReviewLogs: {
+    key: string;
+    value: TopicReviewLog;
+    indexes: {
+      'by-profile-reviewed': [string, number];
+      'by-node-reviewed': [string, number];
+    };
+  };
 }
 
 const DB_NAME = 'super-productivity-academy-arcana';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const lower = (profileId: string): [string, number] => [profileId, 0];
 const upper = (profileId: string): [string, number] => [
   profileId,
@@ -80,40 +95,87 @@ const dateKey = (date: Date): string =>
 
 @Injectable({ providedIn: 'root' })
 export class AcademyIdbRepository extends AcademyRepository {
-  private readonly db: Promise<IDBPDatabase<AcademyDbSchema>> = openDB<
-    AcademyDbSchema
-  >(DB_NAME, DB_VERSION, {
-    upgrade(database) {
-      const areas = database.createObjectStore('areas', { keyPath: 'id' });
-      areas.createIndex('by-profile-position', ['profileId', 'position']);
+  private readonly db: Promise<IDBPDatabase<AcademyDbSchema>> = openDB<AcademyDbSchema>(
+    DB_NAME,
+    DB_VERSION,
+    {
+      upgrade(database, oldVersion) {
+        if (oldVersion < 1) {
+          const areas = database.createObjectStore('areas', { keyPath: 'id' });
+          areas.createIndex('by-profile-position', ['profileId', 'position']);
 
-      const nodes = database.createObjectStore('nodes', { keyPath: 'id' });
-      nodes.createIndex('by-profile-area', ['profileId', 'areaId']);
-      nodes.createIndex('by-profile-parent', ['profileId', 'parentId']);
-      nodes.createIndex('by-profile-kind', ['profileId', 'kind']);
+          const nodes = database.createObjectStore('nodes', { keyPath: 'id' });
+          nodes.createIndex('by-profile-area', ['profileId', 'areaId']);
+          nodes.createIndex('by-profile-parent', ['profileId', 'parentId']);
+          nodes.createIndex('by-profile-kind', ['profileId', 'kind']);
 
-      const materials = database.createObjectStore('materials', { keyPath: 'id' });
-      materials.createIndex('by-profile-node', ['profileId', 'nodeId']);
+          const materials = database.createObjectStore('materials', { keyPath: 'id' });
+          materials.createIndex('by-profile-node', ['profileId', 'nodeId']);
 
-      const sessions = database.createObjectStore('sessions', { keyPath: 'id' });
-      sessions.createIndex('by-profile-started', ['profileId', 'startedAt']);
-      sessions.createIndex('by-profile-status', ['profileId', 'status']);
+          const sessions = database.createObjectStore('sessions', { keyPath: 'id' });
+          sessions.createIndex('by-profile-started', ['profileId', 'startedAt']);
+          sessions.createIndex('by-profile-status', ['profileId', 'status']);
 
-      const cards = database.createObjectStore('flashcards', { keyPath: 'id' });
-      cards.createIndex('by-profile', 'profileId');
-      cards.createIndex('by-profile-due', ['profileId', 'dueAt']);
-      cards.createIndex('by-profile-reviews', ['profileId', 'reviewCount']);
-      cards.createIndex('by-profile-deck', ['profileId', 'deckId']);
+          const cards = database.createObjectStore('flashcards', { keyPath: 'id' });
+          cards.createIndex('by-profile', 'profileId');
+          cards.createIndex('by-profile-due', ['profileId', 'dueAt']);
+          cards.createIndex('by-profile-reviews', ['profileId', 'reviewCount']);
+          cards.createIndex('by-profile-deck', ['profileId', 'deckId']);
 
-      const reviews = database.createObjectStore('reviews', { keyPath: 'id' });
-      reviews.createIndex('by-profile-reviewed', ['profileId', 'reviewedAt']);
-      reviews.createIndex('by-card-reviewed', ['cardId', 'reviewedAt']);
+          const reviews = database.createObjectStore('reviews', { keyPath: 'id' });
+          reviews.createIndex('by-profile-reviewed', ['profileId', 'reviewedAt']);
+          reviews.createIndex('by-card-reviewed', ['cardId', 'reviewedAt']);
 
-      const aggregates = database.createObjectStore('aggregates', { keyPath: 'id' });
-      aggregates.createIndex('by-profile-date', ['profileId', 'date']);
-      database.createObjectStore('settings', { keyPath: 'id' });
+          const aggregates = database.createObjectStore('aggregates', { keyPath: 'id' });
+          aggregates.createIndex('by-profile-date', ['profileId', 'date']);
+          database.createObjectStore('settings', { keyPath: 'id' });
+        }
+        if (oldVersion < 2) {
+          const topicReviews = database.createObjectStore('topicReviews', {
+            keyPath: 'id',
+          });
+          topicReviews.createIndex('by-profile-due', ['profileId', 'dueAt']);
+
+          const topicReviewLogs = database.createObjectStore('topicReviewLogs', {
+            keyPath: 'id',
+          });
+          topicReviewLogs.createIndex('by-profile-reviewed', ['profileId', 'reviewedAt']);
+          topicReviewLogs.createIndex('by-node-reviewed', ['nodeId', 'reviewedAt']);
+        }
+      },
     },
-  });
+  );
+
+  async clearAll(): Promise<string[]> {
+    const db = await this.db;
+    const storeNames = [
+      'areas',
+      'nodes',
+      'materials',
+      'sessions',
+      'flashcards',
+      'reviews',
+      'aggregates',
+      'settings',
+      'topicReviews',
+      'topicReviewLogs',
+    ] as const;
+    const profileIds = new Set<string>();
+
+    for (const storeName of storeNames) {
+      const records = (await db.getAll(storeName)) as Array<{ profileId?: string }>;
+      records.forEach((record) => {
+        if (record.profileId) profileIds.add(record.profileId);
+      });
+    }
+
+    const transaction = db.transaction(storeNames, 'readwrite');
+    await Promise.all(
+      storeNames.map((storeName) => transaction.objectStore(storeName).clear()),
+    );
+    await transaction.done;
+    return [...profileIds];
+  }
 
   async listAreas(profileId: string): Promise<StudyArea[]> {
     const db = await this.db;
@@ -193,14 +255,17 @@ export class AcademyIdbRepository extends AcademyRepository {
       current.xpEarned +=
         session.xpEarned - (previous?.status === 'completed' ? previous.xpEarned : 0);
       current.goldEarned +=
-        session.goldEarned -
-        (previous?.status === 'completed' ? previous.goldEarned : 0);
+        session.goldEarned - (previous?.status === 'completed' ? previous.goldEarned : 0);
       current.areaMinutes[session.areaId] =
         (current.areaMinutes[session.areaId] ?? 0) + delta;
       if (session.nodeId) {
         current.nodeMinutes ??= {};
         current.nodeMinutes[session.nodeId] =
           (current.nodeMinutes[session.nodeId] ?? 0) + delta;
+      } else {
+        current.areaOnlyMinutes ??= {};
+        current.areaOnlyMinutes[session.areaId] =
+          (current.areaOnlyMinutes[session.areaId] ?? 0) + delta;
       }
       if (session.projectId) {
         current.projectMinutes[session.projectId] =
@@ -208,6 +273,56 @@ export class AcademyIdbRepository extends AcademyRepository {
       }
       current.updatedAt = Date.now();
       await store.put(current);
+    }
+    await transaction.done;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const db = await this.db;
+    const existing = await db.get('sessions', id);
+    if (!existing) return;
+    const transaction = db.transaction(['sessions', 'aggregates'], 'readwrite');
+    await transaction.objectStore('sessions').delete(id);
+    if (existing.status === 'completed') {
+      const date = dateKey(new Date(existing.endedAt ?? existing.startedAt));
+      const aggregateId = `${existing.profileId}:${date}`;
+      const store = transaction.objectStore('aggregates');
+      const current = await store.get(aggregateId);
+      if (current) {
+        current.totalMinutes = Math.max(0, current.totalMinutes - existing.actualMinutes);
+        current.sessionCount = Math.max(0, current.sessionCount - 1);
+        current.flashcardsReviewed = Math.max(
+          0,
+          current.flashcardsReviewed - existing.flashcardsReviewed,
+        );
+        current.xpEarned = Math.max(0, current.xpEarned - existing.xpEarned);
+        current.goldEarned = Math.max(0, current.goldEarned - existing.goldEarned);
+        current.areaMinutes[existing.areaId] = Math.max(
+          0,
+          (current.areaMinutes[existing.areaId] ?? 0) - existing.actualMinutes,
+        );
+        if (existing.nodeId) {
+          current.nodeMinutes ??= {};
+          current.nodeMinutes[existing.nodeId] = Math.max(
+            0,
+            (current.nodeMinutes[existing.nodeId] ?? 0) - existing.actualMinutes,
+          );
+        } else {
+          current.areaOnlyMinutes ??= {};
+          current.areaOnlyMinutes[existing.areaId] = Math.max(
+            0,
+            (current.areaOnlyMinutes[existing.areaId] ?? 0) - existing.actualMinutes,
+          );
+        }
+        if (existing.projectId) {
+          current.projectMinutes[existing.projectId] = Math.max(
+            0,
+            (current.projectMinutes[existing.projectId] ?? 0) - existing.actualMinutes,
+          );
+        }
+        current.updatedAt = Date.now();
+        await store.put(current);
+      }
     }
     await transaction.done;
   }
@@ -224,9 +339,7 @@ export class AcademyIdbRepository extends AcademyRepository {
     limit: number,
   ): Promise<StudySession[]> {
     const db = await this.db;
-    const index = db
-      .transaction('sessions')
-      .store.index('by-profile-started');
+    const index = db.transaction('sessions').store.index('by-profile-started');
     let cursor = await index.openCursor(
       IDBKeyRange.bound([profileId, from], [profileId, to]),
       'prev',
@@ -306,10 +419,7 @@ export class AcademyIdbRepository extends AcademyRepository {
     return (await this.db).get('flashcards', id);
   }
 
-  async dashboard(
-    profileId: string,
-    now: Date,
-  ): Promise<AcademyDashboardSnapshot> {
+  async dashboard(profileId: string, now: Date): Promise<AcademyDashboardSnapshot> {
     const db = await this.db;
     const end = dateKey(now);
     const start = '0000-00-00';
@@ -330,9 +440,12 @@ export class AcademyIdbRepository extends AcademyRepository {
       'by-profile-due',
       IDBKeyRange.bound(lower(profileId), [profileId, Date.now()]),
     );
+    const pendingTopicReviews = await this.countDueTopicReviews(profileId, Date.now());
     const recentDays = aggregates;
     let streak = 0;
-    const studied = new Set(aggregates.filter((a) => a.totalMinutes > 0).map((a) => a.date));
+    const studied = new Set(
+      aggregates.filter((a) => a.totalMinutes > 0).map((a) => a.date),
+    );
     const cursor = new Date(now);
     for (let day = 0; day < 366; day++) {
       if (!studied.has(dateKey(cursor))) {
@@ -347,9 +460,7 @@ export class AcademyIdbRepository extends AcademyRepository {
     }
     const reviewed = aggregates.reduce((sum, a) => sum + a.flashcardsReviewed, 0);
     const correct = aggregates.reduce((sum, a) => sum + a.correctReviews, 0);
-    const topicNodes = nodes.filter((node) =>
-      ['topic', 'subtopic'].includes(node.kind),
-    );
+    const topicNodes = nodes.filter((node) => ['topic', 'subtopic'].includes(node.kind));
     return {
       todayMinutes: aggregates.find((a) => a.date === today)?.totalMinutes ?? 0,
       weekMinutes: aggregates
@@ -361,6 +472,7 @@ export class AcademyIdbRepository extends AcademyRepository {
       totalMinutes: aggregates.reduce((sum, a) => sum + a.totalMinutes, 0),
       streak,
       pendingReviews: dueCount,
+      pendingTopicReviews,
       flashcardCount: cards,
       learnedCards: learned,
       accuracy: reviewed ? Math.round((correct / reviewed) * 100) : 0,
@@ -389,6 +501,74 @@ export class AcademyIdbRepository extends AcademyRepository {
     await (await this.db).put('settings', settings);
   }
 
+  async listTopicReviews(profileId: string): Promise<TopicReviewState[]> {
+    const all = await (await this.db).getAll('topicReviews');
+    return all.filter((state) => state.profileId === profileId);
+  }
+
+  async countDueTopicReviews(profileId: string, before: number): Promise<number> {
+    return (await this.db).countFromIndex(
+      'topicReviews',
+      'by-profile-due',
+      IDBKeyRange.bound(lower(profileId), [profileId, before]),
+    );
+  }
+
+  async putTopicReview(state: TopicReviewState): Promise<void> {
+    await (await this.db).put('topicReviews', state);
+  }
+
+  async deleteTopicReview(nodeId: string): Promise<void> {
+    await (await this.db).delete('topicReviews', nodeId);
+  }
+
+  async putTopicReviewLog(log: TopicReviewLog): Promise<void> {
+    const db = await this.db;
+    const transaction = db.transaction(['topicReviewLogs', 'aggregates'], 'readwrite');
+    await transaction.objectStore('topicReviewLogs').put(log);
+    // Folds into the same review-quality counters flashcards use for the
+    // "Precisão" metric - topic reviews and flashcard reviews are both just
+    // "a review that happened", no need for a parallel stats system.
+    const date = dateKey(new Date(log.reviewedAt));
+    const id = `${log.profileId}:${date}`;
+    const aggregates = transaction.objectStore('aggregates');
+    const current = (await aggregates.get(id)) ?? {
+      id,
+      profileId: log.profileId,
+      date,
+      totalMinutes: 0,
+      sessionCount: 0,
+      flashcardsReviewed: 0,
+      correctReviews: 0,
+      xpEarned: 0,
+      goldEarned: 0,
+      areaMinutes: {},
+      nodeMinutes: {},
+      projectMinutes: {},
+      updatedAt: Date.now(),
+    };
+    current.flashcardsReviewed++;
+    if (log.rating >= 3) current.correctReviews++;
+    current.updatedAt = Date.now();
+    await aggregates.put(current);
+    await transaction.done;
+  }
+
+  async listTopicReviewLogs(profileId: string, limit: number): Promise<TopicReviewLog[]> {
+    const db = await this.db;
+    const index = db.transaction('topicReviewLogs').store.index('by-profile-reviewed');
+    let cursor = await index.openCursor(
+      IDBKeyRange.bound([profileId, 0], [profileId, Number.MAX_SAFE_INTEGER]),
+      'prev',
+    );
+    const result: TopicReviewLog[] = [];
+    while (cursor && result.length < limit) {
+      result.push(cursor.value);
+      cursor = await cursor.continue();
+    }
+    return result;
+  }
+
   async export(profileId: string, domains: string[] = []): Promise<AcademyBackup> {
     const db = await this.db;
     const include = (domain: string): boolean =>
@@ -407,9 +587,7 @@ export class AcademyIdbRepository extends AcademyRepository {
               materials: filter(await db.getAll('materials')),
             }
           : undefined,
-        sessions: include('sessions')
-          ? filter(await db.getAll('sessions'))
-          : undefined,
+        sessions: include('sessions') ? filter(await db.getAll('sessions')) : undefined,
         flashcards: include('flashcards')
           ? filter(await db.getAll('flashcards'))
           : undefined,
@@ -417,8 +595,12 @@ export class AcademyIdbRepository extends AcademyRepository {
         analytics: include('analytics')
           ? filter(await db.getAll('aggregates'))
           : undefined,
-        settings: include('settings')
-          ? filter(await db.getAll('settings'))
+        settings: include('settings') ? filter(await db.getAll('settings')) : undefined,
+        topicReviews: include('topicReviews')
+          ? filter(await db.getAll('topicReviews'))
+          : undefined,
+        topicReviewLogs: include('topicReviewLogs')
+          ? filter(await db.getAll('topicReviewLogs'))
           : undefined,
       },
     };
@@ -438,14 +620,14 @@ export class AcademyIdbRepository extends AcademyRepository {
     }
     writes.push(
       ...(backup.domains.sessions ?? []).map((item) => db.put('sessions', item)),
-      ...(backup.domains.flashcards ?? []).map((item) =>
-        db.put('flashcards', item),
-      ),
+      ...(backup.domains.flashcards ?? []).map((item) => db.put('flashcards', item)),
       ...(backup.domains.reviews ?? []).map((item) => db.put('reviews', item)),
-      ...(backup.domains.analytics ?? []).map((item) =>
-        db.put('aggregates', item),
-      ),
+      ...(backup.domains.analytics ?? []).map((item) => db.put('aggregates', item)),
       ...(backup.domains.settings ?? []).map((item) => db.put('settings', item)),
+      ...(backup.domains.topicReviews ?? []).map((item) => db.put('topicReviews', item)),
+      ...(backup.domains.topicReviewLogs ?? []).map((item) =>
+        db.put('topicReviewLogs', item),
+      ),
     );
     await Promise.all(writes);
   }

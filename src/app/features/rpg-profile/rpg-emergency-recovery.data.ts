@@ -11,8 +11,10 @@ import { RpgProfileState } from './rpg-profile.model';
 // is active), so re-activating the character reconnects that data too.
 export const RPG_EMERGENCY_RECOVERY_FLAG = 'rpg-emergency-recovery-2026-07-31-v2';
 
-export function getEmergencyRecoveryCharacter(): RpgProfileState {
+// The snapshot holds personal data, so the repository ships an empty one; the
+// owner keeps the real file only locally. Hence the possibly-undefined result.
+export function getEmergencyRecoveryCharacter(): RpgProfileState | undefined {
   const parsed = snapshot as { characters: Record<string, RpgProfileState> };
   const id = Object.keys(parsed.characters)[0];
-  return parsed.characters[id];
+  return id ? parsed.characters[id] : undefined;
 }

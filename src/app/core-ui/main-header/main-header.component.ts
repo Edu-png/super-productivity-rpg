@@ -237,6 +237,10 @@ export class MainHeaderComponent implements OnDestroy {
     void this._router.navigate(['/nutrition']);
   }
 
+  openReports(): void {
+    void this._router.navigate(['/reports']);
+  }
+
   openRpgProfile(): void {
     void this._router.navigate(['/profile']);
   }

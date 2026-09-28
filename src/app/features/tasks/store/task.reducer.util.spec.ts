@@ -150,7 +150,7 @@ describe('task.reducer.util', () => {
   });
 
   describe('updateTimeEstimateForTask', () => {
-    it('should recalculate parent estimate from remaining child work', () => {
+    it('should keep the parent estimate independent of child estimates', () => {
       const state = createState([
         createTask('parent', { subTaskIds: ['child-1', 'child-2'], timeEstimate: 999 }),
         createTask('child-1', {
@@ -168,12 +168,12 @@ describe('task.reducer.util', () => {
       const result = updateTimeEstimateForTask({ id: 'child-1', changes: {} }, 80, state);
 
       expect(result.entities['child-1']!.timeEstimate).toBe(80);
-      expect(result.entities['parent']!.timeEstimate).toBe(210);
+      expect(result.entities['parent']!.timeEstimate).toBe(999);
     });
 
-    it('should exclude a child from parent estimate when marking it done', () => {
+    it('should not change the parent estimate when marking a child done', () => {
       const state = createState([
-        createTask('parent', { subTaskIds: ['child-1', 'child-2'] }),
+        createTask('parent', { subTaskIds: ['child-1', 'child-2'], timeEstimate: 999 }),
         createTask('child-1', {
           parentId: 'parent',
           timeEstimate: 120,
@@ -194,22 +194,7 @@ describe('task.reducer.util', () => {
         state,
       );
 
-      expect(result.entities['parent']!.timeEstimate).toBe(150);
-    });
-
-    it('should clamp negative remaining work to zero during parent recalculation', () => {
-      const state = createState([
-        createTask('parent', { subTaskIds: ['child-1'] }),
-        createTask('child-1', {
-          parentId: 'parent',
-          timeEstimate: 30,
-          timeSpent: 90,
-        }),
-      ]);
-
-      const result = updateTimeEstimateForTask({ id: 'child-1', changes: {} }, 30, state);
-
-      expect(result.entities['parent']!.timeEstimate).toBe(0);
+      expect(result.entities['parent']!.timeEstimate).toBe(999);
     });
   });
 
@@ -245,7 +230,7 @@ describe('task.reducer.util', () => {
   });
 
   describe('removeTaskFromParentSideEffects', () => {
-    it('should copy time values to parent when removing the last subtask with copy flag', () => {
+    it('should copy time spent (but not estimate) to parent when removing the last subtask with copy flag', () => {
       const taskToRemove = createTask('child', {
         parentId: 'parent',
         timeSpentOnDay: { [DAY_1]: 25 },
@@ -255,7 +240,7 @@ describe('task.reducer.util', () => {
         createTask('parent', {
           subTaskIds: ['child'],
           timeSpentOnDay: {},
-          timeEstimate: 0,
+          timeEstimate: 60,
         }),
         taskToRemove,
       ]);
@@ -264,10 +249,10 @@ describe('task.reducer.util', () => {
 
       expect(result.entities['parent']!.subTaskIds).toEqual([]);
       expect(result.entities['parent']!.timeSpentOnDay).toEqual({ [DAY_1]: 25 });
-      expect(result.entities['parent']!.timeEstimate).toBe(80);
+      expect(result.entities['parent']!.timeEstimate).toBe(60);
     });
 
-    it('should recalculate parent totals instead of copying when other subtasks remain', () => {
+    it('should recalculate parent time spent instead of copying when other subtasks remain', () => {
       const state = createState([
         createTask('parent', {
           subTaskIds: ['child-1', 'child-2'],
@@ -297,7 +282,7 @@ describe('task.reducer.util', () => {
       expect(result.entities['parent']!.subTaskIds).toEqual(['child-2']);
       expect(result.entities['parent']!.timeSpentOnDay).toEqual({ [DAY_1]: 30 });
       expect(result.entities['parent']!.timeSpent).toBe(30);
-      expect(result.entities['parent']!.timeEstimate).toBe(70);
+      expect(result.entities['parent']!.timeEstimate).toBe(999);
     });
   });
 });

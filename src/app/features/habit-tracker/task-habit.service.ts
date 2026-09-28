@@ -11,6 +11,9 @@ import {
   TaskRepeatCfg,
 } from '../task-repeat-cfg/task-repeat-cfg.model';
 import { ScheduleService } from '../schedule/schedule.service';
+import { TaskArchiveService } from '../archive/task-archive.service';
+import { WorklogService } from '../worklog/worklog.service';
+import { interval, merge } from 'rxjs';
 
 const EMPTY_STATE: TaskHabitState = {
   habits: [],
@@ -31,6 +34,8 @@ export class TaskHabitService {
   private readonly _taskRepeatCfgService = inject(TaskRepeatCfgService);
   private readonly _scheduleService = inject(ScheduleService);
   private readonly _domainState = inject(DomainStateStore);
+  private readonly _taskArchiveService = inject(TaskArchiveService);
+  private readonly _worklogService = inject(WorklogService);
   private readonly _state = signal<TaskHabitState>(this._load());
   private readonly _tasks = signal<Task[]>([]);
   private readonly _repeatCfgs = signal<TaskRepeatCfg[]>([]);
@@ -47,7 +52,14 @@ export class TaskHabitService {
   readonly tasks = this._tasks.asReadonly();
   readonly candidates = computed(() => {
     const seen = new Set<string>();
-    return this._tasks()
+    // Repeat configs whose next instance hasn't been materialized yet (e.g. a
+    // weekly task that only runs tomorrow) have no Task in the store, so they
+    // are offered via a minimal stand-in carrying the repeatCfgId - that's all
+    // the linking logic needs.
+    const repeatStandIns = this._repeatCfgs()
+      .filter((cfg) => cfg.title?.trim())
+      .map((cfg) => ({ id: cfg.id, title: cfg.title, repeatCfgId: cfg.id }) as Task);
+    return [...this._tasks(), ...repeatStandIns]
       .filter((task) => !task.parentId && task.title?.trim())
       .filter((task) => {
         const key = task.repeatCfgId
@@ -69,6 +81,15 @@ export class TaskHabitService {
     this._taskRepeatCfgService.taskRepeatCfgs$
       .pipe(takeUntilDestroyed())
       .subscribe((repeatCfgs) => this._repeatCfgs.set(repeatCfgs));
+    // archiveUpdateManualTrigger$ only re-fires from a handful of rarely-
+    // visited pages (History, Worklog Week, task summary tables), so a
+    // session that never opens one of them keeps the very first (often
+    // stale) archive snapshot for its whole lifetime, silently missing every
+    // task archived afterward - the 2-minute interval is a self-healing
+    // fallback so this reflects reality regardless (#habit-stale-archive).
+    merge(this._worklogService.archiveUpdateManualTrigger$, interval(2 * 60 * 1000))
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => void this._backfillCompletionsFromArchive());
   }
 
   habitsForCharacters(characterIds: readonly string[]): TaskHabit[] {
@@ -342,7 +363,11 @@ export class TaskHabitService {
         currentTaskId: this._taskService.currentTaskId() ?? null,
       })
       .find((day) => day.dayDate === date);
+    // Archived instances lose their dueWithTime, so the schedule re-flows them
+    // as unplanned blocks at arbitrary times (e.g. a 10:00 "Café II" showing up
+    // at 01:30) - they say nothing about when the habit is due, so skip them.
     const resolvedTimes = (scheduleDay?.entries ?? [])
+      .filter((entry) => !this._isTimelessDoneEntry(entry.data))
       .filter((entry) => this._matchesScheduleEntry(habit, entry.data))
       .map((entry) => entry.start)
       .filter((timestamp) => Number.isFinite(timestamp))
@@ -411,6 +436,47 @@ export class TaskHabitService {
   setFailedTaskIds(ids: ReadonlySet<string>): void {
     this._failedTaskIds.set(ids);
     this._syncCompletedTasks(this._tasks());
+  }
+
+  // _syncCompletedTasks only ever sees the live (unarchived) task list, so a
+  // task that reaches isDone and gets moved to the archive before that sync
+  // has a chance to observe it - e.g. tasks archived on the next app startup,
+  // whenever the previous session closed before the archive run reacted to
+  // them - never gets its completion recorded, and the habit tracker reads
+  // that day as not done forever after even though it genuinely happened
+  // (#habit-completion-lost-on-archive). Re-derives from the archive
+  // whenever it changes, backfilling only what isn't already recorded -
+  // never touching a manual/failed override.
+  private async _backfillCompletionsFromArchive(): Promise<void> {
+    const archive = await this._taskArchiveService.load();
+    const archivedTasks = archive.ids
+      .map((id) => archive.entities[id])
+      .filter((task): task is Task => !!task && !task.parentId && task.isDone);
+    if (!archivedTasks.length) return;
+
+    const state = this._state();
+    const failedTaskIds = this._failedTaskIds();
+    const next: TaskHabitState['taskCompletions'] = structuredClone(
+      state.taskCompletions,
+    );
+    let changed = false;
+
+    for (const habit of state.habits) {
+      next[habit.id] ??= {};
+      for (const task of archivedTasks) {
+        if (!this._matches(habit, task) || failedTaskIds.has(task.id)) continue;
+        const date = this._completionDate(task);
+        const ids = next[habit.id][date] ?? [];
+        if (!ids.includes(task.id)) {
+          next[habit.id][date] = [...ids, task.id];
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this._save({ ...this._state(), taskCompletions: next });
+    }
   }
 
   private _syncCompletedTasks(tasks: Task[]): void {
@@ -502,6 +568,12 @@ export class TaskHabitService {
         !!candidate.title && normalizeTitle(candidate.title) === link.normalizedTitle
       );
     });
+  }
+
+  private _isTimelessDoneEntry(data: unknown): boolean {
+    if (!data || typeof data !== 'object') return false;
+    const candidate = data as { isDone?: boolean; dueWithTime?: number };
+    return !!candidate.isDone && typeof candidate.dueWithTime !== 'number';
   }
 
   private _completionDate(task: Task): string {

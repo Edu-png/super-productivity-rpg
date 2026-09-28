@@ -134,6 +134,15 @@ export const APP_ROUTES: Routes = [
     canActivate: [FocusOverlayOpenGuard],
   },
   {
+    path: 'reports',
+    loadComponent: () =>
+      import('./features/rpg-reports/rpg-reports-page.component').then(
+        (m) => m.RpgReportsPageComponent,
+      ),
+    data: { page: 'reports' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
     path: 'nutrition',
     loadComponent: () =>
       import('./features/nutrition/ui/nutrition-page.component').then(

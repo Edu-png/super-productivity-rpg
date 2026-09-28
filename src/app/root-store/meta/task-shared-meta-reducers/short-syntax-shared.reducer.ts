@@ -27,10 +27,7 @@ import {
   updateTags,
 } from './task-shared-helpers';
 import { filterOutId } from '../../../util/filter-out-id';
-import {
-  reCalcTimeEstimateForParentIfParent,
-  updateTimeSpentForTask,
-} from '../../../features/tasks/store/task.reducer.util';
+import { updateTimeSpentForTask } from '../../../features/tasks/store/task.reducer.util';
 
 // Type for mutable task changes within the reducer
 type MutableTaskChanges = { -readonly [K in keyof Task]?: Task[K] };
@@ -134,20 +131,12 @@ const handleApplyShortSyntax = (
     delete finalTaskChanges.timeSpentOnDay;
   }
 
-  // Track if timeEstimate is being updated (for parent recalculation)
-  const hasTimeEstimateChange = 'timeEstimate' in finalTaskChanges;
-
   // Apply remaining changes
   if (Object.keys(finalTaskChanges).length > 0) {
     taskState = taskAdapter.updateOne(
       { id: task.id, changes: finalTaskChanges },
       taskState,
     );
-  }
-
-  // Recalculate parent's timeEstimate if this task has a parent and timeEstimate was changed
-  if (hasTimeEstimateChange && currentTask.parentId) {
-    taskState = reCalcTimeEstimateForParentIfParent(currentTask.parentId, taskState);
   }
 
   updatedState = { ...updatedState, [TASK_FEATURE_NAME]: taskState };

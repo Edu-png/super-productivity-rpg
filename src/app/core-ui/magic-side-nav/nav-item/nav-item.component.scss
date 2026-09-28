@@ -363,6 +363,15 @@ button[mat-menu-item].nav-link.active {
     margin: 0;
   }
 
+  // Folders carry a 3px left accent border (:host.isFolder below) that
+  // non-folder items don't - without compensating, a project's child items
+  // sit 3px further left than the parent folder's icon in the icon-only
+  // rail, reading as off-center (#collapsed-nav-icon-alignment). Expanded
+  // mode is unaffected - this whole block is scoped to compactMode.
+  &:not(.isFolder) .nav-link {
+    padding-left: calc(var(--s2) + 3px);
+  }
+
   // Hide the overflow menu button entirely when compactMode
   .additional-btn {
     display: none !important;

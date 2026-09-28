@@ -242,6 +242,18 @@
   }
 }
 
+// Collapsed (icon-only) sidebar: no room for the nested-level indentation
+// above - it just shoves the icon off-center toward the rail's edge. Comes
+// after the rule above so it wins the cascade at equal specificity.
+:host(.icon-only) {
+  .g-multi-btn-wrapper {
+    padding-left: 0;
+  }
+  .nav-children {
+    margin-left: 0;
+  }
+}
+
 // CompactMode state behaviors inherited from parent sidenav
 :host-context(.nav-sidenav.compactMode) {
   .g-multi-btn-wrapper {

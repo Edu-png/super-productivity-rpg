@@ -136,7 +136,33 @@ export class ArcaneLibraryPageComponent implements OnInit {
   readonly completedBooks = computed(() =>
     this.filteredBooks().filter((book) => book.status === 'finished'),
   );
+  // The goal is annual, so its progress must be scoped to the current year -
+  // library.finished() is all-time, which would keep counting last year's
+  // books against this year's goal forever.
+  readonly finishedThisYear = computed(() => {
+    const year = String(new Date().getFullYear());
+    return this.library
+      .finished()
+      .filter((book) => (book.finishedAt ?? '').startsWith(year));
+  });
+  readonly weeklyPaceNeeded = computed(() => {
+    const goal = this.library.settings().annualGoal;
+    const remaining = goal - this.finishedThisYear().length;
+    if (remaining <= 0) return null;
+    const now = new Date();
+    const yearEnd = new Date(now.getFullYear(), 11, 31);
+    const weeksLeft = Math.max(
+      1,
+      Math.ceil((yearEnd.getTime() - now.getTime()) / (7 * 24 * 60 * 60 * 1000)),
+    );
+    return {
+      remaining,
+      weeksLeft,
+      perWeek: Math.ceil((remaining / weeksLeft) * 10) / 10,
+    };
+  });
   readonly visibleWishlistBooks = computed(() => {
+    const filters = this.library.settings().filters;
     const query = this.searchQuery().trim().toLocaleLowerCase('pt-BR');
     return this.library
       .books()
@@ -144,10 +170,17 @@ export class ArcaneLibraryPageComponent implements OnInit {
         (book) =>
           ['wishlist', 'planned'].includes(book.status) &&
           (!query ||
-            `${book.title} ${book.author}`.toLocaleLowerCase('pt-BR').includes(query)),
+            `${book.title} ${book.author}`.toLocaleLowerCase('pt-BR').includes(query)) &&
+          (!this.selectedCollectionId() ||
+            book.collectionId === this.selectedCollectionId()) &&
+          (!this.selectedShelfId() || book.shelfId === this.selectedShelfId()) &&
+          (!filters.genre || this.selectedGenres(book).includes(filters.genre)) &&
+          (!filters.format || book.format === filters.format) &&
+          (!filters.favorite || book.favorite),
       );
   });
   readonly wishlistBooks = computed(() => {
+    const filters = this.library.settings().filters;
     const query = this.searchQuery().trim().toLocaleLowerCase('pt-BR');
     return this.library
       .wishlist()
@@ -157,7 +190,10 @@ export class ArcaneLibraryPageComponent implements OnInit {
             `${book.title} ${book.author}`.toLocaleLowerCase('pt-BR').includes(query)) &&
           (!this.selectedCollectionId() ||
             book.collectionId === this.selectedCollectionId()) &&
-          (!this.selectedShelfId() || book.shelfId === this.selectedShelfId()),
+          (!this.selectedShelfId() || book.shelfId === this.selectedShelfId()) &&
+          (!filters.genre || this.selectedGenres(book).includes(filters.genre)) &&
+          (!filters.format || book.format === filters.format) &&
+          (!filters.favorite || book.favorite),
       );
   });
   readonly genres = computed(() =>
@@ -370,7 +406,8 @@ export class ArcaneLibraryPageComponent implements OnInit {
   }
 
   async changeBookStatus(book: ArcaneBook, status: ArcaneBook['status']): Promise<void> {
-    await this.library.updateBook({
+    const wasFinished = book.status === 'finished';
+    const updated: ArcaneBook = {
       ...book,
       status,
       startedAt:
@@ -380,7 +417,28 @@ export class ArcaneLibraryPageComponent implements OnInit {
       finishedAt:
         status === 'finished' ? book.finishedAt || this.localDateKey(new Date()) : null,
       currentPage: status === 'finished' ? book.pages : book.currentPage,
-    });
+    };
+    if (status === 'finished' && !wasFinished) {
+      // Completing a book (drag or otherwise) now opens the edit dialog with
+      // this draft instead of saving straight away - rating is mandatory
+      // there (see isCompletionInfoMissing) before "Salvar ficha" commits it.
+      this.editingBook.set(updated);
+      return;
+    }
+    await this.library.updateBook(updated);
+  }
+
+  ratingStars(rating: number): string {
+    return '⭐'.repeat(Math.max(0, Math.min(5, Math.round(rating))));
+  }
+
+  isCompletionInfoMissing(book: ArcaneBook): boolean {
+    return book.status === 'finished' && !book.rating;
+  }
+
+  async updateAnnualGoal(value: number): Promise<void> {
+    const annualGoal = Math.max(1, Math.round(Number(value) || 1));
+    await this.library.saveSettings({ ...this.library.settings(), annualGoal });
   }
 
   async deleteCollection(event: Event, id: string): Promise<void> {
@@ -451,7 +509,9 @@ export class ArcaneLibraryPageComponent implements OnInit {
 
   async saveBook(): Promise<void> {
     const book = this.editingBook();
-    if (!book) return;
+    // Defense in depth alongside the disabled "Salvar ficha" button - a
+    // completed book must carry a rating before this actually commits.
+    if (!book || this.isCompletionInfoMissing(book)) return;
     await this.library.updateBook(book);
     this.editingBook.set(null);
   }
@@ -510,6 +570,12 @@ export class ArcaneLibraryPageComponent implements OnInit {
     );
     this.selectedBook.set(null);
     this.logNotes = '';
+    // Logging up to the last page auto-completes the book inside addLog, so
+    // the mandatory completion info (rating) must be requested here too.
+    const updated = this.library.books().find((row) => row.id === book.id);
+    if (updated && book.status !== 'finished' && this.isCompletionInfoMissing(updated)) {
+      this.editingBook.set(structuredClone(updated));
+    }
   }
 
   // Combines a picked "Data" (Y-M-D only) with the current wall-clock time,

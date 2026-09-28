@@ -8,9 +8,12 @@ import {
   StudyMaterial,
   StudyNode,
   StudySession,
+  TopicReviewLog,
+  TopicReviewState,
 } from './academy.models';
 
 export abstract class AcademyRepository {
+  abstract clearAll(): Promise<string[]>;
   abstract listAreas(profileId: string): Promise<StudyArea[]>;
   abstract putArea(area: StudyArea): Promise<void>;
   abstract listNodes(profileId: string, areaId?: string): Promise<StudyNode[]>;
@@ -18,6 +21,7 @@ export abstract class AcademyRepository {
   abstract listMaterials(profileId: string, nodeId: string): Promise<StudyMaterial[]>;
   abstract putMaterial(material: StudyMaterial): Promise<void>;
   abstract putSession(session: StudySession): Promise<void>;
+  abstract deleteSession(id: string): Promise<void>;
   abstract getSession(id: string): Promise<StudySession | undefined>;
   abstract listSessions(
     profileId: string,
@@ -39,6 +43,15 @@ export abstract class AcademyRepository {
   abstract dashboard(profileId: string, now: Date): Promise<AcademyDashboardSnapshot>;
   abstract getSettings(profileId: string): Promise<AcademySettings>;
   abstract putSettings(settings: AcademySettings): Promise<void>;
+  abstract listTopicReviews(profileId: string): Promise<TopicReviewState[]>;
+  abstract countDueTopicReviews(profileId: string, before: number): Promise<number>;
+  abstract putTopicReview(state: TopicReviewState): Promise<void>;
+  abstract deleteTopicReview(nodeId: string): Promise<void>;
+  abstract putTopicReviewLog(log: TopicReviewLog): Promise<void>;
+  abstract listTopicReviewLogs(
+    profileId: string,
+    limit: number,
+  ): Promise<TopicReviewLog[]>;
   abstract export(profileId: string, domains?: string[]): Promise<AcademyBackup>;
   abstract import(backup: AcademyBackup): Promise<void>;
 }

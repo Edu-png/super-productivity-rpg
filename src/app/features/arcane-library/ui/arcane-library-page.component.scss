@@ -55,6 +55,47 @@ h3 {
   font-size: 22px;
   color: #ffd44e;
 }
+.goal-input {
+  width: 48px;
+  margin: 0 6px;
+  border: 1px solid #514764;
+  color: #ffd44e;
+  text-align: center;
+  background: #13131f;
+}
+.pace-hint {
+  color: #aaa4bb;
+}
+.genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.genre-tag {
+  padding: 2px 8px;
+  border: 1px solid #514764;
+  border-radius: 99px;
+  color: #c8c2d8;
+  font-size: 11px;
+  background: #13131f;
+}
+.completion-hint {
+  color: #ffb4b4;
+}
+.book-rating {
+  margin-top: 4px;
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+.reading-modal footer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+.required-missing {
+  color: #ffb4b4;
+}
 progress {
   width: 100%;
   accent-color: #8467ef;

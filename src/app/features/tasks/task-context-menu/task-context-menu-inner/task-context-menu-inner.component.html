@@ -186,7 +186,7 @@
       </span>
     </button>
   }
-  @if (!task.parentId && !task.isDone) {
+  @if (!task.parentId) {
     <button
       (click)="addSubTask()"
       mat-menu-item
@@ -270,20 +270,30 @@
     </button>
   }
 
-  @if (!task.subTaskIds.length) {
+  @if (!task.subTaskIds.length && missingEstimateMinutes > 0) {
     <button
-      #estimateMenuTrigger="matMenuTrigger"
-      [matMenuTriggerFor]="estimateMenu"
+      (click)="completeEstimatedTime()"
       mat-menu-item
-      [menuTouchFix]="estimateMenuTrigger"
     >
       <span class="menuItemLeft">
-        <mat-icon>hourglass_empty</mat-icon>
-        {{ T.F.TASK.CMP.ESTIMATE | translate }}
+        <mat-icon>more_time</mat-icon>
+        Completar tempo estimado (+{{ missingEstimateMinutes }} min)
       </span>
-      <span class="key-i">{{ kb.taskOpenEstimationDialog }}</span>
     </button>
   }
+
+  <button
+    #estimateMenuTrigger="matMenuTrigger"
+    [matMenuTriggerFor]="estimateMenu"
+    mat-menu-item
+    [menuTouchFix]="estimateMenuTrigger"
+  >
+    <span class="menuItemLeft">
+      <mat-icon>hourglass_empty</mat-icon>
+      {{ T.F.TASK.CMP.ESTIMATE | translate }}
+    </span>
+    <span class="key-i">{{ kb.taskOpenEstimationDialog }}</span>
+  </button>
 
   <button
     #tagMenuTrigger="matMenuTrigger"

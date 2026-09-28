@@ -6,119 +6,593 @@
       <p>Estudos, revisões e conhecimento transformados em poder.</p>
     </div>
     <div class="hero-actions">
-      <button type="button" (click)="exportData()">
+      <button
+        type="button"
+        (click)="exportData()"
+      >
         <mat-icon>download</mat-icon> Backup completo
       </button>
       <label>
         <mat-icon>upload</mat-icon> Restaurar
-        <input type="file" accept="application/json" (change)="importData($event)" />
+        <input
+          type="file"
+          accept="application/json"
+          (change)="importData($event)"
+        />
       </label>
     </div>
   </header>
 
   <nav class="academy-tabs">
-    <button [class.active]="tab() === 'dashboard'" (click)="tab.set('dashboard')">
+    <button
+      [class.active]="tab() === 'dashboard'"
+      (click)="tab.set('dashboard')"
+    >
       <mat-icon>dashboard</mat-icon> Painel
     </button>
-    <button [class.active]="tab() === 'library'" (click)="tab.set('library')">
+    <button
+      [class.active]="tab() === 'library'"
+      (click)="tab.set('library')"
+    >
       <mat-icon>auto_stories</mat-icon> Biblioteca
     </button>
-    <button [class.active]="tab() === 'review'" (click)="tab.set('review')">
+    <button
+      [class.active]="tab() === 'review'"
+      (click)="tab.set('review')"
+    >
       <mat-icon>style</mat-icon> Revisar
-      <b>{{ academy.dashboard().pendingReviews }}</b>
+      <b>{{
+        academy.dashboard().pendingReviews + academy.dashboard().pendingTopicReviews
+      }}</b>
     </button>
-    <button [class.active]="tab() === 'history'" (click)="tab.set('history')">
+    <button
+      [class.active]="tab() === 'history'"
+      (click)="tab.set('history')"
+    >
       <mat-icon>history</mat-icon> Histórico
     </button>
   </nav>
   <section class="academy-character-selector">
-    <div><span>HERÓI DA ACADEMIA</span><strong>Estudos, revisões, XP e ouro pertencem a este personagem</strong></div>
-    <div class="character-cards" role="radiogroup" aria-label="Herói da Academia">
-      @for(character of profile.characters(); track character.id) {
-        <button type="button" role="radio" [attr.aria-checked]="character.id === selectedCharacterId()" [class.active]="character.id === selectedCharacterId()" (click)="selectCharacter(character.id)">
-          <character-renderer [appearance]="character.appearance" [species]="character.speciesId" [characterClass]="character.classId" [compact]="true" [portrait]="true" [headerIcon]="true" />
-          <span><b>{{ character.displayName }}</b><small>{{ character.speciesId }} · {{ character.classId }}</small></span>
-          <mat-icon>{{ character.id === selectedCharacterId() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+    <div>
+      <span>HERÓI DA ACADEMIA</span
+      ><strong>Estudos, revisões, XP e ouro pertencem a este personagem</strong>
+    </div>
+    <div
+      class="character-cards"
+      role="radiogroup"
+      aria-label="Herói da Academia"
+    >
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="character.id === selectedCharacterId()"
+          [class.active]="character.id === selectedCharacterId()"
+          (click)="selectCharacter(character.id)"
+        >
+          <character-renderer
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
+          <mat-icon>{{
+            character.id === selectedCharacterId()
+              ? 'check_circle'
+              : 'radio_button_unchecked'
+          }}</mat-icon>
         </button>
       }
     </div>
   </section>
 
   @if (academy.loading()) {
-    <section class="loading-rune"><mat-icon>auto_awesome</mat-icon> Abrindo os arquivos antigos…</section>
+    <section class="loading-rune">
+      <mat-icon>auto_awesome</mat-icon> Abrindo os arquivos antigos…
+    </section>
   } @else if (tab() === 'dashboard') {
     <section class="metric-grid">
-      <article><mat-icon>today</mat-icon><span>Hoje</span><strong>{{ minutes(academy.dashboard().todayMinutes) }}</strong></article>
-      <article><mat-icon>date_range</mat-icon><span>Esta semana</span><strong>{{ minutes(academy.dashboard().weekMinutes) }}</strong></article>
-      <article><mat-icon>calendar_month</mat-icon><span>Este mês</span><strong>{{ minutes(academy.dashboard().monthMinutes) }}</strong></article>
-      <article><mat-icon>local_fire_department</mat-icon><span>Sequência</span><strong>{{ academy.dashboard().streak }} dias</strong></article>
-      <article><mat-icon>style</mat-icon><span>Revisões pendentes</span><strong>{{ academy.dashboard().pendingReviews }}</strong></article>
-      <article><mat-icon>psychology</mat-icon><span>Precisão</span><strong>{{ academy.dashboard().accuracy }}%</strong></article>
-      <article><mat-icon>collections_bookmark</mat-icon><span>Flashcards</span><strong>{{ academy.dashboard().learnedCards }}/{{ academy.dashboard().flashcardCount }}</strong></article>
-      <article><mat-icon>route</mat-icon><span>Assuntos concluídos</span><strong>{{ academy.dashboard().completedTopics }}/{{ academy.dashboard().totalTopics }}</strong></article>
+      <article>
+        <mat-icon>today</mat-icon><span>Hoje</span
+        ><strong>{{ minutes(academy.dashboard().todayMinutes) }}</strong>
+      </article>
+      <article>
+        <mat-icon>date_range</mat-icon><span>Esta semana</span
+        ><strong>{{ minutes(academy.dashboard().weekMinutes) }}</strong>
+      </article>
+      <article>
+        <mat-icon>calendar_month</mat-icon><span>Este mês</span
+        ><strong>{{ minutes(academy.dashboard().monthMinutes) }}</strong>
+      </article>
+      <article>
+        <mat-icon>local_fire_department</mat-icon><span>Sequência</span
+        ><strong>{{ academy.dashboard().streak }} dias</strong>
+      </article>
+      <article
+        class="clickable"
+        role="button"
+        tabindex="0"
+        (click)="tab.set('review')"
+        (keyup.enter)="tab.set('review')"
+      >
+        <mat-icon>style</mat-icon><span>Revisões pendentes</span
+        ><strong>{{
+          academy.dashboard().pendingReviews + academy.dashboard().pendingTopicReviews
+        }}</strong>
+      </article>
+      <article>
+        <mat-icon>psychology</mat-icon><span>Precisão</span
+        ><strong>{{ academy.dashboard().accuracy }}%</strong>
+      </article>
+      <article>
+        <mat-icon>collections_bookmark</mat-icon><span>Flashcards</span
+        ><strong
+          >{{ academy.dashboard().learnedCards }}/{{
+            academy.dashboard().flashcardCount
+          }}</strong
+        >
+      </article>
+      <article>
+        <mat-icon>route</mat-icon><span>Assuntos concluídos</span
+        ><strong
+          >{{ academy.dashboard().completedTopics }}/{{
+            academy.dashboard().totalTopics
+          }}</strong
+        >
+      </article>
+    </section>
+
+    <section class="arcane-card review-today-card">
+      <header>
+        <div>
+          <span>REPETIÇÃO ESPAÇADA</span>
+          <h2>Revisar hoje</h2>
+        </div>
+        <mat-icon>style</mat-icon>
+      </header>
+      <div class="review-today-list">
+        @for (row of todayReviewList(); track row.node.id) {
+          <div
+            role="button"
+            tabindex="0"
+            class="review-today-row"
+            (click)="openTopicReview(row.node.id)"
+            (keyup.enter)="openTopicReview(row.node.id)"
+          >
+            <mat-icon>{{
+              row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
+            }}</mat-icon>
+            <span class="review-today-path">{{ row.path }}</span>
+            @if (row.overdueDays > 0) {
+              <small class="overdue"
+                >{{ row.overdueDays }} dia{{
+                  row.overdueDays === 1 ? '' : 's'
+                }}
+                atrasado</small
+              >
+            } @else {
+              <small>Revisar hoje</small>
+            }
+            <button
+              type="button"
+              class="skip-review-btn"
+              title="Pular por hoje"
+              (click)="skipTopicReview(row.node.id, $event)"
+            >
+              <mat-icon>snooze</mat-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="review-today-empty">
+            Nenhuma revisão pendente por agora. Adicione um tópico à revisão na Biblioteca
+            depois de estudá-lo.
+          </p>
+        }
+      </div>
+
+      <h3 class="review-week-title">Esta semana</h3>
+      <div class="review-today-list">
+        @for (row of thisWeekReviewList(); track row.node.id) {
+          <div
+            role="button"
+            tabindex="0"
+            class="review-today-row"
+            (click)="openTopicReview(row.node.id)"
+            (keyup.enter)="openTopicReview(row.node.id)"
+          >
+            <mat-icon>event_upcoming</mat-icon>
+            <span class="review-today-path">{{ row.path }}</span>
+            <small>em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small>
+            <button
+              type="button"
+              class="skip-review-btn"
+              title="Adiar mais 1 dia"
+              (click)="skipTopicReview(row.node.id, $event)"
+            >
+              <mat-icon>snooze</mat-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="review-today-empty">
+            Nenhuma revisão programada para os próximos 7 dias.
+          </p>
+        }
+      </div>
     </section>
 
     <section class="dashboard-grid">
       <article class="arcane-card quick-study">
-        <header><div><span>CRONÔMETRO ARCANO</span><h2>Sessão de estudos</h2></div><mat-icon>timer</mat-icon></header>
+        <header>
+          <div>
+            <span>CRONÔMETRO ARCANO</span>
+            <h2>Sessão de estudos</h2>
+          </div>
+          <mat-icon>timer</mat-icon>
+        </header>
+        @if (postSessionReviewPrompt(); as prompt) {
+          <div class="post-session-review-prompt">
+            <mat-icon>alarm_add</mat-icon>
+            <span
+              >Estudou <strong>{{ prompt.title }}</strong> hoje. Adicionar à repetição
+              espaçada?</span
+            >
+            <div class="post-session-review-actions">
+              <button
+                type="button"
+                class="primary"
+                (click)="confirmPostSessionReview()"
+              >
+                Sim, agendar
+              </button>
+              <button
+                type="button"
+                (click)="dismissPostSessionReview()"
+              >
+                Agora não
+              </button>
+            </div>
+          </div>
+        }
+        @if (distractionPrompt(); as prompt) {
+          <div class="post-session-review-prompt">
+            <mat-icon>psychology_alt</mat-icon>
+            <span
+              >Se distraiu em <strong>{{ prompt.title }}</strong
+              >? Registre cada distração e o motivo.</span
+            >
+            <div class="post-session-review-actions">
+              <button
+                type="button"
+                class="primary"
+                (click)="openDistractionsFor(prompt.sessionId)"
+              >
+                Registrar distrações
+              </button>
+              <button
+                type="button"
+                (click)="distractionPrompt.set(null)"
+              >
+                Não me distraí
+              </button>
+            </div>
+          </div>
+        }
         @if (academy.activeSession(); as session) {
           <div class="active-session">
             <i></i>
             <strong>{{ session.title }}</strong>
-            <small>Iniciada às {{ session.startedAt | date:'HH:mm' }}</small>
-            <button type="button" (click)="finishSession()">Finalizar e registrar</button>
+            <small>Iniciada às {{ session.startedAt | date: 'HH:mm' }}</small>
+            <button
+              type="button"
+              (click)="finishSession()"
+            >
+              Finalizar e registrar
+            </button>
+            <div class="distraction-logger">
+              <strong>Distrações neste bloco: {{ activeDistractions().length }}</strong>
+              <input
+                [(ngModel)]="distractionNote"
+                placeholder="Motivo (opcional) — ex.: vi notificação do WhatsApp"
+                aria-label="Motivo da distração"
+              />
+              <div class="distraction-cats">
+                @for (category of academy.distractionCategories(); track category) {
+                  <button
+                    type="button"
+                    (click)="logDistraction(category)"
+                  >
+                    <mat-icon>add</mat-icon>{{ category }}
+                  </button>
+                }
+              </div>
+              @if (activeDistractions().length) {
+                <ol class="distraction-list">
+                  @for (item of activeDistractions(); track item.id) {
+                    <li>
+                      <small>{{ item.at | date: 'HH:mm' }}</small>
+                      <b>{{ item.category }}</b>
+                      <span>{{ item.note }}</span>
+                      <button
+                        type="button"
+                        title="Apagar"
+                        (click)="academy.removeDistraction(session.id, item.id)"
+                      >
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </li>
+                  }
+                </ol>
+              }
+            </div>
           </div>
         } @else {
-          <select
-            [ngModel]="selectedAreaId()"
-            (ngModelChange)="selectSessionArea($event)"
+          <div class="quick-select-row">
+            <select
+              [ngModel]="selectedAreaId()"
+              (ngModelChange)="selectSessionArea($event)"
+            >
+              <option value="">Selecione uma área</option>
+              @for (area of academy.areas(); track area.id) {
+                <option [value]="area.id">{{ area.title }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="quick-add-btn"
+              title="Nova área"
+              (click)="toggleQuickCreate('area')"
+            >
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+          @if (quickCreateOpen() === 'area') {
+            <div class="quick-create-row">
+              <input
+                [(ngModel)]="quickCreateTitle"
+                placeholder="Nome da nova área"
+                (keyup.enter)="confirmQuickCreate()"
+              />
+              <input
+                type="color"
+                [(ngModel)]="quickCreateColor"
+              />
+              <button
+                type="button"
+                (click)="confirmQuickCreate()"
+              >
+                <mat-icon>check</mat-icon>
+              </button>
+              <button
+                type="button"
+                (click)="cancelQuickCreate()"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+
+          <div class="quick-select-row">
+            <select
+              aria-label="O que será estudado"
+              [ngModel]="selectedModuleId()"
+              (ngModelChange)="selectSessionModule($event)"
+            >
+              <option value="">O que será estudado? Selecione um módulo</option>
+              @for (module of sessionModules(); track module.id) {
+                <option [value]="module.id">{{ module.title }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="quick-add-btn"
+              title="Novo módulo"
+              [disabled]="!selectedAreaId()"
+              (click)="toggleQuickCreate('module')"
+            >
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+          @if (quickCreateOpen() === 'module') {
+            <div class="quick-create-row">
+              <input
+                [(ngModel)]="quickCreateTitle"
+                placeholder="Nome do novo módulo"
+                (keyup.enter)="confirmQuickCreate()"
+              />
+              <button
+                type="button"
+                (click)="confirmQuickCreate()"
+              >
+                <mat-icon>check</mat-icon>
+              </button>
+              <button
+                type="button"
+                (click)="cancelQuickCreate()"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+
+          <div class="quick-select-row">
+            <select
+              aria-label="Tópico"
+              [ngModel]="selectedTopicId()"
+              (ngModelChange)="selectSessionTopic($event)"
+            >
+              <option value="">Tópico</option>
+              @for (topic of sessionTopics(); track topic.id) {
+                <option [value]="topic.id">{{ topic.title }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="quick-add-btn"
+              title="Novo tópico"
+              [disabled]="!selectedModuleId()"
+              (click)="toggleQuickCreate('topic')"
+            >
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+          @if (quickCreateOpen() === 'topic') {
+            <div class="quick-create-row">
+              <input
+                [(ngModel)]="quickCreateTitle"
+                placeholder="Nome do novo tópico"
+                (keyup.enter)="confirmQuickCreate()"
+              />
+              <button
+                type="button"
+                (click)="confirmQuickCreate()"
+              >
+                <mat-icon>check</mat-icon>
+              </button>
+              <button
+                type="button"
+                (click)="cancelQuickCreate()"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+
+          <div class="quick-select-row">
+            <select
+              aria-label="Subassunto"
+              [ngModel]="selectedSubtopicId()"
+              (ngModelChange)="selectedSubtopicId.set($event)"
+            >
+              <option value="">Subassunto</option>
+              @for (subtopic of sessionSubtopics(); track subtopic.id) {
+                <option [value]="subtopic.id">{{ subtopic.title }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="quick-add-btn"
+              title="Novo subassunto"
+              [disabled]="!selectedTopicId()"
+              (click)="toggleQuickCreate('subtopic')"
+            >
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+          @if (quickCreateOpen() === 'subtopic') {
+            <div class="quick-create-row">
+              <input
+                [(ngModel)]="quickCreateTitle"
+                placeholder="Nome do novo subassunto"
+                (keyup.enter)="confirmQuickCreate()"
+              />
+              <button
+                type="button"
+                (click)="confirmQuickCreate()"
+              >
+                <mat-icon>check</mat-icon>
+              </button>
+              <button
+                type="button"
+                (click)="cancelQuickCreate()"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+
+          <input
+            [(ngModel)]="sessionTitle"
+            placeholder="Observação ou objetivo da sessão (opcional)"
+          />
+          <label
+            >Meta
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="sessionMinutes"
+            />
+            minutos</label
           >
-            <option value="">Selecione uma área</option>
-            @for (area of academy.areas(); track area.id) {
-              <option [value]="area.id">{{ area.title }}</option>
+          <label
+            >Data (usada ao registrar)
+            <input
+              type="date"
+              [(ngModel)]="sessionLogDate"
+              [max]="today"
+          /></label>
+          <div class="distraction-logger">
+            <strong>Distrações nesta sessão: {{ draftDistractions().length }}</strong>
+            <small class="distraction-help"
+              >Para "Registrar estudo": adicione cada vez que se distraiu (uma por
+              clique), com o motivo se quiser.</small
+            >
+            <input
+              [(ngModel)]="draftDistractionNote"
+              placeholder="Motivo (opcional) — ex.: vi notificação do WhatsApp"
+              aria-label="Motivo da distração"
+            />
+            <div class="distraction-cats">
+              @for (category of academy.distractionCategories(); track category) {
+                <button
+                  type="button"
+                  (click)="addDraftDistraction(category)"
+                >
+                  <mat-icon>add</mat-icon>{{ category }}
+                </button>
+              }
+            </div>
+            @if (draftDistractions().length) {
+              <ol class="distraction-list">
+                @for (item of draftDistractions(); track item.id; let i = $index) {
+                  <li>
+                    <small>#{{ i + 1 }}</small>
+                    <b>{{ item.category }}</b>
+                    <span>{{ item.note }}</span>
+                    <button
+                      type="button"
+                      title="Remover"
+                      (click)="removeDraftDistraction(item.id)"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </li>
+                }
+              </ol>
             }
-          </select>
-          <select
-            aria-label="O que será estudado"
-            [ngModel]="selectedModuleId()"
-            (ngModelChange)="selectSessionModule($event)"
-          >
-            <option value="">O que será estudado? Selecione um módulo</option>
-            @for (module of sessionModules(); track module.id) {
-              <option [value]="module.id">{{ module.title }}</option>
-            }
-          </select>
-          <select
-            aria-label="Tópico"
-            [ngModel]="selectedTopicId()"
-            (ngModelChange)="selectSessionTopic($event)"
-          >
-            <option value="">Tópico</option>
-            @for (topic of sessionTopics(); track topic.id) {
-              <option [value]="topic.id">{{ topic.title }}</option>
-            }
-          </select>
-          <select
-            aria-label="Subassunto"
-            [ngModel]="selectedSubtopicId()"
-            (ngModelChange)="selectedSubtopicId.set($event)"
-          >
-            <option value="">Subassunto</option>
-            @for (subtopic of sessionSubtopics(); track subtopic.id) {
-              <option [value]="subtopic.id">{{ subtopic.title }}</option>
-            }
-          </select>
-          <input [(ngModel)]="sessionTitle" placeholder="Observação ou objetivo da sessão (opcional)" />
-          <label>Meta <input type="number" min="1" [(ngModel)]="sessionMinutes" /> minutos</label>
-          <button type="button" [disabled]="!selectedAreaId()" (click)="startSession()">
-            <mat-icon>play_arrow</mat-icon> Iniciar estudo
-          </button>
+          </div>
+          <div class="quick-study-actions">
+            <button
+              type="button"
+              [disabled]="!selectedAreaId()"
+              (click)="startSession()"
+            >
+              <mat-icon>play_arrow</mat-icon> Iniciar estudo
+            </button>
+            <button
+              type="button"
+              class="log-study-btn"
+              title="Registrar uma sessão que já aconteceu, sem cronômetro"
+              [disabled]="!selectedAreaId()"
+              (click)="logStudySession()"
+            >
+              <mat-icon>edit_note</mat-icon> Registrar estudo
+            </button>
+          </div>
         }
       </article>
 
       <article class="arcane-card heatmap-card">
         <header>
-          <div><span>CONSTÂNCIA</span><h2>Mapa de conhecimento</h2></div>
+          <div>
+            <span>CONSTÂNCIA</span>
+            <h2>Mapa de conhecimento</h2>
+          </div>
           <div class="heatmap-year">
             <strong>{{ minutes(heatmapYearMinutes()) }}</strong>
             <select
@@ -132,17 +606,20 @@
             </select>
           </div>
         </header>
-        <div class="heatmap-months" aria-hidden="true">
-          <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span>
-          <span>Mai</span><span>Jun</span><span>Jul</span><span>Ago</span>
-          <span>Set</span><span>Out</span><span>Nov</span><span>Dez</span>
+        <div
+          class="heatmap-months"
+          aria-hidden="true"
+        >
+          <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span> <span>Mai</span
+          ><span>Jun</span><span>Jul</span><span>Ago</span> <span>Set</span
+          ><span>Out</span><span>Nov</span><span>Dez</span>
         </div>
         <div class="heatmap">
           @for (day of heatmapDays(); track day.date) {
             <i
               [class.padding]="day.padding"
               [attr.data-level]="heatLevel(day.minutes)"
-              [title]="day.padding ? '' : day.date + ' · ' + minutes(day.minutes)"
+              [title]="day.padding ? '' : dayTooltip(day)"
             ></i>
           }
         </div>
@@ -153,23 +630,85 @@
           }
           <small>Mais</small>
         </div>
-        <small>De 1º de janeiro a 31 de dezembro. Dias sem estudo permanecem visíveis.</small>
+        <small
+          >De 1º de janeiro a 31 de dezembro. Dias sem estudo permanecem visíveis.</small
+        >
       </article>
 
       <article class="arcane-card progress-card">
-        <header><div><span>CRONOGRAMA</span><h2>Progresso da formação</h2></div><mat-icon>school</mat-icon></header>
-        <div class="progress-ring">
-          <strong>{{ academy.dashboard().totalTopics ? (academy.dashboard().completedTopics * 100 / academy.dashboard().totalTopics | number:'1.0-0') : 0 }}%</strong>
+        <header>
+          <div>
+            <span>CRONOGRAMA</span>
+            <h2>Progresso da formação</h2>
+          </div>
+          <mat-icon>school</mat-icon>
+        </header>
+        <div
+          class="progress-ring"
+          [style.--progress]="formationProgress()"
+        >
+          <strong
+            >{{
+              academy.dashboard().totalTopics
+                ? ((academy.dashboard().completedTopics * 100) /
+                    academy.dashboard().totalTopics | number: '1.0-0')
+                : 0
+            }}%</strong
+          >
         </div>
-        <p>{{ academy.dashboard().completedTopics }} assuntos dominados de {{ academy.dashboard().totalTopics }}.</p>
+        <p>
+          {{ academy.dashboard().completedTopics }} assuntos dominados de
+          {{ academy.dashboard().totalTopics }}.
+        </p>
+      </article>
+
+      <article class="arcane-card area-distribution-card">
+        <header>
+          <div>
+            <span>ESPECIALIZAÇÕES</span>
+            <h2>Minutos por área</h2>
+          </div>
+          <mat-icon>donut_large</mat-icon>
+        </header>
+        <div
+          class="area-donut"
+          [style.background]="areaDistribution().background"
+        >
+          <div>
+            <strong>{{ minutes(areaDistribution().total) }}</strong
+            ><small>Total</small>
+          </div>
+        </div>
+        <div class="area-legend">
+          @for (area of areaDistribution().rows; track area.id) {
+            <div>
+              <i [style.background]="area.color"></i>
+              <span>{{ area.title }}</span>
+              <strong>{{ minutes(area.minutes) }}</strong>
+            </div>
+          } @empty {
+            <p>Registre uma sessão para visualizar a distribuição.</p>
+          }
+        </div>
       </article>
 
       <article class="arcane-card areas-overview">
-        <header><div><span>ALAS DA ACADEMIA</span><h2>Áreas de estudo</h2></div><button (click)="tab.set('library')">Gerenciar</button></header>
+        <header>
+          <div>
+            <span>ALAS DA ACADEMIA</span>
+            <h2>Áreas de estudo</h2>
+          </div>
+          <button (click)="tab.set('library')">Gerenciar</button>
+        </header>
         <div>
           @for (area of academy.areas(); track area.id) {
-            <button type="button" [style.--area-color]="area.color" (click)="selectedAreaId.set(area.id); tab.set('library')">
-              <mat-icon>{{ area.icon }}</mat-icon><strong>{{ area.title }}</strong>
+            <button
+              type="button"
+              [style.--area-color]="area.color"
+              (click)="selectedAreaId.set(area.id); tab.set('library')"
+            >
+              <mat-icon>{{ area.icon }}</mat-icon
+              ><strong>{{ area.title }}</strong>
               <small>{{ areaNodeCount(area.id) }} itens</small>
             </button>
           } @empty {
@@ -180,52 +719,316 @@
 
       <article class="arcane-card study-chart">
         <header>
-          <div><span>HISTÓRICO ARCANO</span><h2>Minutos estudados por dia</h2></div>
+          <div>
+            <span>HISTÓRICO ARCANO</span>
+            <h2>Minutos estudados por dia</h2>
+          </div>
           <select
-            aria-label="Filtrar gráfico por assunto"
+            aria-label="Filtrar gráfico por área"
             [ngModel]="chartFilter()"
             (ngModelChange)="chartFilter.set($event)"
           >
-            <option value="all">Todas as pastas</option>
-            @for (folder of chartFolders(); track folder.id) {
-              <option [value]="'folder:' + folder.id">{{ folder.title }}</option>
+            <option value="all">Todas as áreas</option>
+            @for (area of academy.areas(); track area.id) {
+              <option [value]="'area:' + area.id">{{ area.title }}</option>
             }
           </select>
         </header>
         <div class="line-chart">
           <div class="chart-scale">
-            <span>{{ chartMax() }}m</span><span>{{ chartMax() / 2 | number:'1.0-0' }}m</span><span>0m</span>
+            <span>{{ chartMax() }}m</span
+            ><span>{{ chartMax() / 2 | number: '1.0-0' }}m</span><span>0m</span>
           </div>
-          <svg viewBox="0 0 700 180" preserveAspectRatio="none" role="img" aria-label="Minutos estudados nos últimos 30 dias">
-            <line x1="0" y1="20" x2="700" y2="20"></line>
-            <line x1="0" y1="95" x2="700" y2="95"></line>
-            <line x1="0" y1="170" x2="700" y2="170"></line>
-            <polyline [attr.points]="chartPoints()"></polyline>
-            @for (day of chartDays(); track day.date; let index = $index) {
-              @if (day.minutes > 0) {
-                <ellipse
-                  class="chart-rune-glow"
-                  [attr.cx]="index * (700 / 29)"
-                  [attr.cy]="chartY(day.minutes)"
-                  rx="7"
-                  ry="11"
-                ></ellipse>
-                <ellipse
-                  class="chart-rune"
-                  [attr.cx]="index * (700 / 29)"
-                  [attr.cy]="chartY(day.minutes)"
-                  rx="3"
-                  ry="6"
+          <svg
+            viewBox="0 0 700 180"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Minutos estudados por dia"
+          >
+            <line
+              x1="0"
+              y1="20"
+              x2="700"
+              y2="20"
+            ></line>
+            <line
+              x1="0"
+              y1="95"
+              x2="700"
+              y2="95"
+            ></line>
+            <line
+              x1="0"
+              y1="170"
+              x2="700"
+              y2="170"
+            ></line>
+            @for (series of chartSeries(); track series.id) {
+              <polyline
+                [attr.points]="series.polyline"
+                [style.stroke]="series.color"
+              ></polyline>
+            }
+            @for (series of chartSeries(); track series.id) {
+              @for (point of series.points; track point.date) {
+                @if (point.value > 0) {
+                  <ellipse
+                    class="chart-rune"
+                    [attr.cx]="point.x"
+                    [attr.cy]="point.y"
+                    [style.fill]="series.color"
+                    rx="1.8"
+                    ry="3.6"
+                  ></ellipse>
+                }
+                <circle
+                  class="chart-hit"
+                  [attr.cx]="point.x"
+                  [attr.cy]="point.y"
+                  r="10"
                 >
-                  <title>{{ day.date }} · {{ minutes(day.minutes) }}</title>
-                </ellipse>
+                  <title>
+                    {{ series.title }} · {{ point.date }} · {{ minutes(point.value) }}
+                  </title>
+                </circle>
               }
             }
           </svg>
           <div class="chart-dates">
             <span>{{ chartDays()[0].label }}</span>
-            <span>{{ chartDays()[14].label }}</span>
-            <span>{{ chartDays()[29].label }}</span>
+            <span>{{ chartDays()[chartMidIndex()].label }}</span>
+            <span>{{ chartDays()[chartDays().length - 1].label }}</span>
+          </div>
+        </div>
+        @if (chartSeries().length > 1) {
+          <div class="chart-legend">
+            @for (series of chartSeries(); track series.id) {
+              <div>
+                <i [style.background]="series.color"></i><span>{{ series.title }}</span>
+              </div>
+            }
+          </div>
+        } @else if (!chartSeries().length) {
+          <p class="chart-empty">Crie uma área para visualizar o histórico.</p>
+        }
+      </article>
+
+      <article class="arcane-card distraction-card daily-distraction-card">
+        <header>
+          <div>
+            <span>FOCO ARCANO</span>
+            <h2>Distrações por dia</h2>
+          </div>
+          @let dailyStats = dailyDistractionStats();
+          @if (dailyStats.days.length) {
+            <div class="distraction-summary">
+              <b>{{ dailyStats.average | number: '1.0-1' }}</b> por dia
+              @if (dailyStats.trendPercent !== null) {
+                ·
+                <b
+                  [class.trend-good]="dailyStats.trendPercent < 0"
+                  [class.trend-bad]="dailyStats.trendPercent > 0"
+                  >{{ dailyStats.trendPercent > 0 ? '+' : ''
+                  }}{{ dailyStats.trendPercent }}%</b
+                >
+                nos últimos 7 dias
+              }
+            </div>
+          }
+        </header>
+        @if (dailyStats.days.length) {
+          @let daily = dailyDistractionChart();
+          <div class="bar-chart">
+            <div class="chart-scale">
+              <span>{{ daily.max | number: '1.0-0' }}</span
+              ><span>0</span>
+            </div>
+            <svg
+              viewBox="0 0 700 190"
+              preserveAspectRatio="none"
+              role="img"
+              [attr.aria-label]="'Distrações por dia, média ' + dailyStats.average"
+            >
+              <line
+                class="baseline"
+                x1="0"
+                y1="170"
+                x2="700"
+                y2="170"
+              ></line>
+              @for (bar of daily.bars; track bar.id) {
+                <rect
+                  [class.above]="bar.isAbove"
+                  [attr.x]="bar.x"
+                  [attr.y]="bar.y"
+                  [attr.width]="bar.width"
+                  [attr.height]="bar.height"
+                  rx="3"
+                >
+                  <title>{{ bar.tooltip }}</title>
+                </rect>
+                @if (bar.showLabel) {
+                  <text
+                    class="bar-label"
+                    [attr.x]="bar.center"
+                    y="186"
+                    text-anchor="middle"
+                  >
+                    {{ bar.label }}
+                  </text>
+                }
+              }
+              <line
+                class="average-line"
+                x1="0"
+                [attr.y1]="daily.averageY"
+                x2="700"
+                [attr.y2]="daily.averageY"
+              ></line>
+              @if (daily.bars.length > 1) {
+                <polyline
+                  class="trend-line"
+                  [attr.points]="daily.trend"
+                ></polyline>
+              }
+            </svg>
+          </div>
+          <div class="chart-legend">
+            <div><i class="legend-normal"></i><span>Até a média</span></div>
+            <div><i class="legend-above"></i><span>Acima da média</span></div>
+            <div><i class="legend-average"></i><span>Média diária</span></div>
+            <div>
+              <i class="legend-trend"></i><span>Progresso (média de 7 dias)</span>
+            </div>
+          </div>
+        } @else {
+          <p class="chart-empty">
+            Registre distrações nos seus blocos de estudo para acompanhar a evolução por
+            dia.
+          </p>
+        }
+      </article>
+
+      <article class="arcane-card distraction-card">
+        <header>
+          <div>
+            <span>FOCO ARCANO</span>
+            <h2>Distrações por bloco de estudos</h2>
+          </div>
+          @if (distractionStats().blocks.length) {
+            <div class="distraction-summary">
+              <b>{{ distractionStats().average | number: '1.0-1' }}</b> por bloco ·
+              <b>{{ distractionStats().averagePerHour | number: '1.0-1' }}</b> por hora
+            </div>
+          }
+        </header>
+        @if (distractionStats().blocks.length) {
+          @let chart = distractionChart();
+          <div class="bar-chart">
+            <div class="chart-scale">
+              <span>{{ chart.max | number: '1.0-0' }}</span
+              ><span>0</span>
+            </div>
+            <svg
+              viewBox="0 0 700 190"
+              preserveAspectRatio="none"
+              role="img"
+              [attr.aria-label]="
+                'Distrações por bloco, média ' + distractionStats().average
+              "
+            >
+              <line
+                class="baseline"
+                x1="0"
+                y1="170"
+                x2="700"
+                y2="170"
+              ></line>
+              @for (bar of chart.bars; track bar.id) {
+                <rect
+                  [class.above]="bar.isAbove"
+                  [attr.x]="bar.x"
+                  [attr.y]="bar.y"
+                  [attr.width]="bar.width"
+                  [attr.height]="bar.height"
+                  rx="3"
+                >
+                  <title>{{ bar.tooltip }}</title>
+                </rect>
+                @if (bar.showLabel) {
+                  <text
+                    class="bar-label"
+                    [attr.x]="bar.center"
+                    y="186"
+                    text-anchor="middle"
+                  >
+                    {{ bar.label }}
+                  </text>
+                }
+              }
+              <line
+                class="average-line"
+                x1="0"
+                [attr.y1]="chart.averageY"
+                x2="700"
+                [attr.y2]="chart.averageY"
+              ></line>
+            </svg>
+          </div>
+          <div class="chart-legend">
+            <div><i class="legend-normal"></i><span>Até a média</span></div>
+            <div><i class="legend-above"></i><span>Acima da média</span></div>
+            <div><i class="legend-average"></i><span>Média</span></div>
+          </div>
+          <h3 class="distraction-subtitle">O que mais te distrai</h3>
+          @for (row of distractionStats().categories; track row.category) {
+            <div class="category-bar">
+              <span>{{ row.category }}</span>
+              <span class="category-track"
+                ><span
+                  class="category-fill"
+                  [style.width.%]="distractionBarWidth(row.count)"
+                ></span
+              ></span>
+              <b>{{ row.count }}</b>
+            </div>
+          } @empty {
+            <p class="chart-empty">Nenhuma distração registrada nos últimos blocos. 🎯</p>
+          }
+        } @else {
+          <p class="chart-empty">
+            Inicie um bloco de estudos e registre cada distração pelo cronômetro para ver
+            o gráfico.
+          </p>
+        }
+        <div class="distraction-categories">
+          <strong>Categorias</strong>
+          <div>
+            @for (category of academy.distractionCategories(); track category) {
+              <span class="category-chip"
+                >{{ category }}
+                <button
+                  type="button"
+                  [title]="'Remover ' + category"
+                  (click)="removeDistractionCategory(category)"
+                >
+                  <mat-icon>close</mat-icon>
+                </button></span
+              >
+            }
+          </div>
+          <div class="new-category">
+            <input
+              [(ngModel)]="newDistractionCategory"
+              placeholder="Nova categoria (ex.: YouTube)"
+              (keyup.enter)="addDistractionCategory()"
+            />
+            <button
+              type="button"
+              (click)="addDistractionCategory()"
+            >
+              <mat-icon>add</mat-icon>Adicionar
+            </button>
           </div>
         </div>
       </article>
@@ -233,30 +1036,72 @@
   } @else if (tab() === 'library') {
     <section class="library-layout">
       <aside class="arcane-card">
-        <header><span>ÁREAS</span><h2>Alas da Academia</h2></header>
+        <header>
+          <span>ÁREAS</span>
+          <h2>Alas da Academia</h2>
+        </header>
         @for (area of academy.areas(); track area.id) {
-          <button type="button" [class.active]="selectedAreaId() === area.id" [style.--area-color]="area.color" (click)="selectLibraryArea(area.id)">
-            <mat-icon>{{ area.icon }}</mat-icon>{{ area.title }}
-          </button>
+          <div class="area-row">
+            <button
+              type="button"
+              [class.active]="selectedAreaId() === area.id"
+              [style.--area-color]="area.color"
+              (click)="selectLibraryArea(area.id)"
+            >
+              <mat-icon>{{ area.icon }}</mat-icon
+              >{{ area.title }}
+            </button>
+            <button
+              type="button"
+              class="area-delete"
+              title="Excluir área"
+              (click)="deleteArea(area.id, area.title)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
         }
         <div class="creator">
-          <input [(ngModel)]="areaTitle" placeholder="Nova área" />
-          <input type="color" [(ngModel)]="areaColor" />
+          <input
+            [(ngModel)]="areaTitle"
+            placeholder="Nova área"
+          />
+          <input
+            type="color"
+            [(ngModel)]="areaColor"
+          />
           <button (click)="createArea()"><mat-icon>add</mat-icon></button>
         </div>
       </aside>
       <section class="arcane-card library-content">
         <header>
-          <div><span>GALERIA DE CONHECIMENTO</span><h2>{{ selectedArea()?.title || 'Selecione uma área' }}</h2></div>
-          <button type="button" (click)="exportData(['studies'])"><mat-icon>archive</mat-icon> Exportar estudos</button>
+          <div>
+            <span>GALERIA DE CONHECIMENTO</span>
+            <h2>{{ selectedArea()?.title || 'Selecione uma área' }}</h2>
+          </div>
+          <button
+            type="button"
+            (click)="exportData(['studies'])"
+          >
+            <mat-icon>archive</mat-icon> Exportar estudos
+          </button>
         </header>
-        <nav class="library-breadcrumbs" aria-label="Caminho da biblioteca">
-          <button type="button" (click)="openLibraryLevel(null)">
+        <nav
+          class="library-breadcrumbs"
+          aria-label="Caminho da biblioteca"
+        >
+          <button
+            type="button"
+            (click)="openLibraryLevel(null)"
+          >
             <mat-icon>home</mat-icon>{{ selectedArea()?.title || 'Área' }}
           </button>
           @for (node of libraryBreadcrumbs(); track node.id) {
             <mat-icon>chevron_right</mat-icon>
-            <button type="button" (click)="openLibraryLevel(node.id)">
+            <button
+              type="button"
+              (click)="openLibraryLevel(node.id)"
+            >
               {{ node.title }}
             </button>
           }
@@ -264,14 +1109,27 @@
         <div class="node-creator">
           <div>
             <mat-icon>{{ nextLibraryKind() ? 'add_circle' : 'check_circle' }}</mat-icon>
-            {{ nextLibraryKind() ? ('Novo ' + nodeKindLabel(nextLibraryKind())) : 'Último nível' }}
+            {{
+              nextLibraryKind()
+                ? 'Novo ' + nodeKindLabel(nextLibraryKind())
+                : 'Último nível'
+            }}
           </div>
           <input
             [(ngModel)]="nodeTitle"
             [disabled]="!nextLibraryKind()"
-            [placeholder]="nextLibraryKind() ? 'Nome do novo ' + nodeKindLabel(nextLibraryKind()) : 'Subassuntos não possuem filhos'"
+            [placeholder]="
+              nextLibraryKind()
+                ? 'Nome do novo ' + nodeKindLabel(nextLibraryKind())
+                : 'Subassuntos não possuem filhos'
+            "
           />
-          <button [disabled]="!selectedAreaId() || !nextLibraryKind() || !nodeTitle.trim()" (click)="createNode()">Adicionar</button>
+          <button
+            [disabled]="!selectedAreaId() || !nextLibraryKind() || !nodeTitle.trim()"
+            (click)="createNode()"
+          >
+            Adicionar
+          </button>
         </div>
         <div class="node-grid">
           @for (node of visibleLibraryNodes(); track node.id) {
@@ -288,8 +1146,17 @@
               >
                 <mat-icon>settings</mat-icon>
               </button>
+              <button
+                type="button"
+                class="node-delete"
+                title="Excluir"
+                (click)="$event.stopPropagation(); deleteLibraryNode(node)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
               <mat-icon>{{ node.icon }}</mat-icon>
-              <span>{{ nodeKindLabel(node.kind) }}</span><h3>{{ node.title }}</h3>
+              <span>{{ nodeKindLabel(node.kind) }}</span>
+              <h3>{{ node.title }}</h3>
               @if (node.description) {
                 <p>{{ node.description }}</p>
               }
@@ -297,6 +1164,25 @@
                 <small><mat-icon>link</mat-icon>{{ node.links?.length }} links</small>
               }
               <small>Dificuldade {{ node.difficulty }}/5 · peso {{ node.weight }}</small>
+              @if (academy.topicReviewFor(node.id); as review) {
+                <div
+                  class="review-status-badge"
+                  [class]="reviewBadgeStatus(review)"
+                  (click)="$event.stopPropagation(); openTopicReview(node.id)"
+                >
+                  <mat-icon>{{ reviewBadgeIcon(review) }}</mat-icon
+                  >{{ reviewBadgeLabel(review) }}
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  class="add-to-review-btn"
+                  title="Adicionar à repetição espaçada"
+                  (click)="addNodeToReview(node, $event)"
+                >
+                  <mat-icon>alarm_add</mat-icon> Adicionar à revisão
+                </button>
+              }
             </article>
           } @empty {
             <div class="empty-state">
@@ -310,47 +1196,222 @@
         </div>
         <div class="flashcard-creator">
           <h3>Criar flashcard nesta área</h3>
-          <textarea [(ngModel)]="flashcardQuestion" placeholder="Pergunta"></textarea>
-          <textarea [(ngModel)]="flashcardAnswer" placeholder="Resposta"></textarea>
-          <button [disabled]="!selectedAreaId()" (click)="createFlashcard()">Guardar no grimório</button>
+          <textarea
+            [(ngModel)]="flashcardQuestion"
+            placeholder="Pergunta"
+          ></textarea>
+          <textarea
+            [(ngModel)]="flashcardAnswer"
+            placeholder="Resposta"
+          ></textarea>
+          <button
+            [disabled]="!selectedAreaId()"
+            (click)="createFlashcard()"
+          >
+            Guardar no grimório
+          </button>
         </div>
       </section>
     </section>
   } @else if (tab() === 'review') {
     <section class="review-stage arcane-card">
-      <header><div><span>REPETIÇÃO ESPAÇADA</span><h2>Sala de revisão</h2></div><button (click)="exportData(['flashcards'])">Exportar flashcards</button></header>
+      <header>
+        <div>
+          <span>REPETIÇÃO ESPAÇADA</span>
+          <h2>Tópicos para revisar</h2>
+        </div>
+      </header>
+      <div class="review-today-list">
+        @for (row of todayReviewList(); track row.node.id) {
+          <div
+            role="button"
+            tabindex="0"
+            class="review-today-row"
+            (click)="openTopicReview(row.node.id)"
+            (keyup.enter)="openTopicReview(row.node.id)"
+          >
+            <mat-icon>{{
+              row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
+            }}</mat-icon>
+            <span class="review-today-path">{{ row.path }}</span>
+            @if (row.overdueDays > 0) {
+              <small class="overdue"
+                >{{ row.overdueDays }} dia{{
+                  row.overdueDays === 1 ? '' : 's'
+                }}
+                atrasado</small
+              >
+            } @else {
+              <small>Revisar hoje</small>
+            }
+            <button
+              type="button"
+              class="skip-review-btn"
+              title="Pular por hoje"
+              (click)="skipTopicReview(row.node.id, $event)"
+            >
+              <mat-icon>snooze</mat-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="review-today-empty">Nenhum tópico pendente de revisão.</p>
+        }
+      </div>
+
+      <h3 class="review-week-title">Esta semana</h3>
+      <div class="review-today-list">
+        @for (row of thisWeekReviewList(); track row.node.id) {
+          <div
+            role="button"
+            tabindex="0"
+            class="review-today-row"
+            (click)="openTopicReview(row.node.id)"
+            (keyup.enter)="openTopicReview(row.node.id)"
+          >
+            <mat-icon>event_upcoming</mat-icon>
+            <span class="review-today-path">{{ row.path }}</span>
+            <small>em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small>
+            <button
+              type="button"
+              class="skip-review-btn"
+              title="Adiar mais 1 dia"
+              (click)="skipTopicReview(row.node.id, $event)"
+            >
+              <mat-icon>snooze</mat-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="review-today-empty">
+            Nenhuma revisão programada para os próximos 7 dias.
+          </p>
+        }
+      </div>
+    </section>
+    <section class="review-stage arcane-card">
+      <header>
+        <div>
+          <span>GRIMÓRIO</span>
+          <h2>Flashcards</h2>
+        </div>
+        <button (click)="exportData(['flashcards'])">Exportar flashcards</button>
+      </header>
       @if (currentCard(); as card) {
-        <article class="review-card" (click)="cardAnswerVisible.set(true)">
-          <span>PERGUNTA</span><h2>{{ card.question }}</h2>
-          @if (cardAnswerVisible()) { <div><span>RESPOSTA</span><p>{{ card.answer }}</p></div> }
-          @else { <small>Clique para revelar a resposta</small> }
+        <article
+          class="review-card"
+          (click)="cardAnswerVisible.set(true)"
+        >
+          <span>PERGUNTA</span>
+          <h2>{{ card.question }}</h2>
+          @if (cardAnswerVisible()) {
+            <div>
+              <span>RESPOSTA</span>
+              <p>{{ card.answer }}</p>
+            </div>
+          } @else {
+            <small>Clique para revelar a resposta</small>
+          }
         </article>
         @if (cardAnswerVisible()) {
           <div class="rating-row">
-            <button (click)="rateCard(1)">Errei<small>1 dia</small></button>
+            <button (click)="rateCard(1)">Esqueci<small>1 dia</small></button>
             <button (click)="rateCard(2)">Difícil<small>intervalo curto</small></button>
             <button (click)="rateCard(3)">Bom<small>intervalo normal</small></button>
             <button (click)="rateCard(4)">Fácil<small>intervalo maior</small></button>
           </div>
         }
       } @else {
-        <div class="empty-state"><mat-icon>verified</mat-icon><h2>Revisões do dia concluídas</h2><p>Novos cartões aparecerão apenas quando estiverem vencidos.</p></div>
+        <div class="empty-state">
+          <mat-icon>verified</mat-icon>
+          <h2>Revisões do dia concluídas</h2>
+          <p>Novos cartões aparecerão apenas quando estiverem vencidos.</p>
+        </div>
       }
     </section>
   } @else {
     <section class="history-list arcane-card">
-      <header><div><span>ARQUIVO ANTIGO</span><h2>Histórico de estudos</h2></div><button (click)="exportData(['sessions'])">Exportar sessões</button></header>
+      <header>
+        <div>
+          <span>ARQUIVO ANTIGO</span>
+          <h2>Histórico de estudos</h2>
+        </div>
+        <button (click)="exportData(['sessions'])">Exportar sessões</button>
+      </header>
       @for (session of academy.recentSessions(); track session.id) {
-        <article><mat-icon>{{ session.status === 'completed' ? 'check_circle' : 'schedule' }}</mat-icon>
-          <div><strong>{{ session.title }}</strong><small>{{ session.startedAt | date:'dd/MM/yyyy HH:mm' }}</small></div>
-          <span>{{ minutes(session.actualMinutes || session.plannedMinutes) }}</span><b>+{{ session.xpEarned }} XP</b>
+        <article>
+          <mat-icon>{{
+            session.status === 'completed' ? 'check_circle' : 'schedule'
+          }}</mat-icon>
+          <div>
+            <strong>{{ session.title }}</strong
+            ><small
+              >{{ session.startedAt | date: 'dd/MM/yyyy HH:mm' }}
+              @if (session.distractions) {
+                · {{ session.distractions.length }} distraç{{
+                  session.distractions.length === 1 ? 'ão' : 'ões'
+                }}
+              }
+            </small>
+          </div>
+          <span>{{ minutes(session.actualMinutes || session.plannedMinutes) }}</span
+          ><b>+{{ session.xpEarned }} XP</b>
+          <div class="session-actions">
+            <button
+              type="button"
+              title="Registrar distrações desta sessão"
+              (click)="openSessionEditor(session)"
+            >
+              <mat-icon>psychology_alt</mat-icon>
+            </button>
+            <button
+              type="button"
+              title="Editar registro"
+              (click)="openSessionEditor(session)"
+            >
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button
+              type="button"
+              title="Excluir registro"
+              (click)="deleteSessionEntry(session, $event)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
         </article>
-      } @empty { <div class="empty-state">Nenhuma sessão registrada.</div> }
+      } @empty {
+        <div class="empty-state">Nenhuma sessão registrada.</div>
+      }
+    </section>
+    <section class="history-list arcane-card">
+      <header>
+        <div>
+          <span>REPETIÇÃO ESPAÇADA</span>
+          <h2>Histórico de revisões</h2>
+        </div>
+      </header>
+      @for (log of academy.recentTopicReviewLogs(); track log.id) {
+        <article>
+          <mat-icon>{{ log.rating >= 3 ? 'check_circle' : 'error' }}</mat-icon>
+          <div>
+            <strong>{{ nodeTitleForLog(log.nodeId) }}</strong>
+            <small
+              >{{ log.reviewedAt | date: 'dd/MM/yyyy HH:mm' }} ·
+              {{ ratingLabel(log.rating) }}</small
+            >
+          </div>
+          <span>{{ log.previousIntervalDays }}d → {{ log.nextIntervalDays }}d</span>
+        </article>
+      } @empty {
+        <div class="empty-state">Nenhuma revisão registrada.</div>
+      }
     </section>
   }
 
   @if (editingNodeId()) {
-    <div class="node-editor-backdrop" (click)="closeNodeEditor()">
+    <div
+      class="node-editor-backdrop"
+      (click)="closeNodeEditor()"
+    >
       <section
         class="node-editor"
         role="dialog"
@@ -359,8 +1420,17 @@
         (click)="$event.stopPropagation()"
       >
         <header>
-          <div><span>ARQUIVO DO CONHECIMENTO</span><h2 id="node-editor-title">Editar conteúdo</h2></div>
-          <button type="button" title="Fechar" (click)="closeNodeEditor()"><mat-icon>close</mat-icon></button>
+          <div>
+            <span>ARQUIVO DO CONHECIMENTO</span>
+            <h2 id="node-editor-title">Editar conteúdo</h2>
+          </div>
+          <button
+            type="button"
+            title="Fechar"
+            (click)="closeNodeEditor()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
         </header>
         <label>
           Nome
@@ -368,52 +1438,155 @@
         </label>
         <label>
           Descrição
-          <textarea rows="4" [(ngModel)]="editorDescription" placeholder="Resumo, objetivo e informações importantes"></textarea>
+          <textarea
+            rows="4"
+            [(ngModel)]="editorDescription"
+            placeholder="Resumo, objetivo e informações importantes"
+          ></textarea>
         </label>
         <div class="links-editor">
           <h3>Links e materiais externos</h3>
           @for (link of editorLinks; track $index) {
             <div>
-              <a [href]="link.url" target="_blank" rel="noopener noreferrer"><mat-icon>open_in_new</mat-icon>{{ link.label }}</a>
-              <button type="button" title="Remover link" (click)="removeEditorLink($index)"><mat-icon>delete</mat-icon></button>
+              <a
+                [href]="link.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                ><mat-icon>open_in_new</mat-icon>{{ link.label }}</a
+              >
+              <button
+                type="button"
+                title="Remover link"
+                (click)="removeEditorLink($index)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
           }
           <div class="link-creator">
-            <input [(ngModel)]="editorLinkLabel" placeholder="Nome do link" />
-            <input [(ngModel)]="editorLinkUrl" placeholder="https://..." />
-            <button type="button" (click)="addEditorLink()"><mat-icon>add_link</mat-icon>Adicionar</button>
+            <input
+              [(ngModel)]="editorLinkLabel"
+              placeholder="Nome do link"
+            />
+            <input
+              [(ngModel)]="editorLinkUrl"
+              placeholder="https://..."
+            />
+            <button
+              type="button"
+              (click)="addEditorLink()"
+            >
+              <mat-icon>add_link</mat-icon>Adicionar
+            </button>
           </div>
         </div>
         <section class="notion-editor">
           <header>
             <div>
               <strong>Anotações completas</strong>
-              <small>Markdown compatível com títulos, listas, links, imagens e código</small>
+              <small
+                >Markdown compatível com títulos, listas, links, imagens e código</small
+              >
             </div>
             <nav>
-              <button type="button" class="draw-action" (click)="excalidrawOpen.set(true)">
+              <button
+                type="button"
+                class="draw-action"
+                (click)="excalidrawOpen.set(true)"
+              >
                 <mat-icon>draw</mat-icon>Desenhar
               </button>
-              <button type="button" [class.active]="notesMode() === 'write'" (click)="notesMode.set('write')">
+              <button
+                type="button"
+                [class.active]="notesMode() === 'write'"
+                (click)="notesMode.set('write')"
+              >
                 <mat-icon>edit</mat-icon>Escrever
               </button>
-              <button type="button" [class.active]="notesMode() === 'preview'" (click)="notesMode.set('preview')">
+              <button
+                type="button"
+                [class.active]="notesMode() === 'preview'"
+                (click)="notesMode.set('preview')"
+              >
                 <mat-icon>visibility</mat-icon>Visualizar
               </button>
             </nav>
           </header>
           @if (notesMode() === 'write') {
-            <div class="markdown-toolbar" aria-label="Formatação Markdown">
-              <button type="button" title="Título" (click)="formatMarkdown('## ', '', 'Título')">H2</button>
-              <button type="button" title="Negrito" (click)="formatMarkdown('**', '**', 'negrito')"><strong>B</strong></button>
-              <button type="button" title="Itálico" (click)="formatMarkdown('*', '*', 'itálico')"><em>I</em></button>
-              <button type="button" title="Lista" (click)="formatMarkdown('- ', '', 'item da lista')"><mat-icon>format_list_bulleted</mat-icon></button>
-              <button type="button" title="Checklist" (click)="formatMarkdown('- [ ] ', '', 'tarefa')"><mat-icon>check_box</mat-icon></button>
-              <button type="button" title="Citação" (click)="formatMarkdown('> ', '', 'citação')"><mat-icon>format_quote</mat-icon></button>
-              <button type="button" title="Código" (click)="formatMarkdown('`', '`', 'código')"><mat-icon>code</mat-icon></button>
-              <button type="button" title="Link" (click)="formatMarkdown('[', '](https://)', 'texto do link')"><mat-icon>link</mat-icon></button>
-              <button type="button" title="Imagem" (click)="formatMarkdown('![', '](https://)', 'descrição da imagem')"><mat-icon>image</mat-icon></button>
-              <button type="button" title="Separador" (click)="formatMarkdown('\n---\n', '', '')"><mat-icon>horizontal_rule</mat-icon></button>
+            <div
+              class="markdown-toolbar"
+              aria-label="Formatação Markdown"
+            >
+              <button
+                type="button"
+                title="Título"
+                (click)="formatMarkdown('## ', '', 'Título')"
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                title="Negrito"
+                (click)="formatMarkdown('**', '**', 'negrito')"
+              >
+                <strong>B</strong>
+              </button>
+              <button
+                type="button"
+                title="Itálico"
+                (click)="formatMarkdown('*', '*', 'itálico')"
+              >
+                <em>I</em>
+              </button>
+              <button
+                type="button"
+                title="Lista"
+                (click)="formatMarkdown('- ', '', 'item da lista')"
+              >
+                <mat-icon>format_list_bulleted</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Checklist"
+                (click)="formatMarkdown('- [ ] ', '', 'tarefa')"
+              >
+                <mat-icon>check_box</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Citação"
+                (click)="formatMarkdown('> ', '', 'citação')"
+              >
+                <mat-icon>format_quote</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Código"
+                (click)="formatMarkdown('`', '`', 'código')"
+              >
+                <mat-icon>code</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Link"
+                (click)="formatMarkdown('[', '](https://)', 'texto do link')"
+              >
+                <mat-icon>link</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Imagem"
+                (click)="formatMarkdown('![', '](https://)', 'descrição da imagem')"
+              >
+                <mat-icon>image</mat-icon>
+              </button>
+              <button
+                type="button"
+                title="Separador"
+                (click)="formatMarkdown('\n---\n', '', '')"
+              >
+                <mat-icon>horizontal_rule</mat-icon>
+              </button>
             </div>
             <textarea
               #notesTextarea
@@ -425,9 +1598,14 @@
           } @else {
             <article class="markdown-preview">
               @if (editorNotes.trim()) {
-                <div markdown [data]="editorNotes"></div>
+                <div
+                  markdown
+                  [data]="editorNotes"
+                ></div>
               } @else {
-                <div class="markdown-empty"><mat-icon>description</mat-icon>Nenhuma anotação escrita.</div>
+                <div class="markdown-empty">
+                  <mat-icon>description</mat-icon>Nenhuma anotação escrita.
+                </div>
               }
             </article>
           }
@@ -438,21 +1616,33 @@
               (click)="excalidrawOpen.set(true)"
               title="Abrir desenho no Excalidraw"
             >
-              <img [src]="editorDrawing?.previewDataUrl" alt="Pré-visualização do desenho salvo" />
+              <img
+                [src]="editorDrawing?.previewDataUrl"
+                alt="Pré-visualização do desenho salvo"
+              />
               <span><mat-icon>draw</mat-icon>Desenho salvo · clique para editar</span>
             </button>
           }
         </section>
         @if (excalidrawOpen()) {
-          <div class="excalidraw-backdrop" (click)="closeDrawingEditor()">
-            <section class="excalidraw-window" (click)="$event.stopPropagation()">
+          <div
+            class="excalidraw-backdrop"
+            (click)="closeDrawingEditor()"
+          >
+            <section
+              class="excalidraw-window"
+              (click)="$event.stopPropagation()"
+            >
               <header>
                 <div>
                   <span>QUADRO VISUAL</span>
                   <h2>Excalidraw</h2>
                   <small>Desenhe diagramas, mapas mentais e esquemas visuais.</small>
                 </div>
-                <button type="button" (click)="closeDrawingEditor()">
+                <button
+                  type="button"
+                  (click)="closeDrawingEditor()"
+                >
                   <mat-icon>save</mat-icon>Concluir e salvar
                 </button>
               </header>
@@ -464,9 +1654,276 @@
           </div>
         }
         <footer>
-          <button type="button" (click)="closeNodeEditor()">Cancelar</button>
-          <button type="button" class="primary" [disabled]="!editorTitle.trim()" (click)="saveNodeEditor()">
+          <button
+            type="button"
+            (click)="closeNodeEditor()"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="primary"
+            [disabled]="!editorTitle.trim()"
+            (click)="saveNodeEditor()"
+          >
             <mat-icon>save</mat-icon>Salvar alterações
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (reviewingNode(); as node) {
+    <div
+      class="node-editor-backdrop"
+      (click)="closeTopicReview()"
+    >
+      <section
+        class="topic-review-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="topic-review-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <span>REPETIÇÃO ESPAÇADA</span>
+            <h2 id="topic-review-title">{{ reviewingNodePath() }}</h2>
+          </div>
+          <button
+            type="button"
+            title="Fechar"
+            (click)="closeTopicReview()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+
+        <div class="topic-review-stats">
+          <div>
+            <small>Último estudo</small>
+            <strong>{{
+              reviewingNodeLastStudiedAt()
+                ? (reviewingNodeLastStudiedAt() | date: 'dd/MM')
+                : '—'
+            }}</strong>
+          </div>
+          <div>
+            <small>Última revisão</small>
+            <strong>{{
+              reviewingNodeState()?.lastReviewedAt
+                ? (reviewingNodeState()!.lastReviewedAt | date: 'dd/MM')
+                : '—'
+            }}</strong>
+          </div>
+          <div>
+            <small>Revisões realizadas</small>
+            <strong>{{ reviewingNodeState()?.reviewCount ?? 0 }}</strong>
+          </div>
+        </div>
+
+        @if (reviewResult(); as result) {
+          <div class="topic-review-done">
+            <mat-icon>verified</mat-icon>
+            <h3>Revisão concluída</h3>
+            <p>
+              Próxima revisão em <strong>{{ result.nextIntervalDays }}</strong> dia{{
+                result.nextIntervalDays === 1 ? '' : 's'
+              }}.
+            </p>
+            <button
+              type="button"
+              (click)="closeTopicReview()"
+            >
+              Fechar
+            </button>
+          </div>
+        } @else {
+          <div class="recall-prompt">
+            <mat-icon>psychology</mat-icon>
+            <p>Antes de consultar seu material, tente explicar o assunto de memória.</p>
+          </div>
+
+          @if (reviewingNodeDueFlashcardsCount() > 0) {
+            <div class="topic-review-flashcard-hint">
+              <span
+                >Existem {{ reviewingNodeDueFlashcardsCount() }} flashcard{{
+                  reviewingNodeDueFlashcardsCount() === 1 ? '' : 's'
+                }}
+                deste tópico para revisar.</span
+              >
+              <button
+                type="button"
+                (click)="closeTopicReview(); tab.set('review')"
+              >
+                Revisar agora
+              </button>
+            </div>
+          }
+
+          <div class="topic-review-actions">
+            <button
+              type="button"
+              (click)="openReviewingNodeMaterial()"
+            >
+              <mat-icon>menu_book</mat-icon> Ver material
+            </button>
+            <button
+              type="button"
+              (click)="skipTopicReview(node.id)"
+            >
+              <mat-icon>snooze</mat-icon> Pular
+            </button>
+            @if (!reviewAnswerVisible()) {
+              <button
+                type="button"
+                class="primary"
+                (click)="reviewAnswerVisible.set(true)"
+              >
+                Como foi?
+              </button>
+            }
+          </div>
+
+          @if (reviewAnswerVisible()) {
+            <div class="rating-row">
+              <button (click)="submitTopicReview(1)">
+                Esqueci<small>revisão muito próxima</small>
+              </button>
+              <button (click)="submitTopicReview(2)">
+                Difícil<small>intervalo curto</small>
+              </button>
+              <button (click)="submitTopicReview(3)">
+                Bom<small>intervalo normal</small>
+              </button>
+              <button (click)="submitTopicReview(4)">
+                Fácil<small>intervalo maior</small>
+              </button>
+            </div>
+          }
+        }
+      </section>
+    </div>
+  }
+
+  @if (editingSessionId(); as sessionId) {
+    <div
+      class="node-editor-backdrop"
+      (click)="closeSessionEditor()"
+    >
+      <section
+        class="session-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-editor-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <span>ARQUIVO ANTIGO</span>
+            <h2 id="session-editor-title">Editar registro</h2>
+          </div>
+          <button
+            type="button"
+            title="Fechar"
+            (click)="closeSessionEditor()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+        <label>Título<input [(ngModel)]="editSessionTitle" /></label>
+        <label
+          >Data<input
+            type="date"
+            [(ngModel)]="editSessionDate"
+            [max]="today"
+        /></label>
+        <label
+          >Minutos<input
+            type="number"
+            min="1"
+            [(ngModel)]="editSessionMinutes"
+        /></label>
+        @if (editingSession(); as editing) {
+          <div class="distraction-editor">
+            <strong>Distrações ({{ editing.distractions?.length ?? 0 }})</strong>
+            @for (item of editing.distractions ?? []; track item.id) {
+              <div class="distraction-edit-row">
+                <select
+                  [ngModel]="item.category"
+                  (ngModelChange)="
+                    academy.updateDistraction(editing.id, item.id, {
+                      category: $event,
+                      note: item.note,
+                    })
+                  "
+                  aria-label="Categoria"
+                >
+                  @for (category of academy.distractionCategories(); track category) {
+                    <option [value]="category">{{ category }}</option>
+                  }
+                  @if (!academy.distractionCategories().includes(item.category)) {
+                    <option [value]="item.category">{{ item.category }}</option>
+                  }
+                </select>
+                <input
+                  [ngModel]="item.note"
+                  (change)="
+                    academy.updateDistraction(editing.id, item.id, {
+                      category: item.category,
+                      note: $any($event.target).value,
+                    })
+                  "
+                  placeholder="Motivo"
+                  aria-label="Motivo"
+                />
+                <button
+                  type="button"
+                  title="Apagar"
+                  (click)="academy.removeDistraction(editing.id, item.id)"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+            <div class="distraction-edit-row add">
+              <select
+                [(ngModel)]="editDistractionCategory"
+                aria-label="Categoria da nova distração"
+              >
+                @for (category of academy.distractionCategories(); track category) {
+                  <option [value]="category">{{ category }}</option>
+                }
+              </select>
+              <input
+                [(ngModel)]="editDistractionNote"
+                placeholder="Motivo (opcional)"
+                (keyup.enter)="addDistractionToEditingSession()"
+              />
+              <button
+                type="button"
+                title="Adicionar distração"
+                (click)="addDistractionToEditingSession()"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+        <footer>
+          <button
+            type="button"
+            (click)="closeSessionEditor()"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="primary"
+            [disabled]="!editSessionTitle.trim()"
+            (click)="saveSessionEdit()"
+          >
+            <mat-icon>save</mat-icon>Salvar
           </button>
         </footer>
       </section>

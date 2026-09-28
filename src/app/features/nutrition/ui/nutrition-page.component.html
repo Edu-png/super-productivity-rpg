@@ -1216,21 +1216,133 @@
             <div class="log-row">
               <span>{{ extra.description }}</span
               ><b>+{{ extra.calories }} kcal</b>
+              <button
+                type="button"
+                class="icon-btn"
+                (click)="removeHistoryExtra(extra.id)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
           } @empty {
             <p class="muted">Nenhum.</p>
           }
+          <div class="history-add-row">
+            <input
+              placeholder="Descrição"
+              [(ngModel)]="historyExtraDescription"
+            />
+            <input
+              type="number"
+              min="1"
+              placeholder="kcal"
+              [(ngModel)]="historyExtraCalories"
+            />
+            <button
+              type="button"
+              (click)="saveHistoryExtra()"
+            >
+              Adicionar
+            </button>
+          </div>
+
           <h3>Exercícios</h3>
           @for (exercise of detail.exercises; track exercise.id) {
             <div class="log-row">
               <span>{{ exerciseTypeLabel(exercise.type) }}</span
               ><b>{{ exercise.caloriesBurned }} kcal</b>
+              <button
+                type="button"
+                class="icon-btn"
+                (click)="removeHistoryExercise(exercise.id)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
           } @empty {
             <p class="muted">Nenhum.</p>
           }
+          <div class="history-add-row">
+            <select [(ngModel)]="historyExerciseType">
+              <option value="run">Corrida</option>
+              <option value="gym">Academia</option>
+              <option value="other">Outro</option>
+            </select>
+            <input
+              type="number"
+              min="1"
+              placeholder="kcal"
+              [(ngModel)]="historyExerciseCalories"
+            />
+            <input
+              type="number"
+              min="0"
+              placeholder="minutos (opcional)"
+              [(ngModel)]="historyExerciseDuration"
+            />
+            <button
+              type="button"
+              (click)="saveHistoryExercise()"
+            >
+              Adicionar
+            </button>
+          </div>
+
           <h3>Água</h3>
           <p>{{ formatLiters(sumWater(detail.waterLogs)) }} registrados</p>
+          <div class="history-add-row">
+            <button
+              type="button"
+              (click)="addHistoryWater(250)"
+            >
+              +250ml
+            </button>
+            <button
+              type="button"
+              (click)="addHistoryWater(500)"
+            >
+              +500ml
+            </button>
+            <button
+              type="button"
+              (click)="addHistoryWater(750)"
+            >
+              +750ml
+            </button>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="historyCustomWaterMl"
+            />
+            <button
+              type="button"
+              (click)="addHistoryCustomWater()"
+            >
+              Adicionar
+            </button>
+            <button
+              type="button"
+              (click)="undoHistoryWater()"
+            >
+              Desfazer último
+            </button>
+          </div>
+
+          <footer class="history-day-footer">
+            @if (detail.day.completedAt) {
+              <span class="day-complete-badge"
+                ><mat-icon>check_circle</mat-icon>Dia concluído</span
+              >
+            } @else {
+              <button
+                type="button"
+                class="complete-day-btn"
+                (click)="completeHistoryDay()"
+              >
+                Concluir dia
+              </button>
+            }
+          </footer>
         }
       </section>
     </div>
