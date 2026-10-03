@@ -27,6 +27,8 @@ export interface LibraryGame {
   favorite: boolean;
   tags: string[];
   notes: string;
+  /** Short synopsis (filled by the AI fact sheet or by hand). */
+  synopsis?: string;
   coverDataUrl: string | null;
   color: string;
   plannedMonth: string | null;

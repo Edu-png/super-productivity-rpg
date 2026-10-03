@@ -1,3 +1,5 @@
+import { CareerQuestState } from '../career-quest/career-quest.model';
+
 export type RpgAttributeId =
   | 'health'
   | 'intelligence'
@@ -377,6 +379,8 @@ export interface RpgProfileState {
   penaltyMoneyTransferred?: number;
   contracts?: RpgContract[];
   weeklyReviews?: Record<string, RpgWeeklyReview>;
+  /** Career Quest progress (levels, evidence, quests) for this character. */
+  careerQuest?: CareerQuestState;
   /** Dated record of every manual penalty application (for the reports tab). Starts empty on older states. */
   penaltyLog?: RpgPenaltyLogEntry[];
   /** Dated record of every "Marquei como separado" transfer into the punishment savings box. */
@@ -421,6 +425,16 @@ export interface RpgProfileState {
    * Populated lazily as each tier unlocks; a missing entry means "still
    * counting from classMetricBaselines / not yet reached that far". */
   classTierBaselines?: Partial<Record<RpgClassId, Record<number, number>>>;
+  /** Per-class, per-tier-index (0-4) timestamp of when that title unlocked -
+   * the persisted source for honorBonus (titles pay XP/gold). */
+  classUnlockedTitleTiers?: Partial<Record<RpgClassId, Record<number, number>>>;
+  /**
+   * XP/gold multipliers over time: each entry applies to XP earned from `at`
+   * until the next entry. Lets class/subclass/item/title changes affect only
+   * what's earned afterwards instead of re-scaling all past XP. Absent on
+   * characters from before this existed (seeded on first load).
+   */
+  multiplierHistory?: { at: number; xp: number; gold: number }[];
 }
 
 export interface RpgProfilesState {

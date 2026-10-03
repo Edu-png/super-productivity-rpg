@@ -228,6 +228,89 @@
             }
           </span>
         </div>
+        @let bonus = profile.bonusBreakdown();
+        <div class="bonus-status">
+          <table>
+            <caption>
+              Seus bônus
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Fonte</th>
+                <th scope="col">XP</th>
+                <th scope="col">Ouro</th>
+                <th
+                  scope="col"
+                  title="Chance de ganhar item raro a cada nível que você sobe"
+                >
+                  Item raro (por nível)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of bonus.rows; track row.source) {
+                @if (row.xp || row.gold || row.rare) {
+                  <tr>
+                    <th scope="row">{{ row.source }}</th>
+                    <td>
+                      {{ row.xp ? '+' + (row.xp * 100 | number: '1.0-1') + '%' : '—' }}
+                    </td>
+                    <td>
+                      {{
+                        row.gold ? '+' + (row.gold * 100 | number: '1.0-1') + '%' : '—'
+                      }}
+                    </td>
+                    <td>
+                      {{ row.rare ? (row.rare * 100 | number: '1.0-1') + '%' : '—' }}
+                    </td>
+                  </tr>
+                }
+              }
+              @if (bonus.realm; as realm) {
+                <tr class="conditional">
+                  <th scope="row">Cidade: {{ realm.name }}*</th>
+                  <td>
+                    {{ realm.xp ? '+' + (realm.xp * 100 | number: '1.0-1') + '%' : '—' }}
+                  </td>
+                  <td>
+                    {{
+                      realm.gold ? '+' + (realm.gold * 100 | number: '1.0-1') + '%' : '—'
+                    }}
+                  </td>
+                  <td>
+                    {{
+                      realm.rare
+                        ? (realm.rare * 100 | number: '1.0-1') + '% por tarefa'
+                        : '—'
+                    }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Total</th>
+                <td>+{{ bonus.total.xp * 100 | number: '1.0-1' }}%</td>
+                <td>+{{ bonus.total.gold * 100 | number: '1.0-1' }}%</td>
+                <td
+                  [title]="
+                    'Teto: ' +
+                    (bonus.rareCap * 100 | number: '1.0-1') +
+                    '% (22% + 0,1% por ponto de Sorte, máx. 30%)'
+                  "
+                >
+                  {{ bonus.total.rare * 100 | number: '1.0-1' }}%{{
+                    bonus.rareCapped ? ' (teto)' : ''
+                  }}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+          <p class="bonus-note">
+            * Bônus da cidade vale só para tarefas de projetos ligados a ela e não entra
+            no total.
+          </p>
+        </div>
         @if (profile.hasMasteredCurrentClass()) {
           <div class="class-mastery">
             <mat-icon>military_tech</mat-icon>
@@ -322,7 +405,6 @@
       <p class="shop-message">{{ extraBackupDirMessage }}</p>
     }
   </section>
-
   <div class="dashboard-grid">
     <section class="card quest-card titles-medals-card">
       <h2><span>🎖</span> Títulos e medalhas</h2>
@@ -360,13 +442,21 @@
       </div>
 
       <ul class="title-quest-list">
-        @for (tier of profile.classTitleTiers(); track tier.id) {
+        @for (tier of profile.classTitleTiers(); track tier.id; let tierIndex = $index) {
           <li [class.done]="tier.isUnlocked">
             <div class="title-quest-heading">
               <strong>{{ tier.title }}</strong>
               <span>Nível {{ tier.level }}</span>
             </div>
             <small>{{ tier.questLabel }}</small>
+            @let titleBonus = profile.titleReward(tierIndex);
+            <small
+              class="achv-reward"
+              [class.earned]="tier.isUnlocked"
+              >{{ tier.isUnlocked ? 'Bônus ativo' : 'Ao liberar' }}: +{{
+                titleBonus.xp * 100 | number: '1.0-1'
+              }}% XP · +{{ titleBonus.gold * 100 | number: '1.0-1' }}% ouro</small
+            >
             @if (tier.isUnlocked) {
               <b class="rpg-status-badge">CONQUISTADO</b>
             } @else {

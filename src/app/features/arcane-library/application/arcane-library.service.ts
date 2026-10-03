@@ -11,9 +11,13 @@ import {
 } from '../domain/arcane-library.models';
 import { ArcaneLibraryRepository } from '../persistence/arcane-library.repository';
 import { RpgProfileService } from '../../rpg-profile/rpg-profile.service';
+import { shrinkLargeInlineImages } from '../../../util/shrink-image-data-url';
 
 const COLORS = ['#6857d9', '#b54b62', '#338eaa', '#c49335', '#5e9b61', '#9b52b3'];
 const dateKey = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const localDateKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 @Injectable()
@@ -64,6 +68,24 @@ export class ArcaneLibraryService {
         annualGoal: 40,
       },
     );
+    void this._shrinkStoredCovers();
+  }
+
+  // Covers used to be stored at full resolution (up to ~5 MB each), bloating
+  // every save, sync and backup. Downscale the old ones once.
+  private async _shrinkStoredCovers(): Promise<void> {
+    for (const book of this.books()) {
+      if (!book.coverDataUrl) continue;
+      const replacements = await shrinkLargeInlineImages(book.coverDataUrl);
+      const coverDataUrl = replacements.get(book.coverDataUrl);
+      if (!coverDataUrl) continue;
+      const current = this.books().find((row) => row.id === book.id) ?? book;
+      const updated = { ...current, coverDataUrl };
+      await this.repository.putBook(updated);
+      this.books.update((rows) =>
+        rows.map((row) => (row.id === updated.id ? updated : row)),
+      );
+    }
   }
 
   async createBook(
@@ -227,6 +249,63 @@ export class ArcaneLibraryService {
     });
   }
 
+  listLogsByDate(date: string): Promise<ReadingLog[]> {
+    return this.repository.listLogsByDate(this.profileId(), date);
+  }
+
+  /** Edits (or, with `next` null, deletes) a past reading log. */
+  async replaceLog(previous: ReadingLog, next: ReadingLog | null): Promise<void> {
+    const updated = next
+      ? (() => {
+          const pages = Math.max(0, next.endPage - next.startPage);
+          return {
+            ...next,
+            minutes: Math.max(1, next.minutes),
+            xpEarned: pages > 0 ? Math.max(1, Math.ceil(pages / 5)) : 0,
+            goldEarned: Math.floor(pages / 50),
+          };
+        })()
+      : null;
+    const aggregates = await this.repository.replaceLog(previous, updated);
+    // Same undo-then-grant as Academia Arcana's session edits.
+    this.rpg.revokeExternalReward(
+      previous.id,
+      previous.xpEarned,
+      previous.goldEarned,
+      this.profileId(),
+    );
+    if (updated) {
+      this.rpg.grantExternalReward(
+        updated.id,
+        updated.xpEarned,
+        updated.goldEarned,
+        'arcane-library',
+        this.profileId(),
+      );
+    }
+    this.aggregates.update((rows) => [
+      ...rows.filter((row) => !aggregates.some((item) => item.id === row.id)),
+      ...aggregates,
+    ]);
+    // The book's current page follows its logs when this log was what set it.
+    const book = this.books().find((row) => row.id === previous.bookId);
+    if (!book) return;
+    const others = (await this.repository.listLogs(book.id)).filter(
+      (log) => log.id !== previous.id,
+    );
+    const otherMax = Math.max(0, ...others.map((log) => log.endPage));
+    const currentPage =
+      previous.endPage >= book.currentPage
+        ? Math.max(otherMax, updated?.endPage ?? 0)
+        : Math.max(book.currentPage, updated?.endPage ?? 0);
+    if (currentPage !== book.currentPage) {
+      await this.updateBook({
+        ...book,
+        currentPage: Math.min(currentPage, book.pages || currentPage),
+      });
+    }
+  }
+
   async saveSettings(settings: LibrarySettings): Promise<void> {
     this.settings.set(settings);
     await this.repository.putSettings(settings);
@@ -236,6 +315,7 @@ export class ArcaneLibraryService {
     title: string,
     metric: ReadingChallenge['metric'],
     target: number,
+    startDate = localDateKey(new Date()),
   ): Promise<void> {
     if (!title.trim() || target < 1) return;
     const challenge: ReadingChallenge = {
@@ -248,9 +328,18 @@ export class ArcaneLibraryService {
       xpReward: target * 2,
       goldReward: Math.ceil(target / 2),
       completedAt: null,
+      startDate,
     };
     await this.repository.putChallenge(challenge);
     this.challenges.update((rows) => [...rows, challenge]);
+  }
+
+  async setChallengeStartDate(id: string, startDate: string): Promise<void> {
+    const current = this.challenges().find((row) => row.id === id);
+    if (!current || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
+    const updated = { ...current, startDate };
+    await this.repository.putChallenge(updated);
+    this.challenges.update((rows) => rows.map((row) => (row.id === id ? updated : row)));
   }
 
   async removeChallenge(id: string): Promise<void> {

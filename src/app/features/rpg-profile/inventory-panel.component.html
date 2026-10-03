@@ -29,13 +29,20 @@
         >
           @if (profile.equippedItem(slot.id); as item) {
             @if (item.imageUrl) {
-              <img [src]="item.imageUrl" [alt]="item.name" />
+              <img
+                [src]="item.imageUrl"
+                [alt]="item.name"
+              />
             } @else {
               <mat-icon>{{ item.icon }}</mat-icon>
             }
             <span>{{ item.name }}</span>
           } @else {
-            <img class="empty-slot-icon" [src]="slot.imageUrl" alt="" />
+            <img
+              class="empty-slot-icon"
+              [src]="slot.imageUrl"
+              alt=""
+            />
             <span>{{ slot.label }}</span>
           }
         </button>
@@ -48,7 +55,10 @@
           <div class="equipment-showcase weapon-showcase">
             <small>ARMA</small>
             @if (weapon.imageUrl) {
-              <img [src]="weapon.imageUrl" [alt]="weapon.name" />
+              <img
+                [src]="weapon.imageUrl"
+                [alt]="weapon.name"
+              />
             } @else {
               <mat-icon>{{ weapon.icon }}</mat-icon>
             }
@@ -65,11 +75,26 @@
           <div class="equipment-showcase pet-showcase">
             <small>MASCOTE</small>
             @if (pet.imageUrl) {
-              <img [src]="pet.imageUrl" [alt]="pet.name" />
+              <img
+                [src]="pet.imageUrl"
+                [alt]="pet.name"
+              />
             } @else {
               <mat-icon>{{ pet.icon }}</mat-icon>
             }
             <span>{{ pet.name }}</span>
+            @if (petInfo(); as info) {
+              <ul
+                class="pet-attributes"
+                [title]="'Vindos de ' + info.itemName"
+              >
+                @for (stat of info.stats; track stat.label) {
+                  <li>
+                    {{ stat.label }} {{ stat.points }} <em>{{ stat.effect }}</em>
+                  </li>
+                }
+              </ul>
+            }
           </div>
         }
       </div>
@@ -81,6 +106,31 @@
             <b>{{ stat.value }}</b>
           </span>
         }
+      </div>
+      @let luck = luckInfo();
+      <div class="luck-explainer">
+        <strong
+          ><mat-icon>casino</mat-icon> Sorte {{ luck.total }}
+          <small
+            >({{ luck.fromItems }} dos itens + {{ luck.fromStars }} das
+            constelações)</small
+          ></strong
+        >
+        <p>
+          Ao subir de nível: <b>+{{ luck.chance }}</b> de chance de ganhar item · teto
+          <b>{{ luck.cap }}</b> (22% + 0,1% por ponto, máx. 30%)
+        </p>
+        <p>
+          Raridade do item que cai:
+          @for (odd of luck.odds; track odd.label; let last = $last) {
+            {{ odd.label }} <b>{{ odd.value }}</b
+            >{{ last ? '' : ' · ' }}
+          }
+        </p>
+        <p>
+          Roleta (5 itens → 1 uma raridade acima do pior): chance de subir
+          <b>duas</b> raridades <b>{{ luck.doubleJump }}</b>
+        </p>
       </div>
     </div>
 
@@ -100,13 +150,20 @@
         >
           @if (profile.equippedItem(slot.id); as item) {
             @if (item.imageUrl) {
-              <img [src]="item.imageUrl" [alt]="item.name" />
+              <img
+                [src]="item.imageUrl"
+                [alt]="item.name"
+              />
             } @else {
               <mat-icon>{{ item.icon }}</mat-icon>
             }
             <span>{{ item.name }}</span>
           } @else {
-            <img class="empty-slot-icon" [src]="slot.imageUrl" alt="" />
+            <img
+              class="empty-slot-icon"
+              [src]="slot.imageUrl"
+              alt=""
+            />
             <span>{{ slot.label }}</span>
           }
         </button>
@@ -145,7 +202,9 @@
         <button
           type="button"
           (click)="upgradeSelected($event)"
-          [disabled]="selectedItems().length !== 1 || !profile.canUseItem(selectedItems()[0])"
+          [disabled]="
+            selectedItems().length !== 1 || !profile.canUseItem(selectedItems()[0])
+          "
         >
           <mat-icon>upgrade</mat-icon>
           Aprimorar
@@ -160,6 +219,15 @@
         >
           <mat-icon>auto_fix_high</mat-icon>
           Fundir 3
+        </button>
+        <button
+          type="button"
+          title="Troca 5 itens por 1 de raridade acima do pior deles"
+          (click)="rerollSelected($event)"
+          [disabled]="selectedItems().length !== 5"
+        >
+          <mat-icon>casino</mat-icon>
+          Roletar 5
         </button>
         <button
           type="button"
@@ -186,7 +254,10 @@
           (dblclick)="equipByClick($event, item)"
         >
           @if (item.imageUrl) {
-            <img [src]="item.imageUrl" [alt]="item.name" />
+            <img
+              [src]="item.imageUrl"
+              [alt]="item.name"
+            />
           } @else {
             <mat-icon>{{ item.icon }}</mat-icon>
           }
@@ -196,7 +267,7 @@
           @if (!profile.canUseItem(item)) {
             <span class="class-lock">
               <mat-icon>lock</mat-icon>
-              {{ item.requiredClass || ('Nv. ' + item.requiredLevel) }}
+              {{ item.requiredClass || 'Nv. ' + item.requiredLevel }}
             </span>
           }
           @if ((item.upgradeLevel ?? 0) > 0) {
@@ -215,13 +286,25 @@
   }
 
   @if (overflowItem(); as incoming) {
-    <div class="overflow-backdrop" (click)="$event.stopPropagation()">
-      <section class="overflow-dialog" (click)="$event.stopPropagation()">
+    <div
+      class="overflow-backdrop"
+      (click)="$event.stopPropagation()"
+    >
+      <section
+        class="overflow-dialog"
+        (click)="$event.stopPropagation()"
+      >
         <span class="overflow-kicker">MOCHILA CHEIA · 22/22</span>
         <h3>Você encontrou {{ incoming.name }}</h3>
-        <div class="overflow-item-preview" [attr.data-rarity]="incoming.rarity">
+        <div
+          class="overflow-item-preview"
+          [attr.data-rarity]="incoming.rarity"
+        >
           @if (incoming.imageUrl) {
-            <img [src]="incoming.imageUrl" [alt]="incoming.name" />
+            <img
+              [src]="incoming.imageUrl"
+              [alt]="incoming.name"
+            />
           } @else {
             <mat-icon>{{ incoming.icon }}</mat-icon>
           }
@@ -231,8 +314,8 @@
           </div>
         </div>
         <p>
-          Escolha um item da mochila para remover e guardar o novo, ou venda o
-          item recém-encontrado.
+          Escolha um item da mochila para remover e guardar o novo, ou venda o item
+          recém-encontrado.
         </p>
         <div class="overflow-replace-grid">
           @for (item of backpack(); track item.id) {
@@ -243,7 +326,10 @@
               [title]="'Remover ' + item.name"
             >
               @if (item.imageUrl) {
-                <img [src]="item.imageUrl" [alt]="item.name" />
+                <img
+                  [src]="item.imageUrl"
+                  [alt]="item.name"
+                />
               } @else {
                 <mat-icon>{{ item.icon }}</mat-icon>
               }
@@ -251,7 +337,11 @@
             </button>
           }
         </div>
-        <button type="button" class="sell-overflow" (click)="sellOverflow($event)">
+        <button
+          type="button"
+          class="sell-overflow"
+          (click)="sellOverflow($event)"
+        >
           <mat-icon>paid</mat-icon>
           Vender {{ incoming.name }} por {{ profile.itemSaleValue(incoming) }} moedas
         </button>

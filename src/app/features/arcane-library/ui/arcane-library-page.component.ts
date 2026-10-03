@@ -6,6 +6,7 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIcon } from '@angular/material/icon';
 import { ArcaneLibraryService } from '../application/arcane-library.service';
@@ -15,15 +16,23 @@ import {
   BookStatus,
   LibraryGroup,
   LibraryView,
+  ReadingLog,
 } from '../domain/arcane-library.models';
 import { RpgProfileService } from '../../rpg-profile/rpg-profile.service';
 import { CharacterRendererComponent } from '../../rpg-profile/character-renderer.component';
-import { promptDialog } from '../../../util/native-dialogs';
+import { confirmDialog, promptDialog } from '../../../util/native-dialogs';
+import {
+  readFileAsShrunkDataUrl,
+  shrinkImageDataUrl,
+} from '../../../util/shrink-image-data-url';
+import { IS_ELECTRON } from '../../../app.constants';
+import { GeminiService } from '../../../core/ai/gemini.service';
+import { AiSuggestion, MediaAiService } from '../../../core/ai/media-ai.service';
 
 @Component({
   selector: 'arcane-library-page',
   standalone: true,
-  imports: [FormsModule, MatIcon, CharacterRendererComponent],
+  imports: [FormsModule, MatIcon, CharacterRendererComponent, DecimalPipe],
   templateUrl: './arcane-library-page.component.html',
   styleUrl: './arcane-library-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -32,6 +41,8 @@ import { promptDialog } from '../../../util/native-dialogs';
 export class ArcaneLibraryPageComponent implements OnInit {
   readonly library = inject(ArcaneLibraryService);
   readonly profile = inject(RpgProfileService);
+  readonly gemini = inject(GeminiService);
+  private readonly mediaAi = inject(MediaAiService);
   readonly selectedCharacterId = signal(this.profile.activeCharacterId());
   readonly tab = signal<'dashboard' | 'library' | 'calendar' | 'planning' | 'challenges'>(
     'dashboard',
@@ -39,6 +50,8 @@ export class ArcaneLibraryPageComponent implements OnInit {
   readonly selectedBook = signal<ArcaneBook | null>(null);
   readonly editingBook = signal<ArcaneBook | null>(null);
   readonly calendarPickerDate = signal<string | null>(null);
+  /** Logs of the calendar day being viewed, each with an editable copy. */
+  readonly dayLogs = signal<{ original: ReadingLog; draft: ReadingLog }[]>([]);
   readonly selectedCollectionId = signal<string | null>(null);
   readonly selectedShelfId = signal<string | null>(null);
   readonly searchQuery = signal('');
@@ -161,6 +174,119 @@ export class ArcaneLibraryPageComponent implements OnInit {
       perWeek: Math.ceil((remaining / weeksLeft) * 10) / 10,
     };
   });
+  /** Pages per calendar day over the last 60 days - your real reading rhythm. */
+  readonly recentPagesPerDay = computed(() => {
+    const since = new Date(Date.now() - 60 * 86_400_000);
+    const pages = this.library
+      .aggregates()
+      .filter((row) => this.parseLocalDate(row.date) >= since)
+      .reduce((sum, row) => sum + row.pages, 0);
+    return pages / 60;
+  });
+  /**
+   * Annual goal forecast: the pages you'd read by Dec 31 at your recent rhythm,
+   * spent on the books in progress (closest to done first), then the wishlist
+   * (planned month, then the rest).
+   */
+  readonly goalForecast = computed(() => {
+    const perDay = this.recentPagesPerDay();
+    const goal = this.library.settings().annualGoal;
+    const finished = this.finishedThisYear().length;
+    const now = new Date();
+    const daysLeft = Math.max(
+      0,
+      Math.ceil(
+        (new Date(now.getFullYear(), 11, 31, 23, 59).getTime() - now.getTime()) /
+          86_400_000,
+      ),
+    );
+    // Books without a page count use the average of the ones that have it.
+    const known = this.library
+      .books()
+      .map((book) => book.pages)
+      .filter((pages) => pages > 0);
+    const averagePages = known.length
+      ? Math.round(known.reduce((sum, pages) => sum + pages, 0) / known.length)
+      : 300;
+    const pagesOf = (book: ArcaneBook): number => book.pages || averagePages;
+    const reading = this.library
+      .reading()
+      .map((book) => Math.max(1, pagesOf(book) - book.currentPage))
+      .sort((a, b) => a - b);
+    const wishlist = this.library
+      .wishlist()
+      .sort(
+        (a, b) =>
+          (a.plannedMonth ?? '9999').localeCompare(b.plannedMonth ?? '9999') ||
+          b.priority - a.priority,
+      )
+      .map(pagesOf);
+    const queue = [...reading, ...wishlist];
+    let budget = perDay * daysLeft;
+    let more = 0;
+    for (const pages of queue) {
+      if (pages > budget) break;
+      budget -= pages;
+      more++;
+    }
+    const projected = finished + more;
+    const missing = Math.max(0, goal - finished);
+    const pagesForGoal = queue.slice(0, missing).reduce((sum, pages) => sum + pages, 0);
+    return {
+      perDay,
+      projected,
+      goal,
+      meets: projected >= goal,
+      shortQueue: queue.length < missing,
+      neededPerDay: daysLeft ? pagesForGoal / daysLeft : 0,
+    };
+  });
+  /**
+   * Next book from the wishlist: one that fits ~4 weeks at your rhythm and
+   * whose genre you've read least in the last 6 months. Top 3, with reasons.
+   */
+  readonly nextBookSuggestions = computed(() => {
+    const perDay = this.recentPagesPerDay();
+    const capacity = perDay > 0 ? perDay * 28 : 300;
+    const since = this.localDateKey(new Date(Date.now() - 182 * 86_400_000));
+    const recentGenres = new Map<string, number>();
+    for (const book of this.library.finished()) {
+      if ((book.finishedAt ?? '') < since) continue;
+      for (const genre of this.selectedGenres(book)) {
+        recentGenres.set(genre, (recentGenres.get(genre) ?? 0) + 1);
+      }
+    }
+    return this.library
+      .wishlist()
+      .map((book) => {
+        const genres = this.selectedGenres(book);
+        const genreReads = genres.length
+          ? Math.min(...genres.map((genre) => recentGenres.get(genre) ?? 0))
+          : 1;
+        const fit = !book.pages
+          ? 0.5
+          : book.pages <= capacity
+            ? 1
+            : capacity / book.pages;
+        const novelty = 1 / (1 + genreReads);
+        const days = perDay > 0 && book.pages ? Math.ceil(book.pages / perDay) : null;
+        const reasons = [
+          days
+            ? `${book.pages} pág. · ~${days < 14 ? `${days} dias` : `${Math.round(days / 7)} sem.`} no seu ritmo`
+            : book.pages
+              ? `${book.pages} páginas`
+              : 'sem nº de páginas',
+          genres.length
+            ? genreReads === 0
+              ? `${genres[0]}: nenhum lido nos últimos 6 meses`
+              : `${genres[0]}: ${genreReads} lido(s) nos últimos 6 meses`
+            : 'sem gênero definido',
+        ];
+        return { book, score: fit * 0.5 + novelty * 0.5, reasons };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+  });
   readonly visibleWishlistBooks = computed(() => {
     const filters = this.library.settings().filters;
     const query = this.searchQuery().trim().toLocaleLowerCase('pt-BR');
@@ -270,14 +396,78 @@ export class ArcaneLibraryPageComponent implements OnInit {
       height: Math.max(4, (row.minutes / max) * 100),
     }));
   });
+  /**
+   * Challenge progress, computed from the reading data since each challenge's
+   * start date (the stored `progress` field is never updated).
+   */
+  readonly challengeRows = computed(() => {
+    const finished = this.library.finished();
+    const days = this.library
+      .aggregates()
+      .filter((row) => row.minutes > 0 || row.pages > 0)
+      .map((row) => row.date)
+      .sort();
+    const aggregates = this.library.aggregates();
+    const metricInfo = {
+      books: { label: 'livros', icon: 'menu_book' },
+      pages: { label: 'páginas', icon: 'auto_stories' },
+      minutes: { label: 'minutos', icon: 'schedule' },
+      streak: { label: 'dias seguidos', icon: 'local_fire_department' },
+    };
+    return this.library.challenges().map((challenge) => {
+      const start = challenge.startDate ?? `${new Date().getFullYear()}-01-01`;
+      let progress = 0;
+      if (challenge.metric === 'books') {
+        progress = finished.filter((book) => (book.finishedAt ?? '') >= start).length;
+      } else if (challenge.metric === 'pages' || challenge.metric === 'minutes') {
+        const key = challenge.metric;
+        progress = aggregates
+          .filter((row) => row.date >= start)
+          .reduce((sum, row) => sum + row[key], 0);
+      } else {
+        // Longest run of consecutive reading days since the start date.
+        let run = 0;
+        let previous = '';
+        for (const day of days.filter((item) => item >= start)) {
+          const expected = previous ? this.nextDateKey(previous) : day;
+          run = day === expected ? run + 1 : 1;
+          progress = Math.max(progress, run);
+          previous = day;
+        }
+      }
+      return {
+        challenge,
+        start,
+        progress,
+        percent: Math.min(100, (progress / challenge.target) * 100),
+        done: progress >= challenge.target,
+        ...metricInfo[challenge.metric],
+      };
+    });
+  });
+
   readonly readingSpeedChart = computed(() => {
     const rows = this.library
       .aggregates()
       .filter((row) => row.minutes > 0 && row.pages > 0)
       .sort((left, right) => left.date.localeCompare(right.date))
       .map((row) => ({ ...row, speed: row.pages / row.minutes }));
-    const mean = rows.length
-      ? rows.reduce((total, row) => total + row.speed, 0) / rows.length
+    // Tukey fences: days outside Q1 - 1.5·IQR .. Q3 + 1.5·IQR stay on the
+    // chart but are left out of the mean (needs 4+ days to be meaningful).
+    const sorted = rows.map((row) => row.speed).sort((a, b) => a - b);
+    const quantile = (q: number): number => {
+      const pos = (sorted.length - 1) * q;
+      const base = Math.floor(pos);
+      const next = sorted[base + 1] ?? sorted[base];
+      return sorted[base] + (pos - base) * (next - sorted[base]);
+    };
+    const iqr = sorted.length >= 4 ? quantile(0.75) - quantile(0.25) : 0;
+    const isOutlier = (speed: number): boolean =>
+      sorted.length >= 4 &&
+      (speed < quantile(0.25) - 1.5 * iqr || speed > quantile(0.75) + 1.5 * iqr);
+    const counted = rows.filter((row) => !isOutlier(row.speed));
+    const mean = counted.length
+      ? counted.reduce((total, row) => total + row.speed, 0) / counted.length
       : 0;
     const max = Math.max(mean, ...rows.map((row) => row.speed), 1);
     const left = 42;
@@ -289,16 +479,25 @@ export class ArcaneLibraryPageComponent implements OnInit {
         left + (rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width);
       const y = top + height - (row.speed / max) * height;
       const ratio = mean ? row.speed / mean : 1;
+      const outlier = isOutlier(row.speed);
       return {
         ...row,
         x,
         y,
-        tone: ratio > 1.1 ? 'above' : ratio < 0.9 ? 'below' : 'similar',
+        outlier,
+        tone: outlier
+          ? 'outlier'
+          : ratio > 1.1
+            ? 'above'
+            : ratio < 0.9
+              ? 'below'
+              : 'similar',
       };
     });
     return {
       mean,
       max,
+      outlierCount: rows.length - counted.length,
       points,
       polyline: points.map((point) => `${point.x},${point.y}`).join(' '),
       meanY: top + height - (mean / max) * height,
@@ -318,12 +517,14 @@ export class ArcaneLibraryPageComponent implements OnInit {
   logEndPage = 0;
   logNotes = '';
   logDate = this.localDateKey(new Date());
+  challengeStart = this.localDateKey(new Date());
   readonly today = this.localDateKey(new Date());
   challengeTitle = '';
   challengeMetric: 'books' | 'pages' | 'minutes' | 'streak' = 'books';
   challengeTarget = 10;
 
   async ngOnInit(): Promise<void> {
+    this.restoreAiSuggestions();
     await this.library.load(this.selectedCharacterId());
   }
 
@@ -334,12 +535,13 @@ export class ArcaneLibraryPageComponent implements OnInit {
     this.editingBook.set(null);
     this.selectedCollectionId.set(null);
     this.selectedShelfId.set(null);
+    this.restoreAiSuggestions();
     await this.library.load(characterId);
   }
 
   async createBook(): Promise<void> {
     if (!this.newTitle.trim()) return;
-    await this.library.createBook({
+    const book = await this.library.createBook({
       title: this.newTitle,
       author: this.newAuthor,
       pages: this.newPages,
@@ -349,6 +551,269 @@ export class ArcaneLibraryPageComponent implements OnInit {
     this.newTitle = '';
     this.newAuthor = '';
     this.newPages = 0;
+    void (async () => {
+      if (this.gemini.configured()) await this.autofillStoredBook(book.id);
+      await this.fetchCoverFor(book.id);
+    })();
+  }
+
+  // ---- IA (Gemini) ----
+  readonly aiMessage = signal('');
+  readonly aiBusy = signal(false);
+  readonly aiBookSuggestions = signal<AiSuggestion[]>([]);
+
+  /** Fills only the empty fields of a book's fact sheet from the AI. */
+  private async aiFillFields(book: ArcaneBook): Promise<ArcaneBook> {
+    const info = await this.mediaAi.fillBook(book.title, book.author, this.genreOptions);
+    const genres = (info.genres ?? []).filter((genre) =>
+      this.genreOptions.includes(genre),
+    );
+    const hasGenre = this.selectedGenres(book).length > 0;
+    return {
+      ...book,
+      author: book.author || info.author || '',
+      pages: book.pages || Math.max(0, Math.round(Number(info.pages) || 0)),
+      publisher: book.publisher || info.publisher || '',
+      publicationYear: book.publicationYear ?? (Number(info.publicationYear) || null),
+      synopsis: book.synopsis || info.synopsis || '',
+      genre: hasGenre ? book.genre : (genres[0] ?? book.genre),
+      subgenres: hasGenre ? book.subgenres : genres.slice(1),
+    };
+  }
+
+  private async autofillStoredBook(bookId: string): Promise<void> {
+    const book = this.library.books().find((row) => row.id === bookId);
+    if (!book) return;
+    this.aiMessage.set(`Preenchendo a ficha de "${book.title}" com IA...`);
+    try {
+      const filled = await this.aiFillFields(book);
+      const current = this.library.books().find((row) => row.id === bookId) ?? book;
+      await this.library.updateBook({
+        ...current,
+        author: filled.author,
+        pages: filled.pages,
+        publisher: filled.publisher,
+        publicationYear: filled.publicationYear,
+        synopsis: filled.synopsis,
+        genre: filled.genre,
+        subgenres: filled.subgenres,
+      });
+      this.aiMessage.set(`Ficha de "${book.title}" preenchida pela IA - confira.`);
+    } catch (e) {
+      this.aiMessage.set((e as Error).message);
+    }
+  }
+
+  async autofillEditingBook(): Promise<void> {
+    const book = this.editingBook();
+    if (!book) return;
+    this.aiBusy.set(true);
+    try {
+      this.editingBook.set(await this.aiFillFields(structuredClone(book)));
+      this.aiMessage.set('Campos vazios preenchidos pela IA - confira antes de salvar.');
+    } catch (e) {
+      this.aiMessage.set((e as Error).message);
+    } finally {
+      this.aiBusy.set(false);
+    }
+  }
+
+  /** append: keep the current ones and only add new titles (up to 5). */
+  async loadAiBookSuggestions(append = false): Promise<void> {
+    this.aiBusy.set(true);
+    this.aiMessage.set('Pedindo sugestões à IA...');
+    try {
+      const rated = this.library
+        .books()
+        .filter((book) => book.status === 'finished' || book.rating !== null)
+        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        .map((book) => ({
+          title: book.title,
+          creator: book.author,
+          rating: book.rating,
+          genres: this.selectedGenres(book),
+        }));
+      const suggestions = await this.mediaAi.suggest(
+        'livros',
+        rated,
+        [...this.library.books().map((book) => book.title), ...this.seenSuggestions()],
+        this.library
+          .wishlist()
+          .map((book) => (book.author ? ` (${book.author})` : book.title)),
+      );
+      if (!suggestions.length) {
+        // Keep what was on screen instead of blanking the list.
+        this.aiMessage.set(
+          'A IA só repetiu títulos que você já tem ou já viu - tente de novo daqui a pouco.',
+        );
+        return;
+      }
+      this.rememberSuggestions(suggestions);
+      const next = append
+        ? [...this.aiBookSuggestions(), ...suggestions].slice(0, 5)
+        : suggestions;
+      this.aiBookSuggestions.set(next);
+      this.storeAiSuggestions(next);
+      this.aiMessage.set('');
+    } catch (e) {
+      this.aiMessage.set((e as Error).message);
+    } finally {
+      this.aiBusy.set(false);
+    }
+  }
+
+  async addAiSuggestionToWishlist(suggestion: AiSuggestion): Promise<void> {
+    const book = await this.library.createBook({
+      title: suggestion.title,
+      author: suggestion.creator,
+      status: 'wishlist',
+    });
+    const remaining = this.aiBookSuggestions().filter((item) => item !== suggestion);
+    this.aiBookSuggestions.set(remaining);
+    this.storeAiSuggestions(remaining);
+    // Refill the list so a new suggestion takes the added one's place.
+    if (remaining.length < 5) void this.loadAiBookSuggestions(true);
+    void (async () => {
+      await this.autofillStoredBook(book.id);
+      await this.fetchCoverFor(book.id);
+    })();
+  }
+
+  private aiSuggestionsKey(): string {
+    return `sp-ai-book-suggestions:${this.selectedCharacterId()}`;
+  }
+
+  /** Titles the AI already suggested, so "Novas sugestões" never repeats them. */
+  private seenSuggestions(): string[] {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`${this.aiSuggestionsKey()}:seen`) ?? '[]',
+      ) as string[];
+    } catch {
+      return [];
+    }
+  }
+
+  private rememberSuggestions(suggestions: AiSuggestion[]): void {
+    try {
+      localStorage.setItem(
+        `${this.aiSuggestionsKey()}:seen`,
+        JSON.stringify(
+          [...this.seenSuggestions(), ...suggestions.map((item) => item.title)].slice(
+            -300,
+          ),
+        ),
+      );
+    } catch {}
+  }
+
+  // ---- capas automáticas (Open Library / Google Books) ----
+  readonly coverBusy = signal(false);
+  readonly missingCovers = computed(
+    () => this.library.books().filter((book) => !book.coverDataUrl).length,
+  );
+
+  /** Looks the cover up in free catalogs; true when one was found and saved. */
+  private async fetchCoverFor(bookId: string): Promise<boolean> {
+    if (!IS_ELECTRON) return false;
+    const book = this.library.books().find((row) => row.id === bookId);
+    if (!book || book.coverDataUrl) return false;
+    const found = await window.ea.coverLookup({
+      kind: 'book',
+      title: book.title,
+      author: book.author,
+    });
+    if (!found) return false;
+    const coverDataUrl = await shrinkImageDataUrl(found, 480);
+    const current = this.library.books().find((row) => row.id === bookId) ?? book;
+    await this.library.updateBook({ ...current, coverDataUrl });
+    if (this.editingBook()?.id === bookId) {
+      this.editingBook.set({ ...structuredClone(this.editingBook()!), coverDataUrl });
+    }
+    return true;
+  }
+
+  // ---- escolher capa entre várias opções ----
+  readonly coverOptions = signal<
+    { dataUrl: string; label: string; source: string }[] | null
+  >(null);
+
+  async openCoverPicker(): Promise<void> {
+    const item = this.editingBook();
+    if (!item || !IS_ELECTRON) return;
+    this.coverBusy.set(true);
+    this.aiMessage.set('Procurando capas...');
+    try {
+      const options = await window.ea.coverCandidates({
+        kind: 'book',
+        title: item.title,
+        author: item.author,
+      });
+      this.coverOptions.set(options);
+      this.aiMessage.set(
+        options.length ? 'Clique na capa certa.' : 'Nenhuma capa encontrada.',
+      );
+    } finally {
+      this.coverBusy.set(false);
+    }
+  }
+
+  async chooseCover(dataUrl: string): Promise<void> {
+    const item = this.editingBook();
+    if (!item) return;
+    const coverDataUrl = await shrinkImageDataUrl(dataUrl, 480);
+    this.editingBook.set({ ...structuredClone(item), coverDataUrl });
+    const stored = this.library.books().find((row) => row.id === item.id);
+    if (stored) await this.library.updateBook({ ...stored, coverDataUrl });
+    this.coverOptions.set(null);
+    this.aiMessage.set('Capa trocada.');
+  }
+
+  async fetchEditingBookCover(): Promise<void> {
+    const book = this.editingBook();
+    if (!book) return;
+    this.coverBusy.set(true);
+    try {
+      const found = await this.fetchCoverFor(book.id);
+      this.aiMessage.set(
+        found ? 'Capa encontrada e salva.' : 'Não achei a capa deste livro.',
+      );
+    } finally {
+      this.coverBusy.set(false);
+    }
+  }
+
+  async fetchMissingCovers(): Promise<void> {
+    this.coverBusy.set(true);
+    let found = 0;
+    const missing = this.library.books().filter((book) => !book.coverDataUrl);
+    try {
+      for (const [index, book] of missing.entries()) {
+        this.aiMessage.set(`Buscando capas... ${index + 1}/${missing.length}`);
+        if (await this.fetchCoverFor(book.id)) found++;
+      }
+      this.aiMessage.set(`${found} de ${missing.length} capas encontradas.`);
+    } finally {
+      this.coverBusy.set(false);
+    }
+  }
+
+  private storeAiSuggestions(suggestions: AiSuggestion[]): void {
+    try {
+      localStorage.setItem(this.aiSuggestionsKey(), JSON.stringify(suggestions));
+    } catch {}
+  }
+
+  private restoreAiSuggestions(): void {
+    try {
+      this.aiBookSuggestions.set(
+        JSON.parse(
+          localStorage.getItem(this.aiSuggestionsKey()) ?? '[]',
+        ) as AiSuggestion[],
+      );
+    } catch {
+      this.aiBookSuggestions.set([]);
+    }
   }
 
   async createCollection(): Promise<void> {
@@ -492,6 +957,45 @@ export class ArcaneLibraryPageComponent implements OnInit {
 
   openCalendarDayLog(day: { key: string }): void {
     this.calendarPickerDate.set(day.key);
+    this.dayLogs.set([]);
+    void this.library.listLogsByDate(day.key).then((logs) => {
+      if (this.calendarPickerDate() !== day.key) return;
+      this.dayLogs.set(logs.map((log) => ({ original: log, draft: { ...log } })));
+    });
+  }
+
+  bookTitle(bookId: string): string {
+    return (
+      this.library.books().find((book) => book.id === bookId)?.title ?? 'Livro removido'
+    );
+  }
+
+  async saveDayLog(entry: { original: ReadingLog; draft: ReadingLog }): Promise<void> {
+    const draft = entry.draft;
+    const startedAt = this.combineDateWithTimeOf(
+      draft.date,
+      new Date(entry.original.startedAt),
+    );
+    await this.library.replaceLog(entry.original, {
+      ...draft,
+      minutes: Math.round(Number(draft.minutes) || 0),
+      startPage: Math.round(Number(draft.startPage) || 0),
+      endPage: Math.round(Number(draft.endPage) || 0),
+      startedAt,
+    });
+    this.calendarPickerDate.set(null);
+  }
+
+  async deleteDayLog(entry: { original: ReadingLog }): Promise<void> {
+    if (
+      !confirmDialog(
+        `Excluir esta leitura de "${this.bookTitle(entry.original.bookId)}"?`,
+      )
+    ) {
+      return;
+    }
+    await this.library.replaceLog(entry.original, null);
+    this.dayLogs.update((rows) => rows.filter((row) => row !== entry));
   }
 
   pickBookForCalendarDay(bookId: string, date: string): void {
@@ -505,6 +1009,7 @@ export class ArcaneLibraryPageComponent implements OnInit {
   editBook(book: ArcaneBook, event?: Event): void {
     event?.stopPropagation();
     this.editingBook.set(structuredClone(book));
+    this.coverOptions.set(null);
   }
 
   async saveBook(): Promise<void> {
@@ -618,11 +1123,27 @@ export class ArcaneLibraryPageComponent implements OnInit {
     return `${header}\n${lines.join('\n')}`;
   }
 
+  /**
+   * Level cut-offs from the reader's own year (quartiles of the days with any
+   * reading), so the colours spread over their real range instead of fixed
+   * 20/45/90-minute steps that put a steady 50-min/day reader all in one shade.
+   */
+  readonly heatThresholds = computed(() => {
+    const minutes = this.annualDays()
+      .map((day) => day.minutes)
+      .filter((value) => value > 0)
+      .sort((a, b) => a - b);
+    if (minutes.length < 4) return [20, 45, 90];
+    const at = (q: number): number => minutes[Math.floor((minutes.length - 1) * q)];
+    return [at(0.25), at(0.5), at(0.75)];
+  });
+
   heatLevel(minutes: number): number {
     if (!minutes) return 0;
-    if (minutes < 20) return 1;
-    if (minutes < 45) return 2;
-    if (minutes < 90) return 3;
+    const [low, mid, high] = this.heatThresholds();
+    if (minutes <= low) return 1;
+    if (minutes <= mid) return 2;
+    if (minutes <= high) return 3;
     return 4;
   }
 
@@ -636,12 +1157,7 @@ export class ArcaneLibraryPageComponent implements OnInit {
   async coverSelected(event: Event, book: ArcaneBook): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    const data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
+    const data = await readFileAsShrunkDataUrl(file);
     await this.library.updateBook({ ...book, coverDataUrl: data });
     if (this.editingBook()?.id === book.id)
       this.editingBook.set({ ...book, coverDataUrl: data });
@@ -652,6 +1168,42 @@ export class ArcaneLibraryPageComponent implements OnInit {
       ? Math.min(100, Math.round((book.currentPage / book.pages) * 100))
       : 0;
   }
+
+  /**
+   * Reading time left for every book being read: pages left / your reading
+   * speed (pages per minute, mean without outlier days - the same as the speed
+   * chart). Time the book sat untouched never counts.
+   */
+  readonly bookEtas = computed(() => {
+    const speed = this.readingSpeedChart().mean;
+    const result = new Map<string, { label: string; title: string }>();
+    for (const book of this.library.reading()) {
+      const left = book.pages - book.currentPage;
+      if (!book.pages || left <= 0) continue;
+      if (!speed) {
+        result.set(book.id, {
+          label: 'sem velocidade registrada',
+          title: 'Registre leituras com páginas e minutos para estimar o tempo restante.',
+        });
+        continue;
+      }
+      const minutes = Math.ceil(left / speed);
+      const span =
+        minutes < 60
+          ? `~${minutes} min`
+          : `~${(minutes / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
+      const blocks = Math.ceil(minutes / 50);
+      const pages = (speed * 60).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+      result.set(book.id, {
+        label: `faltam ${span} de leitura (${blocks} ${blocks === 1 ? 'bloco' : 'blocos'})`,
+        title:
+          `Faltam ${left} páginas. Na sua velocidade média (${pages} pág./hora, ` +
+          `sem os dias fora da curva) são ${span} de leitura - ${blocks} ` +
+          `${blocks === 1 ? 'bloco' : 'blocos'} de 50 min.`,
+      });
+    }
+    return result;
+  });
 
   readingDays(book: ArcaneBook): number | null {
     if (!book.startedAt) return null;
@@ -690,6 +1242,12 @@ export class ArcaneLibraryPageComponent implements OnInit {
     const genres = [...selected];
     book.genre = genres[0] ?? 'Não definido';
     book.subgenres = genres.slice(1);
+  }
+
+  private nextDateKey(value: string): string {
+    const date = this.parseLocalDate(value);
+    date.setDate(date.getDate() + 1);
+    return this.localDateKey(date);
   }
 
   private localDateKey(date: Date): string {

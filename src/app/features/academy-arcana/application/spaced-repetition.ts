@@ -51,6 +51,9 @@ export function scheduleNextReview(
   difficulty: number,
   elapsedDays: number,
   rating: 1 | 2 | 3 | 4,
+  // Per-category scale on the interval only (stability is untouched), e.g.
+  // mind maps come back sooner - see STUDY_NODE_CATEGORIES.
+  intervalFactor = 1,
 ): TopicReviewSchedule {
   const r = retrievability(stability, elapsedDays);
 
@@ -79,7 +82,7 @@ export function scheduleNextReview(
   // At 90% target retention, FSRS's interval formula reduces to ≈ stability.
   const intervalDays = Math.max(
     1,
-    Math.round(nextStability * 9 * (1 / TARGET_RETENTION - 1)),
+    Math.round(nextStability * 9 * (1 / TARGET_RETENTION - 1) * intervalFactor),
   );
 
   return { stability: nextStability, difficulty: nextDifficulty, intervalDays };

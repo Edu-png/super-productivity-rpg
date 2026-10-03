@@ -53,8 +53,8 @@ export class InventoryPanelComponent {
     { id: 'boots', label: 'Botas', imageUrl: 'assets/rpg/items-pack/item-1-7.png' },
     {
       id: 'companion',
-      label: 'Companheiro',
-      imageUrl: 'assets/rpg/items-pack/item-0-2.png',
+      label: 'Acessório de companheiro',
+      imageUrl: 'assets/rpg/generated-items/companion-rune.png',
     },
     { id: 'pet', label: 'Mascote', imageUrl: 'assets/rpg/pets/mysterious-egg.png' },
     { id: 'relic', label: 'Relíquia', imageUrl: 'assets/rpg/items-pack/item-0-3.png' },
@@ -78,7 +78,12 @@ export class InventoryPanelComponent {
     return [
       { icon: 'swords', label: 'Poder', value: `${stats.power}` },
       { icon: 'psychology', label: 'Inteligência', value: `${stats.intelligence}` },
-      { icon: 'casino', label: 'Sorte', value: `${stats.luck}` },
+      {
+        icon: 'casino',
+        label: 'Sorte',
+        // Total luck (equipment + constellations) and what it does to drops.
+        value: `${this.profile.luckEffect().luck} · +${Math.round(this.profile.luckEffect().chance * 1000) / 10}% raro`,
+      },
       {
         icon: 'auto_awesome',
         label: 'Bônus de XP',
@@ -92,9 +97,54 @@ export class InventoryPanelComponent {
       {
         icon: 'diamond',
         label: 'Drop raro',
-        value: `+${Math.round(stats.rareDrop * 1000) / 10}%`,
+        // Item rare-drop plus luck's share, matching the level-up roll.
+        value: `+${Math.round((stats.rareDrop + this.profile.luckEffect().chance) * 1000) / 10}%`,
       },
     ];
+  });
+  /** Plain-language breakdown of what luck does, for the explainer box. */
+  readonly luckInfo = computed(() => {
+    const pct = (value: number): string =>
+      `${(Math.round(value * 1000) / 10).toLocaleString('pt-BR')}%`;
+    const luck = this.profile.luckEffect();
+    const odds = this.profile.levelDropOdds();
+    const common = Math.max(
+      0,
+      1 - odds.uncommon - odds.rare - odds.epic - odds.legendary,
+    );
+    return {
+      total: luck.luck,
+      fromItems: this.profile.equipmentBonuses().luck,
+      fromStars: this.profile.constellationBonuses().luck,
+      chance: pct(luck.chance),
+      cap: pct(luck.cap),
+      odds: [
+        { label: 'Comum', value: pct(common) },
+        { label: 'Incomum', value: pct(odds.uncommon) },
+        { label: 'Raro', value: pct(odds.rare) },
+        { label: 'Épico', value: pct(odds.epic) },
+        { label: 'Lendário', value: pct(odds.legendary) },
+      ],
+      doubleJump: pct(Math.min(0.3, luck.luck * 0.01)),
+    };
+  });
+  readonly petInfo = computed(() => {
+    const pet = this.profile.petAttributes();
+    if (!pet) return null;
+    const pct = (value: number): string =>
+      `${(Math.round(value * 1000) / 10).toLocaleString('pt-BR')}%`;
+    return {
+      itemName: pet.itemName,
+      stats: [
+        {
+          label: 'Lealdade',
+          points: pet.loyalty,
+          effect: `+${pct(pet.xpMultiplier)} XP`,
+        },
+        { label: 'Alegria', points: pet.joy, effect: `+${pct(pet.goldMultiplier)} ouro` },
+        { label: 'Faro', points: pet.scent, effect: `+${pct(pet.rareDrop)} raro` },
+      ].filter((stat) => stat.points > 0),
+    };
   });
   readonly selectedItems = computed(() =>
     this.selectedItemIds()
@@ -192,6 +242,13 @@ export class InventoryPanelComponent {
   fuseSelected(event: MouseEvent): void {
     this._stop(event);
     const result = this.profile.fuseItems(this.selectedItemIds());
+    this.message.set(result.message);
+    if (result.ok) this.selectedItemIds.set(result.itemId ? [result.itemId] : []);
+  }
+
+  rerollSelected(event: MouseEvent): void {
+    this._stop(event);
+    const result = this.profile.rerollItems(this.selectedItemIds());
     this.message.set(result.message);
     if (result.ok) this.selectedItemIds.set(result.itemId ? [result.itemId] : []);
   }

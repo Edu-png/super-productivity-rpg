@@ -390,7 +390,9 @@ header span {
   padding: 24px;
   border: 2px solid #c78d23;
   background: linear-gradient(145deg, #201828, #11111c);
-  box-shadow: 0 0 0 5px #090912, 0 22px 90px #000;
+  box-shadow:
+    0 0 0 5px #090912,
+    0 22px 90px #000;
 
   h3 {
     margin: 5px 0 14px;
@@ -500,5 +502,59 @@ header span {
 
   .inventory-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.luck-explainer {
+  display: grid;
+  width: min(94%, 440px);
+  box-sizing: border-box;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(246, 196, 83, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 11px;
+  color: #d5cfe4;
+
+  strong {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #f6c453;
+    font-size: 12px;
+
+    small {
+      color: #9d97b3;
+      font-weight: 400;
+    }
+
+    mat-icon {
+      width: 15px;
+      height: 15px;
+      font-size: 15px;
+    }
+  }
+
+  p {
+    margin: 0;
+  }
+
+  b {
+    color: #f6c453;
+  }
+}
+
+.pet-attributes {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 9px;
+  line-height: 1.4;
+  color: #d5cfe4;
+
+  em {
+    color: #9fd3c7;
+    font-style: normal;
   }
 }

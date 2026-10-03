@@ -32,6 +32,8 @@ export interface ArcaneBook {
   reread: boolean;
   tags: string[];
   notes: string;
+  /** Short synopsis (filled by the AI fact sheet or by hand). */
+  synopsis?: string;
   coverDataUrl: string | null;
   color: string;
   plannedMonth: string | null;
@@ -93,6 +95,11 @@ export interface ReadingChallenge {
   xpReward: number;
   goldReward: number;
   completedAt: number | null;
+  /**
+   * YYYY-MM-DD from which reading counts toward the challenge. Defaults to the
+   * creation day; absent on older challenges (treated as Jan 1 of this year).
+   */
+  startDate?: string;
 }
 
 export interface LibrarySettings {

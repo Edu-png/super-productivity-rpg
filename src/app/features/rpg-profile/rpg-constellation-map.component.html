@@ -39,8 +39,12 @@
           @for (connection of connections; track connection.from.id + connection.to.id) {
             <path
               [attr.d]="connectionPath(connection)"
-              [class.active]="connectionState(connection.from, connection.to) === 'active'"
-              [class.available]="connectionState(connection.from, connection.to) === 'available'"
+              [class.active]="
+                connectionState(connection.from, connection.to) === 'active'
+              "
+              [class.available]="
+                connectionState(connection.from, connection.to) === 'available'
+              "
               [class.main-path]="isMainConnection(connection)"
               [class.hybrid-path]="isHybridConnection(connection)"
               [style.--path-color]="constellationColor(connection.to)"
@@ -199,13 +203,7 @@
             (click)="unlock(star)"
           >
             <mat-icon>auto_awesome</mat-icon>
-            {{
-              starRank(star) >= star.maxLevel
-                ? 'Talento dominado'
-                : profile.canUnlockStar(star.id)
-                  ? 'Desbloquear estrela'
-                  : 'Caminho bloqueado'
-            }}
+            {{ profile.starLockReason(star.id) ?? 'Desbloquear estrela' }}
           </button>
         </article>
       } @else {

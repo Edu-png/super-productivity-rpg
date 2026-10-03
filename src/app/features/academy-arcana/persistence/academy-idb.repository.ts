@@ -415,6 +415,15 @@ export class AcademyIdbRepository extends AcademyRepository {
     await transaction.done;
   }
 
+  /** Every flashcard of an area's deck (deckId === areaId). */
+  async listDeckFlashcards(profileId: string, deckId: string): Promise<Flashcard[]> {
+    return (await this.db).getAllFromIndex(
+      'flashcards',
+      'by-profile-deck',
+      IDBKeyRange.only([profileId, deckId]),
+    );
+  }
+
   async getFlashcard(id: string): Promise<Flashcard | undefined> {
     return (await this.db).get('flashcards', id);
   }
@@ -460,7 +469,8 @@ export class AcademyIdbRepository extends AcademyRepository {
     }
     const reviewed = aggregates.reduce((sum, a) => sum + a.flashcardsReviewed, 0);
     const correct = aggregates.reduce((sum, a) => sum + a.correctReviews, 0);
-    const topicNodes = nodes.filter((node) => ['topic', 'subtopic'].includes(node.kind));
+    // Everything studiable counts (courses, modules, topics...); folders only group.
+    const topicNodes = nodes.filter((node) => node.kind !== 'folder');
     return {
       todayMinutes: aggregates.find((a) => a.date === today)?.totalMinutes ?? 0,
       weekMinutes: aggregates

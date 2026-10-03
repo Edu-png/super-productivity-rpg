@@ -502,6 +502,65 @@
   }
 }
 
+.bonus-status {
+  grid-column: 1 / -1;
+  overflow-x: auto;
+
+  table {
+    width: 100%;
+    max-width: 720px;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+
+  caption {
+    padding-bottom: 3px;
+    color: var(--rpg-gold);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  th,
+  td {
+    padding: 2px 10px;
+    border-bottom: 1px solid rgba(246, 196, 83, 0.12);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th[scope='row'],
+  thead th:first-child {
+    text-align: left;
+  }
+
+  thead th {
+    color: #b9b2c9;
+    font-weight: 600;
+  }
+
+  tr.conditional th,
+  tr.conditional td {
+    color: #9fd3c7;
+    font-style: italic;
+  }
+
+  .bonus-note {
+    margin: 4px 0 0;
+    color: #9d97b3;
+    font-size: 11px;
+  }
+
+  tfoot th,
+  tfoot td {
+    border-top: 1px solid var(--rpg-gold-dark);
+    border-bottom: 0;
+    color: var(--rpg-gold);
+    font-weight: 700;
+  }
+}
+
 .perk {
   display: flex;
   align-items: center;
@@ -3570,5 +3629,14 @@ input {
 
   .goal-main-fields {
     grid-template-columns: 1fr;
+  }
+}
+
+.achv-reward {
+  color: #b9b2c9;
+  font-size: 11px;
+
+  &.earned {
+    color: #f6c453;
   }
 }

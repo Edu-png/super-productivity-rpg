@@ -101,6 +101,8 @@ export interface DistractionDay {
   minutes: number;
   perHour: number;
   blocks: number;
+  /** Distractions that day per category. */
+  categories: Record<string, number>;
   /** Trailing average over this and up to 6 previous tracked days - the "progress" line. */
   movingAverage: number;
 }
@@ -113,17 +115,86 @@ export interface DailyDistractionStats {
   trendPercent: number | null;
 }
 
+export interface DistractionImpact {
+  category: string;
+  daysWith: number;
+  daysWithout: number;
+  /** Mean study minutes on days this category showed up / didn't. */
+  minutesWith: number;
+  minutesWithout: number;
+  /** minutesWith - minutesWithout; negative = days with it were weaker. */
+  deltaMinutes: number;
+  deltaPercent: number;
+}
+
+/**
+ * How each distraction category relates to how much you studied that day:
+ * mean study minutes on tracked days where it appeared vs. tracked days where
+ * it didn't. Needs 2+ days on each side; weakest days first. Correlation only -
+ * it doesn't prove the distraction caused the shorter day.
+ */
+export const buildDistractionImpact = (
+  sessions: StudySession[],
+  now: number,
+): DistractionImpact[] => {
+  const days = new Map<
+    string,
+    { minutes: number; tracked: boolean; cats: Set<string> }
+  >();
+  for (const session of sessions) {
+    if (session.status !== 'completed' && session.status !== 'active') continue;
+    const key = localDayKey(session.startedAt);
+    const day = days.get(key) ?? { minutes: 0, tracked: false, cats: new Set<string>() };
+    day.minutes += blockMinutes(session, now);
+    if (isTracked(session)) day.tracked = true;
+    for (const distraction of session.distractions ?? [])
+      day.cats.add(distraction.category);
+    days.set(key, day);
+  }
+  const tracked = [...days.values()].filter((day) => day.tracked);
+  const categories = new Set(tracked.flatMap((day) => [...day.cats]));
+  const mean = (list: { minutes: number }[]): number =>
+    list.reduce((sum, day) => sum + day.minutes, 0) / list.length;
+  const result: DistractionImpact[] = [];
+  for (const category of categories) {
+    const withIt = tracked.filter((day) => day.cats.has(category));
+    const without = tracked.filter((day) => !day.cats.has(category));
+    if (withIt.length < 2 || without.length < 2) continue;
+    const minutesWith = Math.round(mean(withIt));
+    const minutesWithout = Math.round(mean(without));
+    result.push({
+      category,
+      daysWith: withIt.length,
+      daysWithout: without.length,
+      minutesWith,
+      minutesWithout,
+      deltaMinutes: minutesWith - minutesWithout,
+      deltaPercent: minutesWithout
+        ? Math.round(((minutesWith - minutesWithout) / minutesWithout) * 100)
+        : 0,
+    });
+  }
+  return result.sort((a, b) => a.deltaPercent - b.deltaPercent);
+};
+
 /** Distractions per study day (only days with at least one tracked block). */
 export const buildDailyDistractionStats = (
   sessions: StudySession[],
   now: number,
   limitDays = 30,
 ): DailyDistractionStats => {
-  const byDay = new Map<string, { count: number; minutes: number; blocks: number }>();
+  const byDay = new Map<
+    string,
+    { count: number; minutes: number; blocks: number; categories: Record<string, number> }
+  >();
   for (const session of sessions.filter(isTracked)) {
     const key = localDayKey(session.startedAt);
-    const entry = byDay.get(key) ?? { count: 0, minutes: 0, blocks: 0 };
+    const entry = byDay.get(key) ?? { count: 0, minutes: 0, blocks: 0, categories: {} };
     entry.count += session.distractions?.length ?? 0;
+    for (const distraction of session.distractions ?? []) {
+      entry.categories[distraction.category] =
+        (entry.categories[distraction.category] ?? 0) + 1;
+    }
     entry.minutes += blockMinutes(session, now);
     entry.blocks++;
     byDay.set(key, entry);
@@ -138,6 +209,7 @@ export const buildDailyDistractionStats = (
       minutes: entry.minutes,
       perHour: round1((entry.count / entry.minutes) * 60),
       blocks: entry.blocks,
+      categories: entry.categories,
       movingAverage: round1(windowTotal / window.length),
     };
   });

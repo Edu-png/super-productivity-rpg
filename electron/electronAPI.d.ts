@@ -254,6 +254,21 @@ export interface ElectronAPI {
 
   rpgBackup(args: { fileName: string; data: unknown; extraDir?: string }): Promise<void>;
   rpgBackupPickFolder(): Promise<string | undefined>;
+  geminiStatus(): Promise<{ configured: boolean; model: string | null; message: string }>;
+  geminiGenerate(args: {
+    parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>;
+    json?: boolean;
+  }): Promise<{ ok: boolean; text: string; model?: string; error?: string }>;
+  coverLookup(args: {
+    kind: 'book' | 'game';
+    title: string;
+    author?: string;
+  }): Promise<string | null>;
+  coverCandidates(args: {
+    kind: 'book' | 'game';
+    title: string;
+    author?: string;
+  }): Promise<{ dataUrl: string; label: string; source: string }[]>;
 
   updateCurrentTask(
     task: Task | null,

@@ -42,6 +42,7 @@ import { RpgCharacterBackupService } from './rpg-character-backup.service';
 import { MEDAL_TIER_THRESHOLD, penaltyWeekCount } from './rpg-contracts.util';
 import { TagService } from '../tag/tag.service';
 import { getDbDateStr } from '../../util/get-db-date-str';
+import { readFileAsShrunkDataUrl } from '../../util/shrink-image-data-url';
 
 @Component({
   selector: 'rpg-profile',
@@ -1000,9 +1001,7 @@ export class RpgProfileComponent implements OnInit {
       input.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => save(reader.result as string);
-    reader.readAsDataURL(file);
+    void readFileAsShrunkDataUrl(file).then(save);
   }
 
   savePet(): void {
@@ -1233,12 +1232,10 @@ export class RpgProfileComponent implements OnInit {
       this.shopMessage = 'A imagem precisa ter no máximo 1,5 MB.';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.avatarDataUrl = reader.result as string;
+    void readFileAsShrunkDataUrl(file, 384).then((dataUrl) => {
+      this.avatarDataUrl = dataUrl;
       this.saveIdentity();
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   async downloadCharacterBackup(): Promise<void> {
@@ -1382,7 +1379,6 @@ export class RpgProfileComponent implements OnInit {
 
   chooseSubclass(value: string): void {
     const subclassId = value as RpgSubclassId;
-    if (value === 'none') return;
     // Defense in depth alongside the disabled <option> - a still-locked
     // subclass must never actually be selectable.
     if (this.profile.level() < this.subclassUnlockLevel(subclassId)) return;

@@ -1,0 +1,2261 @@
+<div class="cq-page">
+  <header class="card quest-card cq-hero">
+    <h2><span>🧭</span> Career Quest</h2>
+    <div class="hero-body">
+      <div>
+        <h1>Evolução profissional por competência comprovada</h1>
+        <p>
+          Fundamentos → Autonomia → Proficiência → Arquitetura → Senioridade. Nível só
+          sobe com teste, artefato e explicação — curso concluído não conta. Níveis,
+          evidências, quests e playlists são de <b>{{ profile.state().displayName }}</b> —
+          troque de personagem no Perfil RPG.
+        </p>
+      </div>
+      @let hero = profile.state();
+      <div class="hero-side">
+        <div
+          class="character-badge"
+          title="Career Quest deste personagem"
+        >
+          <character-renderer
+            [appearance]="hero.appearance"
+            [species]="hero.speciesId"
+            [characterClass]="hero.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span>{{ hero.displayName }}</span>
+          <small>{{ hero.speciesId }} · {{ hero.classId }}</small>
+          <mat-icon>check_circle</mat-icon>
+        </div>
+        <div class="overall">
+          <strong>{{ overall() }}%</strong>
+          <small>do perfil alvo (24 meses)</small>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  @if (pace(); as p) {
+    @let t = paceTargets();
+    <section class="card pace">
+      <header>
+        <strong><mat-icon>speed</mat-icon> Ritmo</strong>
+        <button
+          type="button"
+          mat-icon-button
+          aria-label="Ajustar metas de ritmo"
+          title="Ajustar metas"
+          (click)="showPaceSettings ? (showPaceSettings = false) : openPaceSettings()"
+        >
+          <mat-icon>settings</mat-icon>
+        </button>
+      </header>
+      <div class="pace-grid">
+        <div
+          class="pace-tile"
+          [class.met]="p.todayMinutes >= t.dailyStudyMinutes"
+        >
+          <small>Estudo hoje</small>
+          <strong
+            >{{ formatMinutes(p.todayMinutes) }}
+            <span>/ {{ formatMinutes(t.dailyStudyMinutes) }}</span></strong
+          >
+          <span class="bar"
+            ><span
+              [style.width.%]="pacePercent(p.todayMinutes, t.dailyStudyMinutes)"
+            ></span
+          ></span>
+        </div>
+        <div
+          class="pace-tile"
+          [class.met]="p.weekMinutes >= t.weeklyStudyMinutes"
+        >
+          <small>Estudo na semana</small>
+          <strong
+            >{{ formatMinutes(p.weekMinutes) }}
+            <span>/ {{ formatMinutes(t.weeklyStudyMinutes) }}</span></strong
+          >
+          <span class="bar"
+            ><span
+              [style.width.%]="pacePercent(p.weekMinutes, t.weeklyStudyMinutes)"
+            ></span
+          ></span>
+        </div>
+        <div
+          class="pace-tile"
+          [class.met]="p.weekQuests >= t.weeklyQuests"
+        >
+          <small>Quests na semana</small>
+          <strong
+            >{{ p.weekQuests }} <span>/ {{ t.weeklyQuests }}</span></strong
+          >
+          <span class="bar"
+            ><span [style.width.%]="pacePercent(p.weekQuests, t.weeklyQuests)"></span
+          ></span>
+        </div>
+        <div
+          class="pace-tile"
+          [class.met]="p.weekEvidence >= t.weeklyEvidence"
+        >
+          <small>Evidências na semana</small>
+          <strong
+            >{{ p.weekEvidence }} <span>/ {{ t.weeklyEvidence }}</span></strong
+          >
+          <span class="bar"
+            ><span [style.width.%]="pacePercent(p.weekEvidence, t.weeklyEvidence)"></span
+          ></span>
+        </div>
+        <div class="pace-tile">
+          <small>Sequência na meta diária</small>
+          <strong
+            >{{ p.streak }} <span>{{ p.streak === 1 ? 'dia' : 'dias' }}</span></strong
+          >
+        </div>
+        <div
+          class="pace-days"
+          role="img"
+          aria-label="Minutos estudados nos últimos 7 dias"
+        >
+          @for (day of p.lastDays; track day.day) {
+            <div
+              class="pace-day"
+              [title]="day.day + ': ' + formatMinutes(day.minutes)"
+            >
+              <span class="pace-day-track">
+                <span
+                  class="pace-day-bar"
+                  [class.met]="day.minutes >= t.dailyStudyMinutes"
+                  [style.height.%]="(day.minutes / paceDayMax()) * 100"
+                ></span>
+                <i
+                  class="pace-target"
+                  [style.bottom.%]="(t.dailyStudyMinutes / paceDayMax()) * 100"
+                ></i>
+              </span>
+              <small>{{ day.label }}</small>
+            </div>
+          }
+        </div>
+      </div>
+      @if (!t.countAcademy && !t.studyProjectIds.length) {
+        <p class="muted">Nenhuma fonte de estudo configurada — abra a engrenagem.</p>
+      } @else if (!t.studyProjectIds.length) {
+        <p class="muted">
+          Contando só sessões da Academia. Estuda pela agenda? Escolha os projetos na
+          engrenagem.
+        </p>
+      }
+
+      @if (showPaceSettings) {
+        <div class="pace-settings">
+          <label
+            >Horas de estudo por dia
+            <input
+              type="number"
+              min="0"
+              step="0.25"
+              [(ngModel)]="paceDailyHours"
+          /></label>
+          <label
+            >Horas de estudo por semana
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              [(ngModel)]="paceWeeklyHours"
+          /></label>
+          <label
+            >Quests por semana
+            <input
+              type="number"
+              min="0"
+              [(ngModel)]="paceWeeklyQuests"
+          /></label>
+          <label
+            >Evidências por semana
+            <input
+              type="number"
+              min="0"
+              [(ngModel)]="paceWeeklyEvidence"
+          /></label>
+          <label class="check wide">
+            <input
+              type="checkbox"
+              [(ngModel)]="paceCountAcademy"
+            />
+            Contar sessões da Academia Arcana como estudo
+          </label>
+          <div class="wide">
+            <small>Projetos cujo tempo registrado conta como estudo:</small>
+            <div class="project-chips">
+              @for (project of projects(); track project.id) {
+                <button
+                  type="button"
+                  [class.active]="paceProjectIds.has(project.id)"
+                  (click)="togglePaceProject(project.id)"
+                >
+                  <i
+                    class="dot"
+                    [style.background]="project.theme?.primary || '#6d6883'"
+                  ></i>
+                  {{ project.title }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="wide pace-settings-actions">
+            <button
+              type="button"
+              (click)="showPaceSettings = false"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="primary"
+              (click)="savePaceSettings()"
+            >
+              Salvar metas
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <nav
+    class="cq-tabs"
+    aria-label="Seções do Career Quest"
+  >
+    <button
+      type="button"
+      [class.active]="tab() === 'today'"
+      (click)="tab.set('today')"
+    >
+      <mat-icon>today</mat-icon> Hoje
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'overview'"
+      (click)="tab.set('overview')"
+    >
+      <mat-icon>dashboard</mat-icon> Visão geral
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'tree'"
+      (click)="tab.set('tree')"
+    >
+      <mat-icon>account_tree</mat-icon> Skill Tree
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'quests'"
+      (click)="tab.set('quests')"
+    >
+      <mat-icon>flag</mat-icon> Quests
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'done'"
+      (click)="tab.set('done')"
+    >
+      <mat-icon>task_alt</mat-icon> Concluídas
+      @if (completedQuests().length) {
+        <span class="count">{{ completedQuests().length }}</span>
+      }
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'capstones'"
+      (click)="tab.set('capstones')"
+    >
+      <mat-icon>workspace_premium</mat-icon> Capstones
+    </button>
+    <button
+      type="button"
+      [class.active]="tab() === 'gap'"
+      (click)="tab.set('gap')"
+    >
+      <mat-icon>compare_arrows</mat-icon> Skill Gap
+    </button>
+  </nav>
+
+  @if (message()) {
+    <p class="cq-message">{{ message() }}</p>
+  }
+
+  <!-- ================= HOJE ================= -->
+  @if (tab() === 'today' && todayPlan(); as plan) {
+    <section class="card quest-card today-primary">
+      <h2><span>➡️</span> Seu próximo passo</h2>
+      <p class="today-action">{{ plan.primary.text }}</p>
+      @if (plan.primary.quest; as quest) {
+        <p class="muted">
+          {{ TYPE_LABEL[quest.type] }} · {{ AI_LABEL[quest.aiPolicy] }} ·
+          {{ quest.estimatedHours }}h — {{ quest.objective }}
+        </p>
+        <div class="quest-actions">
+          <button
+            type="button"
+            class="primary"
+            (click)="startQuest(quest)"
+          >
+            <mat-icon>play_arrow</mat-icon>
+            {{ quest.status === 'doing' ? 'Abrir no quadro' : 'Começar agora' }}
+          </button>
+        </div>
+      }
+      @if (plan.primary.skill; as skill) {
+        <div class="quest-actions">
+          <button
+            type="button"
+            class="primary"
+            (click)="openSkill(skill.id)"
+          >
+            <mat-icon>upgrade</mat-icon> Abrir {{ skill.id }} para promover
+          </button>
+        </div>
+      }
+      @if (pace(); as p) {
+        @let t = paceTargets();
+        <p class="today-pace">
+          <mat-icon>schedule</mat-icon>
+          @if (p.todayMinutes >= t.dailyStudyMinutes) {
+            Meta de estudo de hoje batida ({{ formatMinutes(p.todayMinutes) }}). 🎉
+          } @else {
+            Hoje: {{ formatMinutes(p.todayMinutes) }} de
+            {{ formatMinutes(t.dailyStudyMinutes) }} — faltam
+            {{ formatMinutes(t.dailyStudyMinutes - p.todayMinutes) }}.
+          }
+        </p>
+      }
+    </section>
+
+    <section class="card quest-card">
+      <h2><span>🧭</span> Próximo passo em cada trilha em foco</h2>
+      @for (step of plan.focus; track step.skill.id) {
+        @let playlist = playlistFor(step.skill.id);
+        <article class="today-step">
+          <header>
+            <button
+              type="button"
+              class="today-skill"
+              (click)="openSkill(step.skill.id)"
+            >
+              <code>{{ step.skill.id }}</code> {{ step.skill.name }}
+            </button>
+            <span class="today-levels">
+              L{{ step.current }}
+              @if (step.nextLevel) {
+                → <b>L{{ step.nextLevel }}</b>
+              }
+              <small>· alvo 12m L{{ step.skill.target12 }}</small>
+            </span>
+          </header>
+          @if (step.readyToPromote) {
+            <p class="today-ready">
+              <mat-icon>check_circle</mat-icon> Tudo pronto para subir de nível.
+            </p>
+          } @else if (step.missing.length) {
+            <p class="today-missing">
+              <b>Falta para subir:</b> {{ step.missing.join(' · ') }}
+            </p>
+          }
+          <div class="today-row">
+            <b>Quest</b>
+            @if (step.quest; as quest) {
+              <span>
+                {{ quest.title }}
+                <em>({{ quest.status === 'doing' ? 'em andamento' : 'a fazer' }})</em>
+                <button
+                  type="button"
+                  (click)="startQuest(quest)"
+                >
+                  {{ quest.status === 'doing' ? 'Abrir' : 'Começar' }}
+                </button>
+              </span>
+            } @else {
+              <span class="muted"
+                >Nenhuma quest aberta para esta skill —
+                @if (gemini.configured()) {
+                  <button
+                    type="button"
+                    [disabled]="aiBusy().includes('quest:' + step.skill.id)"
+                    (click)="generateQuestFor(step.skill)"
+                  >
+                    {{
+                      aiBusy().includes('quest:' + step.skill.id)
+                        ? 'gerando...'
+                        : 'gerar quest com IA'
+                    }}
+                  </button>
+                  ou crie uma na aba Quests.
+                } @else {
+                  crie uma na aba Quests.
+                }
+              </span>
+            }
+          </div>
+          <div class="today-row">
+            <b>Estudar</b>
+            @if (playlist) {
+              <span>
+                {{ playlist.title }}
+                @if (playlist.links?.length) {
+                  — {{ playlist.links![0].label }}
+                  @if (playlist.links!.length > 1) {
+                    <em>(+{{ playlist.links!.length - 1 }} na playlist)</em>
+                  }
+                } @else {
+                  <em>(playlist vazia)</em>
+                }
+              </span>
+            } @else {
+              <span class="muted"
+                >Sem playlist —
+                <button
+                  type="button"
+                  (click)="openSkill(step.skill.id)"
+                >
+                  criar na Academia
+                </button>
+                @if (gemini.configured()) {
+                  ou
+                  <button
+                    type="button"
+                    [disabled]="aiBusy().includes('syllabus:' + step.skill.id)"
+                    (click)="generateSyllabus(step.skill)"
+                  >
+                    {{
+                      aiBusy().includes('syllabus:' + step.skill.id)
+                        ? 'montando trilha...'
+                        : 'gerar trilha com IA'
+                    }}
+                  </button>
+                }
+              </span>
+            }
+          </div>
+        </article>
+      } @empty {
+        <p class="muted">
+          Nenhuma skill em foco. Na Skill Tree, abra uma skill e clique em “Colocar em
+          foco”.
+        </p>
+      }
+    </section>
+  }
+
+  <!-- ================= OVERVIEW ================= -->
+  @if (tab() === 'overview') {
+    <section class="attribute-grid">
+      @for (card of attributeCards(); track card.id) {
+        <button
+          type="button"
+          class="card attribute-card"
+          (click)="setTreeAttribute(card.id); tab.set('tree')"
+        >
+          <mat-icon>{{ card.icon }}</mat-icon>
+          <strong>{{ card.label }}</strong>
+          <span class="bar"><span [style.width.%]="card.progress"></span></span>
+          <small
+            >{{ card.progress }}% do alvo · {{ card.atTarget12 }}/{{ card.total }} no alvo
+            de 12 meses</small
+          >
+        </button>
+      }
+    </section>
+
+    @if (provisionalCount()) {
+      <section class="card notice">
+        <mat-icon>science</mat-icon>
+        <p>
+          <b>{{ provisionalCount() }} skills</b> estão com nível <b>provisório</b>. Faça
+          os Testes de Entrada (Quests da semana 1) e registre o resultado como evidência
+          do tipo “Teste” — passou confirma o nível; falhou rebaixa (na dúvida, nível
+          inferior).
+        </p>
+      </section>
+    }
+
+    <section class="card quest-card focus-card">
+      <h2><span>🎯</span> Active Focus</h2>
+      <p class="muted">
+        No máximo {{ FOCUS_LIMITS.technical }} skills Technical,
+        {{ FOCUS_LIMITS.english }} de English, {{ FOCUS_LIMITS.evidence }} de Evidence e
+        {{ FOCUS_LIMITS.interview }} de Interview ao mesmo tempo. As demais continuam na
+        árvore, sem competir pela atenção.
+      </p>
+      <div class="focus-list">
+        @for (skill of focusSkills(); track skill.id) {
+          <button
+            type="button"
+            class="focus-chip"
+            (click)="openSkill(skill.id)"
+          >
+            <mat-icon>star</mat-icon>
+            <code>{{ skill.id }}</code> {{ skill.name }}
+            <small
+              >L{{ level(skill.id) }} · 12m L{{ skill.target12 }} · 24m L{{
+                skill.target24
+              }}</small
+            >
+          </button>
+        } @empty {
+          <p class="muted">
+            Nenhuma skill em foco. Marque pela Skill Tree (☆ Colocar em foco).
+          </p>
+        }
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="card quest-card">
+        <h2><span>⚔️</span> Em andamento</h2>
+        @for (quest of doingQuests(); track quest.id) {
+          <ng-container
+            [ngTemplateOutlet]="questRow"
+            [ngTemplateOutletContext]="{ $implicit: quest }"
+          />
+        } @empty {
+          <p class="muted">Nenhuma quest em andamento. Comece uma das próximas →</p>
+        }
+      </section>
+      <section class="card quest-card">
+        <h2><span>📜</span> Próximas quests</h2>
+        @for (quest of nextQuests(); track quest.id) {
+          <ng-container
+            [ngTemplateOutlet]="questRow"
+            [ngTemplateOutletContext]="{ $implicit: quest }"
+          />
+        } @empty {
+          <p class="muted">Todas as quests planejadas foram concluídas. 🎉</p>
+        }
+      </section>
+    </div>
+  }
+
+  <!-- ================= SKILL TREE ================= -->
+  @if (tab() === 'tree') {
+    <nav
+      class="attribute-switch"
+      aria-label="Atributo"
+    >
+      @for (attribute of attributes(); track attribute.id) {
+        <button
+          type="button"
+          [class.active]="treeAttribute() === attribute.id"
+          (click)="setTreeAttribute(attribute.id)"
+        >
+          <mat-icon>{{ attribute.icon }}</mat-icon
+          >{{ attribute.label }}
+        </button>
+      }
+      @if (!editingAttribute()) {
+        <button
+          type="button"
+          class="rename-attribute"
+          title="Renomear o atributo selecionado"
+          (click)="startEditAttribute()"
+        >
+          <mat-icon>edit</mat-icon> Renomear
+        </button>
+      } @else {
+        <span class="inline-edit">
+          <input
+            [(ngModel)]="editAttributeLabel"
+            (keyup.enter)="saveAttributeLabel()"
+            placeholder="Nome do atributo (vazio = padrão)"
+            aria-label="Nome do atributo"
+          />
+          <button
+            type="button"
+            class="primary"
+            (click)="saveAttributeLabel()"
+          >
+            Salvar
+          </button>
+          <button
+            type="button"
+            (click)="editingAttribute.set(false)"
+          >
+            Cancelar
+          </button>
+        </span>
+      }
+    </nav>
+
+    <div class="card filter-bar">
+      <input
+        [ngModel]="filterText()"
+        (ngModelChange)="filterText.set($event)"
+        placeholder="Buscar skill (nome ou id)"
+        aria-label="Buscar skill"
+      />
+      <select
+        [ngModel]="filterHorizon()"
+        (ngModelChange)="filterHorizon.set($event)"
+        aria-label="Horizonte"
+      >
+        <option value="">Todos os horizontes</option>
+        <option value="focus">★ Em foco</option>
+        <option value="now">NOW — foco atual</option>
+        <option value="next">NEXT — próximos 3–6 meses</option>
+        <option value="later">LATER — futuro</option>
+      </select>
+      <select
+        [ngModel]="filterGroup()"
+        (ngModelChange)="filterGroup.set($event)"
+        aria-label="Campo"
+      >
+        <option value="">Todos os campos</option>
+        @for (group of groupsForAttribute(); track group) {
+          <option [value]="group">{{ group }}</option>
+        }
+      </select>
+      <select
+        [ngModel]="filterLevel()"
+        (ngModelChange)="filterLevel.set($event)"
+        aria-label="Nível atual"
+      >
+        <option value="">Qualquer nível</option>
+        @for (option of LEVELS; track option) {
+          <option [ngValue]="option">L{{ option }} — {{ LEVEL_NAMES[option] }}</option>
+        }
+      </select>
+      <select
+        [ngModel]="filterClass()"
+        (ngModelChange)="filterClass.set($event)"
+        aria-label="Classe"
+      >
+        <option value="">Todas as classes</option>
+        @for (option of CLASSES; track option) {
+          <option [value]="option">{{ CLASS_LABELS[option] }}</option>
+        }
+      </select>
+      <select
+        [ngModel]="filterStatus()"
+        (ngModelChange)="filterStatus.set($event)"
+        aria-label="Situação"
+      >
+        <option value="">Qualquer situação</option>
+        <option value="available">Disponíveis (pré-requisitos ok)</option>
+        <option value="blocked">Bloqueadas</option>
+        <option value="provisional">Nível provisório</option>
+        <option value="below12">Abaixo do alvo de 12 meses</option>
+        <option value="target">No alvo de 24 meses</option>
+      </select>
+      @if (hasTreeFilters()) {
+        <button
+          type="button"
+          (click)="clearTreeFilters()"
+        >
+          <mat-icon>filter_alt_off</mat-icon> Limpar
+        </button>
+      }
+    </div>
+
+    <div class="tree-layout">
+      <section class="tree-list">
+        <div class="card new-skill">
+          @if (!showNewSkill) {
+            <button
+              type="button"
+              (click)="showNewSkill = true"
+            >
+              <mat-icon>add</mat-icon> Nova skill neste atributo
+            </button>
+          } @else {
+            <div class="new-skill-form">
+              <input
+                class="wide"
+                [(ngModel)]="newSkillName"
+                placeholder="Nome da skill (ex.: Streamlit, Prompt engineering avançado)"
+                (keyup.enter)="addCustomSkill()"
+              />
+              <input
+                [(ngModel)]="newSkillGroup"
+                list="cq-groups"
+                placeholder="Grupo (existente ou novo)"
+              />
+              <datalist id="cq-groups">
+                @for (group of groupsForAttribute(); track group) {
+                  <option [value]="group"></option>
+                }
+              </datalist>
+              <select
+                [(ngModel)]="newSkillClass"
+                aria-label="Classe"
+              >
+                @for (option of CLASSES; track option) {
+                  <option [value]="option">{{ CLASS_LABELS[option] }}</option>
+                }
+              </select>
+              <label
+                >Alvo 12m
+                <select [(ngModel)]="newSkillTarget12">
+                  @for (option of LEVELS; track option) {
+                    <option [ngValue]="option">L{{ option }}</option>
+                  }
+                </select>
+              </label>
+              <label
+                >Alvo 24m
+                <select [(ngModel)]="newSkillTarget24">
+                  @for (option of LEVELS; track option) {
+                    <option [ngValue]="option">L{{ option }}</option>
+                  }
+                </select>
+              </label>
+              <label
+                >Começa no mês
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  [(ngModel)]="newSkillStartMonth"
+                />
+              </label>
+              <div class="wide new-skill-actions">
+                <button
+                  type="button"
+                  (click)="showNewSkill = false"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  class="primary"
+                  (click)="addCustomSkill()"
+                >
+                  <mat-icon>add</mat-icon> Adicionar skill
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+        @if (!groupedTree().length) {
+          <p class="card muted">Nenhuma skill com esses filtros.</p>
+        }
+        @for (group of groupedTree(); track group.group) {
+          <div class="card tree-group">
+            <h3>{{ group.group }}</h3>
+            @for (skill of group.skills; track skill.id) {
+              <button
+                type="button"
+                class="skill-row"
+                [class.selected]="selectedSkillId() === skill.id"
+                [class.blocked]="!!blockers(skill)"
+                (click)="selectSkill(skill.id)"
+              >
+                <code>{{ skill.id }}</code>
+                <span class="skill-name">
+                  {{ skill.name }}
+                  <i [class]="'class-badge ' + skill.skillClass">{{
+                    CLASS_LABELS[skill.skillClass]
+                  }}</i>
+                </span>
+                <span [class]="'horizon-badge ' + horizon(skill)">{{
+                  HORIZON_LABELS[horizon(skill)]
+                }}</span>
+                <span class="levels">
+                  <span title="Nível atual"
+                    >Atual <b>L{{ level(skill.id) }}</b>
+                    @if (isProvisional(skill.id)) {
+                      <em>?</em>
+                    }
+                  </span>
+                  <small title="Alvo em 12 meses">12m L{{ skill.target12 }}</small>
+                  <small title="Alvo em 24 meses">24m L{{ skill.target24 }}</small>
+                </span>
+                <span class="bar small"
+                  ><span [style.width.%]="skillProgress(skill)"></span
+                ></span>
+                <mat-icon
+                  class="focus-star"
+                  [class.on]="isFocused(skill.id)"
+                  [title]="isFocused(skill.id) ? 'Em foco' : ''"
+                  >{{ isFocused(skill.id) ? 'star' : '' }}</mat-icon
+                >
+                @if (blockers(skill)) {
+                  <mat-icon
+                    class="lock"
+                    [title]="'Pré-requisitos: ' + blockers(skill)"
+                    >lock</mat-icon
+                  >
+                }
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <aside class="card skill-detail">
+        @if (selectedSkill(); as skill) {
+          @let check = checklist(skill.id);
+          <header>
+            <div>
+              <code>{{ skill.id }}</code>
+              @if (editingSkillId() === skill.id) {
+                <div class="skill-edit">
+                  <input
+                    [(ngModel)]="editSkillName"
+                    (keyup.enter)="saveSkillEdit()"
+                    aria-label="Nome da skill"
+                  />
+                  @if (isCustomSkill(skill.id)) {
+                    <input
+                      [(ngModel)]="editSkillGroup"
+                      list="cq-groups-edit"
+                      placeholder="Campo"
+                      aria-label="Campo da skill"
+                    />
+                    <datalist id="cq-groups-edit">
+                      @for (group of groupsForAttribute(); track group) {
+                        <option [value]="group"></option>
+                      }
+                    </datalist>
+                  }
+                  <div class="detail-actions">
+                    <button
+                      type="button"
+                      class="primary"
+                      (click)="saveSkillEdit()"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      type="button"
+                      (click)="editingSkillId.set(null)"
+                    >
+                      Cancelar
+                    </button>
+                    @if (isRenamed(skill.id)) {
+                      <button
+                        type="button"
+                        (click)="restoreSkillName(skill.id)"
+                      >
+                        Restaurar nome original
+                      </button>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <h2>{{ skill.name }}</h2>
+              }
+              <small
+                >{{ CLASS_LABELS[skill.skillClass] }} · foco a partir do mês
+                {{ skill.startMonth }}</small
+              >
+              @if (editingSkillId() !== skill.id) {
+                <div class="detail-actions">
+                  <button
+                    type="button"
+                    (click)="startEditSkill(skill)"
+                  >
+                    <mat-icon>edit</mat-icon> Renomear
+                  </button>
+                  @if (isCustomSkill(skill.id)) {
+                    <button
+                      type="button"
+                      class="danger"
+                      (click)="removeCustomSkill(skill)"
+                    >
+                      <mat-icon>delete</mat-icon> Remover skill
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Fechar"
+              (click)="selectedSkillId.set(null)"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </header>
+
+          <div class="detail-levels">
+            <div>
+              <small>Atual</small>
+              <strong>L{{ level(skill.id) }} — {{ LEVEL_NAMES[level(skill.id)] }}</strong>
+              @if (isProvisional(skill.id)) {
+                <label class="provisional"
+                  >provisório:
+                  <select
+                    [ngModel]="level(skill.id)"
+                    (ngModelChange)="setProvisionalLevel(skill.id, $event)"
+                  >
+                    @for (option of LEVELS; track option) {
+                      <option [ngValue]="option">L{{ option }}</option>
+                    }
+                  </select>
+                </label>
+              }
+            </div>
+            <div>
+              <small>Alvo 12 meses</small><strong>L{{ skill.target12 }}</strong>
+            </div>
+            <div>
+              <small>Alvo 24 meses</small><strong>L{{ skill.target24 }}</strong>
+            </div>
+          </div>
+
+          <div class="detail-planning">
+            <button
+              type="button"
+              [class.primary]="isFocused(skill.id)"
+              (click)="toggleFocus(skill)"
+            >
+              <mat-icon>{{ isFocused(skill.id) ? 'star' : 'star_border' }}</mat-icon>
+              {{ isFocused(skill.id) ? 'Em foco — tirar' : 'Colocar em foco' }}
+            </button>
+            <label
+              >Horizonte
+              <select
+                [ngModel]="horizon(skill)"
+                (ngModelChange)="setHorizon(skill.id, $event)"
+              >
+                @for (option of HORIZONS; track option) {
+                  <option [value]="option">{{ HORIZON_LABELS[option] }}</option>
+                }
+              </select>
+            </label>
+          </div>
+
+          @if (blockers(skill)) {
+            <p class="blocked-note">
+              <mat-icon>lock</mat-icon> Pré-requisitos pendentes: {{ blockers(skill) }}.
+              Dá para estudar normalmente; eles só bloqueiam a promoção a partir do L3.
+            </p>
+          }
+
+          <h3>Critérios de nível</h3>
+          <ol class="criteria">
+            @for (text of skill.criteria; track $index) {
+              <li
+                [class.reached]="$index + 1 <= level(skill.id)"
+                [class.next]="$index + 1 === level(skill.id) + 1"
+              >
+                <b>L{{ $index + 1 }} {{ LEVEL_NAMES[$index + 1] }}</b> {{ text }}
+              </li>
+            }
+          </ol>
+
+          @if (check) {
+            <h3>Promoção para L{{ check.nextLevel }}</h3>
+            <ul class="checklist">
+              <li [class.ok]="check.test">
+                <mat-icon>{{
+                  check.test ? 'check_circle' : 'radio_button_unchecked'
+                }}</mat-icon
+                >Teste do nível aprovado
+              </li>
+              <li [class.ok]="check.artifact">
+                <mat-icon>{{
+                  check.artifact ? 'check_circle' : 'radio_button_unchecked'
+                }}</mat-icon
+                >Artefato salvo (repo, query, projeto)
+              </li>
+              <li [class.ok]="check.explanation">
+                <mat-icon>{{
+                  check.explanation ? 'check_circle' : 'radio_button_unchecked'
+                }}</mat-icon
+                >Explicação em voz alta / escrita
+              </li>
+              @if (check.prereqsRequired) {
+                <li [class.ok]="check.prereqsOk">
+                  <mat-icon>{{
+                    check.prereqsOk ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon
+                  >Pré-requisitos atendidos
+                </li>
+              }
+              @if (check.noAiRequired) {
+                <li [class.ok]="check.noAi">
+                  <mat-icon>{{
+                    check.noAi ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon
+                  >Prova feita em modo NO AI
+                </li>
+              }
+            </ul>
+            <div class="promote-actions">
+              <button
+                type="button"
+                class="primary"
+                [disabled]="!check.ready"
+                (click)="promote(skill)"
+              >
+                <mat-icon>upgrade</mat-icon> Subir para L{{ check.nextLevel }}
+              </button>
+              @if (level(skill.id) > 0 && !isProvisional(skill.id)) {
+                <button
+                  type="button"
+                  (click)="demote(skill)"
+                  title="Re-validação falhou"
+                >
+                  Rebaixar
+                </button>
+              }
+            </div>
+          }
+
+          <h3>Registrar evidência</h3>
+          <div class="evidence-form">
+            <select
+              [(ngModel)]="evidenceKind"
+              aria-label="Tipo"
+            >
+              <option value="artifact">Artefato</option>
+              <option value="explanation">Explicação</option>
+              <option value="test">Teste</option>
+            </select>
+            <select
+              [(ngModel)]="evidenceLevel"
+              aria-label="Nível"
+            >
+              @for (option of [1, 2, 3, 4, 5]; track option) {
+                <option [ngValue]="option">L{{ option }}</option>
+              }
+            </select>
+            <select
+              [(ngModel)]="evidenceAiPolicy"
+              aria-label="Política de IA"
+            >
+              <option value="no-ai">NO AI</option>
+              <option value="ai-limited">AI LIMITED</option>
+              <option value="ai-allowed">AI ALLOWED</option>
+            </select>
+            @if (evidenceKind === 'test') {
+              <select
+                [(ngModel)]="evidencePassed"
+                aria-label="Resultado"
+              >
+                <option [ngValue]="true">Passou</option>
+                <option [ngValue]="false">Falhou</option>
+              </select>
+            }
+            <input
+              class="wide"
+              [(ngModel)]="evidenceTitle"
+              placeholder="Título (ex.: CLI de gastos v1, Prova SQL L2 — 8/10)"
+            />
+            <input
+              class="wide"
+              [(ngModel)]="evidenceUrl"
+              placeholder="Link (GitHub, gravação, arquivo) — opcional"
+            />
+            <input
+              class="wide"
+              [(ngModel)]="evidenceNote"
+              placeholder="Nota (o que provou, o que travou)"
+            />
+            <button
+              type="button"
+              class="wide"
+              (click)="addEvidence()"
+            >
+              <mat-icon>add</mat-icon> Registrar
+            </button>
+          </div>
+
+          @if (skillEvidence(skill.id).length) {
+            <ul class="evidence-list">
+              @for (item of skillEvidence(skill.id); track item.id) {
+                <li>
+                  <span class="evidence-kind"
+                    >{{ KIND_LABEL[item.kind] }} · L{{ item.level }}</span
+                  >
+                  <span class="evidence-title">
+                    @if (item.url) {
+                      <a
+                        [href]="item.url"
+                        target="_blank"
+                        rel="noopener"
+                        >{{ item.title }}</a
+                      >
+                    } @else {
+                      {{ item.title }}
+                    }
+                    @if (item.kind === 'test') {
+                      <b [class.ok]="item.passed">{{
+                        item.passed ? 'passou' : 'falhou'
+                      }}</b>
+                    }
+                  </span>
+                  <small
+                    >{{ AI_LABEL[item.aiPolicy] }} ·
+                    {{ item.at | date: 'dd/MM/yy' }}</small
+                  >
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Remover evidência"
+                    (click)="removeEvidence(item.id)"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (gemini.configured()) {
+            <h3>Simulado de entrevista (IA)</h3>
+            @let iv = interview();
+            @if (!iv || iv.skillId !== skill.id) {
+              <div class="interview-start">
+                <p class="muted">
+                  5 perguntas de entrevista técnica do nível L{{
+                    level(skill.id) + 1 > 5 ? 5 : level(skill.id) + 1
+                  }}. Responda por escrito; a IA avalia e mostra uma resposta modelo.
+                </p>
+                <button
+                  type="button"
+                  (click)="startInterview(skill, 'pt')"
+                >
+                  <mat-icon>record_voice_over</mat-icon> Em português
+                </button>
+                <button
+                  type="button"
+                  (click)="startInterview(skill, 'en')"
+                >
+                  <mat-icon>translate</mat-icon> In English (treina inglês)
+                </button>
+              </div>
+            } @else {
+              <div class="interview">
+                @if (iv.loading && !iv.questions.length) {
+                  <p class="muted">Preparando as perguntas...</p>
+                } @else if (iv.error && !iv.questions.length) {
+                  <p class="muted">{{ iv.error }}</p>
+                } @else {
+                  @for (question of iv.questions; track $index; let i = $index) {
+                    <div class="interview-q">
+                      <b>{{ i + 1 }}. {{ question }}</b>
+                      <textarea
+                        rows="3"
+                        [disabled]="!!iv.result"
+                        [ngModel]="iv.answers[i]"
+                        (ngModelChange)="setInterviewAnswer(i, $event)"
+                        [placeholder]="
+                          iv.lang === 'en' ? 'Your answer...' : 'Sua resposta...'
+                        "
+                      ></textarea>
+                      @if (iv.result?.items?.[i]; as item) {
+                        <div
+                          class="interview-feedback"
+                          [class.good]="item.score >= 70"
+                        >
+                          <strong>{{ item.score }}</strong>
+                          <span>
+                            {{ item.feedback }}
+                            <details>
+                              <summary>Resposta modelo</summary>
+                              {{ item.ideal }}
+                            </details>
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  }
+                  @if (iv.result; as result) {
+                    <div class="interview-total">
+                      <span
+                        ><strong>{{ result.score }}</strong
+                        >/100 · <b>{{ result.verdict }}</b></span
+                      >
+                      <p>{{ result.summary }}</p>
+                      @if (result.english) {
+                        <p class="interview-english">
+                          <b>Inglês:</b> {{ result.english }}
+                        </p>
+                      }
+                      <div class="interview-actions">
+                        <button
+                          type="button"
+                          (click)="interview.set(null)"
+                        >
+                          Fazer outro
+                        </button>
+                        <button
+                          type="button"
+                          class="primary"
+                          [disabled]="iv.recorded"
+                          (click)="recordInterview(skill)"
+                        >
+                          {{ iv.recorded ? 'Registrado' : 'Registrar como evidência' }}
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    @if (iv.error) {
+                      <p class="muted">{{ iv.error }}</p>
+                    }
+                    <div class="interview-actions">
+                      <button
+                        type="button"
+                        (click)="interview.set(null)"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        class="primary"
+                        [disabled]="iv.loading"
+                        (click)="gradeInterview(skill)"
+                      >
+                        {{ iv.loading ? 'Avaliando...' : 'Avaliar respostas' }}
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            }
+          }
+
+          <h3>Playlist de estudo (Academia Arcana)</h3>
+          <div class="playlist-link">
+            <select
+              [ngModel]="state()?.skills?.[skill.id]?.academyNodeId ?? ''"
+              (ngModelChange)="linkAcademyNode(skill.id, $event)"
+              aria-label="Tópico da Academia"
+            >
+              <option value="">Sem vínculo</option>
+              @for (node of academyNodes(); track node.id) {
+                <option [value]="node.id">{{ node.title }}</option>
+              }
+            </select>
+            <button
+              type="button"
+              (click)="createPlaylist(skill)"
+              title="Cria um tópico para esta skill na área Career Quest da Academia"
+            >
+              <mat-icon>playlist_add</mat-icon> Criar na Academia
+            </button>
+            @if (gemini.configured()) {
+              <button
+                type="button"
+                [disabled]="aiBusy().includes('syllabus:' + skill.id)"
+                (click)="generateSyllabus(skill)"
+                title="A IA monta módulos e tópicos (com busca no YouTube) para o próximo nível"
+              >
+                <mat-icon>auto_awesome</mat-icon>
+                {{
+                  aiBusy().includes('syllabus:' + skill.id)
+                    ? 'Montando...'
+                    : 'Gerar trilha com IA'
+                }}
+              </button>
+              <button
+                type="button"
+                [disabled]="aiBusy().includes('quest:' + skill.id)"
+                (click)="generateQuestFor(skill)"
+                title="A IA cria uma quest do próximo nível desta skill"
+              >
+                <mat-icon>auto_awesome</mat-icon>
+                {{
+                  aiBusy().includes('quest:' + skill.id)
+                    ? 'Gerando...'
+                    : 'Gerar quest com IA'
+                }}
+              </button>
+            }
+          </div>
+          @if (linkedNode(); as node) {
+            <p class="muted">
+              Estudado: <b>{{ formatMinutes(nodeMinutes().get(node.id) ?? 0) }}</b> em
+              sessões da Academia nesse tópico.
+            </p>
+            <ol class="playlist">
+              @for (link of node.links ?? []; track $index) {
+                <li>
+                  @if (link.url) {
+                    <a
+                      [href]="link.url"
+                      target="_blank"
+                      rel="noopener"
+                      >{{ link.label }}</a
+                    >
+                  } @else {
+                    {{ link.label }}
+                  }
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Remover da playlist"
+                    (click)="removePlaylistItem($index)"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </li>
+              } @empty {
+                <li class="muted">Playlist vazia — adicione cursos, capítulos e docs.</li>
+              }
+            </ol>
+            <div class="playlist-add">
+              <input
+                [(ngModel)]="playlistLabel"
+                placeholder="Item (ex.: Udemy — módulo de OOP; Learning SQL cap. 5)"
+              />
+              <input
+                [(ngModel)]="playlistUrl"
+                placeholder="Link (opcional)"
+              />
+              <button
+                type="button"
+                (click)="addPlaylistItem()"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+          }
+
+          @if (questsForSkill(skill.id).length) {
+            <h3>Quests desta skill</h3>
+            @for (quest of questsForSkill(skill.id); track quest.id) {
+              <ng-container
+                [ngTemplateOutlet]="questRow"
+                [ngTemplateOutletContext]="{ $implicit: quest }"
+              />
+            }
+          }
+        } @else {
+          <div class="empty-detail">
+            <mat-icon>touch_app</mat-icon>
+            <p>
+              Selecione uma skill para ver critérios, evidências, promoção e playlist.
+            </p>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+
+  <!-- ================= QUESTS ================= -->
+  @if (tab() === 'quests') {
+    <div class="card filter-bar">
+      <select
+        [ngModel]="questTypeFilter()"
+        (ngModelChange)="questTypeFilter.set($event)"
+        aria-label="Tipo"
+      >
+        <option value="">Todos os tipos</option>
+        <option value="micro">Micro Quest</option>
+        <option value="quest">Quest</option>
+        <option value="project">Project Quest</option>
+        <option value="boss">Boss Quest</option>
+      </select>
+      <select
+        [ngModel]="questGroupFilter()"
+        (ngModelChange)="questGroupFilter.set($event)"
+        aria-label="Campo"
+      >
+        <option value="">Todos os campos</option>
+        @for (group of allGroups(); track group) {
+          <option [value]="group">{{ group }}</option>
+        }
+      </select>
+      <select
+        [ngModel]="questLevelFilter()"
+        (ngModelChange)="questLevelFilter.set($event)"
+        aria-label="Nível"
+      >
+        <option value="">Qualquer nível</option>
+        @for (option of [1, 2, 3, 4, 5]; track option) {
+          <option [ngValue]="option">L{{ option }}</option>
+        }
+      </select>
+      <small class="muted">Arraste os cards entre as colunas ou use as setas.</small>
+    </div>
+
+    <section class="kanban">
+      @for (column of KANBAN_COLUMNS; track column.status) {
+        <div
+          class="kanban-column"
+          [class.drop-target]="draggingQuestId()"
+          (dragover)="$event.preventDefault()"
+          (drop)="onQuestDrop($event, column.status)"
+        >
+          <h3>
+            <mat-icon>{{ column.icon }}</mat-icon> {{ column.label }}
+            <span class="count">{{ kanban()[column.status].length }}</span>
+          </h3>
+          @for (quest of kanban()[column.status]; track quest.id) {
+            <article
+              class="kanban-card"
+              [class.boss]="quest.type === 'boss'"
+              [class.dragging]="draggingQuestId() === quest.id"
+              draggable="true"
+              (dragstart)="onQuestDragStart($event, quest)"
+              (dragend)="draggingQuestId.set(null)"
+            >
+              <div class="quest-head">
+                <span class="quest-type">{{ TYPE_LABEL[quest.type] }}</span>
+                @if (quest.week) {
+                  <span class="quest-week">Sem. {{ quest.week }}</span>
+                }
+                <span [class]="'ai-badge ' + quest.aiPolicy">{{
+                  AI_LABEL[quest.aiPolicy]
+                }}</span>
+              </div>
+              <strong>{{ quest.title }}</strong>
+              <small class="quest-meta"
+                >L{{ quest.level }} · {{ quest.estimatedHours }}h · dif.
+                {{ quest.difficulty }}/5
+                @if (quest.completedAt) {
+                  · ✔ {{ quest.completedAt | date: 'dd/MM' }}
+                }
+              </small>
+              <small class="quest-skills">
+                @for (id of quest.skillIds; track id) {
+                  <button
+                    type="button"
+                    (click)="openSkill(id)"
+                  >
+                    {{ id }}
+                  </button>
+                }
+              </small>
+              <details class="card-details">
+                <summary>Detalhes</summary>
+                <p>{{ quest.objective }}</p>
+                @if (quest.deliverable) {
+                  <p><b>Entregável:</b> {{ quest.deliverable }}</p>
+                }
+                @if (quest.evidence) {
+                  <p><b>Evidência:</b> {{ quest.evidence }}</p>
+                }
+                @if (quest.prerequisites) {
+                  <p><b>Pré-requisitos:</b> {{ quest.prerequisites }}</p>
+                }
+              </details>
+              <ng-container
+                [ngTemplateOutlet]="questBody"
+                [ngTemplateOutletContext]="{ $implicit: quest }"
+              />
+              <div class="kanban-moves">
+                <button
+                  type="button"
+                  mat-icon-button
+                  [disabled]="quest.status === 'todo'"
+                  aria-label="Mover para a coluna anterior"
+                  (click)="moveQuest(quest, -1)"
+                >
+                  <mat-icon>chevron_left</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  mat-icon-button
+                  aria-label="Remover quest"
+                  (click)="removeQuest(quest)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  mat-icon-button
+                  [disabled]="quest.status === 'done'"
+                  aria-label="Mover para a próxima coluna"
+                  (click)="moveQuest(quest, 1)"
+                >
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </div>
+            </article>
+          } @empty {
+            <p class="muted empty-column">Solte um card aqui.</p>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="card quest-card">
+      <h2><span>➕</span> Nova quest</h2>
+      <div class="quest-form">
+        <input
+          class="wide"
+          [(ngModel)]="newQuestTitle"
+          placeholder="Título"
+        />
+        <select
+          [(ngModel)]="newQuestType"
+          aria-label="Tipo"
+        >
+          <option value="micro">Micro Quest (30–60 min)</option>
+          <option value="quest">Quest (2–5 h)</option>
+          <option value="project">Project Quest (1–4 semanas)</option>
+          <option value="boss">Boss Quest</option>
+        </select>
+        <select
+          [(ngModel)]="newQuestSkill"
+          aria-label="Skill"
+        >
+          @for (skill of allSkills(); track skill.id) {
+            <option [value]="skill.id">{{ skill.id }} · {{ skill.name }}</option>
+          }
+        </select>
+        <select
+          [(ngModel)]="newQuestAiPolicy"
+          aria-label="Política de IA"
+        >
+          <option value="no-ai">NO AI</option>
+          <option value="ai-limited">AI LIMITED</option>
+          <option value="ai-allowed">AI ALLOWED</option>
+        </select>
+        <input
+          type="number"
+          min="0.5"
+          step="0.5"
+          [(ngModel)]="newQuestHours"
+          aria-label="Horas estimadas"
+        />
+        <input
+          class="wide"
+          [(ngModel)]="newQuestObjective"
+          placeholder="Objetivo"
+        />
+        <input
+          class="wide"
+          [(ngModel)]="newQuestDeliverable"
+          placeholder="Entregável"
+        />
+        <label class="wide builder"
+          >Conteúdo da quest (opcional)
+          <textarea
+            rows="8"
+            [(ngModel)]="newQuestContent"
+            placeholder="## Título&#10;Texto do enunciado.&#10;- item de lista&#10;```python&#10;def exemplo():&#10;    return 42&#10;```"
+          ></textarea>
+          <small class="muted"
+            ># Seção (colapsável) · ## Título · - lista · 1. lista numerada · ```python …
+            ``` código (sql, bash, json, yaml, dockerfile…) · &gt; citação · !! aviso · !i
+            info · !t dica · --- divisor</small
+          >
+        </label>
+        @if (newQuestContent.trim()) {
+          <button
+            type="button"
+            class="wide"
+            (click)="showQuestPreview = !showQuestPreview"
+          >
+            <mat-icon>{{ showQuestPreview ? 'visibility_off' : 'visibility' }}</mat-icon>
+            {{ showQuestPreview ? 'Esconder preview' : 'Ver preview' }}
+          </button>
+          @if (showQuestPreview) {
+            <div class="wide builder-preview">
+              <career-content [source]="previewContent()" />
+            </div>
+          }
+        }
+        <button
+          type="button"
+          class="wide primary"
+          (click)="addQuest()"
+        >
+          <mat-icon>add</mat-icon> Criar quest
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- ================= CONCLUÍDAS ================= -->
+  @if (tab() === 'done') {
+    <section class="card quest-card">
+      <h2><span>🏆</span> Quests concluídas</h2>
+      @for (quest of completedQuests(); track quest.id) {
+        <ng-container
+          [ngTemplateOutlet]="questRow"
+          [ngTemplateOutletContext]="{ $implicit: quest, full: true }"
+        />
+      } @empty {
+        <p class="muted">Nenhuma quest concluída ainda.</p>
+      }
+    </section>
+  }
+
+  <!-- ================= SKILL GAP ================= -->
+  @if (tab() === 'gap') {
+    <div class="card filter-bar">
+      <label class="inline-label"
+        >Ordenar por
+        <select
+          [ngModel]="gapSort()"
+          (ngModelChange)="gapSort.set($event)"
+        >
+          <option value="priority">Prioridade (Career Priority Score)</option>
+          <option value="gap">Maior gap</option>
+          <option value="horizon">Horizonte (NOW → LATER)</option>
+        </select>
+      </label>
+      <select
+        [ngModel]="gapHorizonFilter()"
+        (ngModelChange)="gapHorizonFilter.set($event)"
+        aria-label="Horizonte"
+      >
+        <option value="">NOW + NEXT + LATER</option>
+        @for (option of HORIZONS; track option) {
+          <option [value]="option">{{ HORIZON_LABELS[option] }}</option>
+        }
+      </select>
+      <select
+        [ngModel]="gapClassFilter()"
+        (ngModelChange)="gapClassFilter.set($event)"
+        aria-label="Classe"
+      >
+        <option value="">Todas as classes</option>
+        @for (option of CLASSES; track option) {
+          <option [value]="option">{{ CLASS_LABELS[option] }}</option>
+        }
+      </select>
+    </div>
+
+    <section class="card quest-card">
+      <h2><span>🎯</span> Current profile vs Target international profile</h2>
+      <p class="muted">
+        Career Priority Score = Importância (CORE 4 · IMPORTANT 3 · SUPPORTING 2 ·
+        AWARENESS 1) × Gap até o alvo de 24 meses × Timing (NOW 3 · NEXT 2 · LATER 1).
+        Serve só para priorizar. Barra: dourado = atual, roxo = alvo 24m, marca = alvo
+        12m.
+      </p>
+      <table class="gap-table">
+        <thead>
+          <tr>
+            <th>Skill</th>
+            <th>Classe</th>
+            <th>Horizonte</th>
+            <th>Atual</th>
+            <th>12 m</th>
+            <th>24 m</th>
+            <th>Gap</th>
+            <th>Score</th>
+            <th class="bar-col">Distância</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of gaps(); track row.skill.id) {
+            <tr (click)="openSkill(row.skill.id)">
+              <td>
+                <code>{{ row.skill.id }}</code> {{ row.skill.name }}
+              </td>
+              <td>
+                <i [class]="'class-badge ' + row.skill.skillClass">{{
+                  CLASS_LABELS[row.skill.skillClass]
+                }}</i>
+              </td>
+              <td>
+                <span [class]="'horizon-badge ' + row.horizon">{{
+                  HORIZON_LABELS[row.horizon]
+                }}</span>
+              </td>
+              <td>L{{ row.current }}</td>
+              <td>L{{ row.skill.target12 }}</td>
+              <td>L{{ row.skill.target24 }}</td>
+              <td>{{ row.gap24 }}</td>
+              <td>
+                <b>{{ row.score }}</b>
+              </td>
+              <td class="bar-col">
+                <span class="gap-bar">
+                  <span
+                    class="current"
+                    [style.width.%]="(row.current / 5) * 100"
+                  ></span>
+                  <span
+                    class="target"
+                    [style.width.%]="(row.skill.target24 / 5) * 100"
+                  ></span>
+                  <i
+                    class="target12"
+                    [style.left.%]="(row.skill.target12 / 5) * 100"
+                  ></i>
+                </span>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="9">Nenhuma skill com esses filtros.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+
+  <!-- ================= CAPSTONES ================= -->
+  @if (tab() === 'capstones') {
+    <p class="muted capstone-intro">
+      Projetos integradores que validam várias skills de uma vez. CAP-01 e CAP-02 têm
+      partes NO AI / AI LIMITED; nos demais a IA pode ajudar, mas cada decisão técnica
+      precisa ser explicada e defendida. Concluir exige o checklist completo; depois
+      registre as evidências nas skills validadas.
+    </p>
+    <section class="capstone-grid">
+      @for (capstone of CAPSTONES; track capstone.id) {
+        @let cap = capstoneState(capstone.id);
+        <article
+          class="card capstone"
+          [class.done]="cap.status === 'done'"
+        >
+          <header>
+            <code>{{ capstone.id }}</code>
+            <span [class]="'ai-badge ' + capstone.aiPolicy">{{
+              AI_LABEL[capstone.aiPolicy]
+            }}</span>
+            <span class="capstone-status">{{
+              cap.status === 'done'
+                ? 'Concluído'
+                : cap.status === 'doing'
+                  ? 'Em andamento'
+                  : 'A fazer'
+            }}</span>
+          </header>
+          <h3>{{ capstone.title }}</h3>
+          <p class="muted">{{ capstone.summary }}</p>
+          <small class="muted"
+            >Nível esperado: L{{ capstone.expectedLevel }} · +{{ capstone.xp }} XP</small
+          >
+          <div class="capstone-row">
+            <b>Valida</b>
+            <span class="quest-skills">
+              @for (id of capstone.skillIds; track id) {
+                <button
+                  type="button"
+                  (click)="openSkill(id)"
+                >
+                  {{ id }}
+                </button>
+              }
+            </span>
+          </div>
+          <div class="capstone-row">
+            <b>Pré-requisitos</b>
+            <span class="prereq-chips">
+              @for (prereq of capstone.prerequisites; track prereq) {
+                <i [class.ok]="isCapstonePrereqMet(prereq)">{{ prereq }}</i>
+              }
+            </span>
+          </div>
+          <p class="ai-note"><mat-icon>smart_toy</mat-icon> {{ capstone.aiNote }}</p>
+          <details>
+            <summary>Entregáveis e evidências</summary>
+            <b>Entregáveis</b>
+            <ul>
+              @for (item of capstone.deliverables; track $index) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+            <b>Evidências</b>
+            <ul>
+              @for (item of capstone.evidence; track $index) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+          </details>
+          <div class="capstone-checklist">
+            <b>Checklist ({{ cap.checked.length }}/{{ capstone.checklist.length }})</b>
+            @for (item of capstone.checklist; track $index) {
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="cap.checked.includes($index)"
+                  (change)="toggleCapstoneCheck(capstone, $index)"
+                />
+                {{ item }}
+              </label>
+            }
+          </div>
+          @if (gemini.configured()) {
+            @let reviewBusy = aiBusy().includes('review:' + capstone.id);
+            <details
+              class="code-review"
+              [open]="!!cap.codeReview"
+            >
+              <summary><mat-icon>rate_review</mat-icon> Code review com IA</summary>
+              <textarea
+                rows="6"
+                class="ai-submission"
+                placeholder="Cole o código do projeto (ou anexe os arquivos .py, .sql, .ipynb, README)..."
+                [ngModel]="reviewDrafts()[capstone.id] ?? ''"
+                (ngModelChange)="setReviewDraft(capstone.id, $event)"
+              ></textarea>
+              <div class="ai-grade-actions">
+                <label class="ai-attach">
+                  <mat-icon>attach_file</mat-icon> Anexar arquivos
+                  <input
+                    type="file"
+                    multiple
+                    hidden
+                    (change)="attachToReview(capstone.id, $event)"
+                  />
+                </label>
+                @if (reviewImages()[capstone.id]?.length) {
+                  <small class="muted"
+                    >{{ reviewImages()[capstone.id]!.length }} imagem(ns)</small
+                  >
+                }
+                <button
+                  type="button"
+                  class="primary"
+                  [disabled]="reviewBusy"
+                  (click)="reviewCapstoneCode(capstone)"
+                >
+                  <mat-icon>{{ reviewBusy ? 'hourglass_top' : 'auto_awesome' }}</mat-icon>
+                  {{ reviewBusy ? 'Revisando...' : 'Revisar código' }}
+                </button>
+              </div>
+              @if (cap.codeReview; as review) {
+                <div
+                  class="ai-review"
+                  [class.good]="review.score >= 70"
+                >
+                  <div class="ai-review-score">
+                    <strong>{{ review.score }}</strong
+                    ><small>/100</small>
+                  </div>
+                  <div>
+                    <p>{{ review.summary }}</p>
+                    <small class="muted"
+                      >Revisado em {{ review.at | date: 'dd/MM HH:mm' }}</small
+                    >
+                  </div>
+                </div>
+                @if (review.issues.length) {
+                  <ol class="review-issues">
+                    @for (issue of review.issues; track $index) {
+                      <li [class]="'sev-' + issue.severity">
+                        <span class="sev">{{ issue.severity }}</span>
+                        <div>
+                          @if (issue.where) {
+                            <code>{{ issue.where }}</code>
+                          }
+                          <b>{{ issue.problem }}</b>
+                          <small>→ {{ issue.suggestion }}</small>
+                        </div>
+                      </li>
+                    }
+                  </ol>
+                }
+                @if (review.readability) {
+                  <p><b>Legibilidade:</b> {{ review.readability }}</p>
+                }
+                @if (review.recruiter) {
+                  <p><b>O que um recrutador notaria:</b> {{ review.recruiter }}</p>
+                }
+                @if (review.nextSteps.length) {
+                  <p><b>Próximos passos:</b> {{ review.nextSteps.join(' · ') }}</p>
+                }
+              }
+            </details>
+          }
+          <div class="quest-actions">
+            @if (cap.status === 'todo') {
+              <button
+                type="button"
+                (click)="setCapstoneStatus(capstone, 'doing')"
+              >
+                <mat-icon>play_arrow</mat-icon> Começar
+              </button>
+            }
+            @if (cap.status !== 'done') {
+              <button
+                type="button"
+                class="primary"
+                [disabled]="cap.checked.length < capstone.checklist.length"
+                (click)="setCapstoneStatus(capstone, 'done')"
+              >
+                <mat-icon>check</mat-icon> Concluir
+              </button>
+            } @else {
+              <span class="done-tag"
+                ><mat-icon>check_circle</mat-icon> Concluído
+                {{ cap.completedAt | date: 'dd/MM/yy' }}</span
+              >
+              <button
+                type="button"
+                (click)="setCapstoneStatus(capstone, 'doing')"
+              >
+                <mat-icon>undo</mat-icon> Voltar para em andamento
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </section>
+  }
+</div>
+
+<ng-template
+  #questRow
+  let-quest
+  let-full="full"
+>
+  <article
+    class="quest-row"
+    [class.done]="quest.status === 'done'"
+    [class.boss]="quest.type === 'boss'"
+  >
+    <div class="quest-head">
+      <span class="quest-type">{{ TYPE_LABEL[quest.type] }}</span>
+      @if (quest.week) {
+        <span class="quest-week">Semana {{ quest.week }}</span>
+      }
+      <span [class]="'ai-badge ' + quest.aiPolicy">{{ AI_LABEL[quest.aiPolicy] }}</span>
+      <span class="quest-meta"
+        >L{{ quest.level }} · {{ quest.estimatedHours }}h · dif.
+        {{ quest.difficulty }}/5</span
+      >
+    </div>
+    <strong>{{ quest.title }}</strong>
+    <small class="quest-skills">
+      @for (id of quest.skillIds; track id) {
+        <button
+          type="button"
+          (click)="openSkill(id)"
+        >
+          {{ id }}
+        </button>
+      }
+    </small>
+    @if (full) {
+      <p>{{ quest.objective }}</p>
+      <dl>
+        @if (quest.deliverable) {
+          <div>
+            <dt>Entregável</dt>
+            <dd>{{ quest.deliverable }}</dd>
+          </div>
+        }
+        @if (quest.evidence) {
+          <div>
+            <dt>Evidência</dt>
+            <dd>{{ quest.evidence }}</dd>
+          </div>
+        }
+        @if (quest.prerequisites) {
+          <div>
+            <dt>Pré-requisitos</dt>
+            <dd>{{ quest.prerequisites }}</dd>
+          </div>
+        }
+      </dl>
+    }
+    <ng-container
+      [ngTemplateOutlet]="questBody"
+      [ngTemplateOutletContext]="{ $implicit: quest }"
+    />
+    <div class="quest-actions">
+      @if (quest.status === 'todo') {
+        <button
+          type="button"
+          (click)="setQuestStatus(quest, 'doing')"
+        >
+          <mat-icon>play_arrow</mat-icon> Começar
+        </button>
+      }
+      @if (quest.status !== 'done') {
+        <button
+          type="button"
+          class="primary"
+          (click)="setQuestStatus(quest, 'done')"
+        >
+          <mat-icon>check</mat-icon> Concluir
+        </button>
+      } @else {
+        <span class="done-tag"
+          ><mat-icon>check_circle</mat-icon> Concluída
+          {{ quest.completedAt | date: 'dd/MM' }}</span
+        >
+        <button
+          type="button"
+          (click)="setQuestStatus(quest, 'doing')"
+        >
+          <mat-icon>undo</mat-icon> Voltar para em andamento
+        </button>
+      }
+      @if (full) {
+        <button
+          type="button"
+          mat-icon-button
+          aria-label="Remover quest"
+          (click)="removeQuest(quest)"
+        >
+          <mat-icon>delete</mat-icon>
+        </button>
+      }
+    </div>
+  </article>
+</ng-template>
+
+<ng-template
+  #questBody
+  let-quest
+>
+  @if (questContent(quest); as content) {
+    @if (quest.status === 'todo' && quest.id.startsWith('q-')) {
+      <p class="brief-hint">
+        <mat-icon>lock</mat-icon> O enunciado completo aparece quando você clicar em
+        “Começar” (para não ver antes).
+      </p>
+    } @else {
+      <details
+        class="brief"
+        [open]="quest.status === 'doing'"
+      >
+        <summary><mat-icon>description</mat-icon> Enunciado e instruções</summary>
+        <div class="brief-body">
+          <career-content [source]="content.promptContent" />
+        </div>
+      </details>
+      @if (gemini.configured() && quest.status !== 'todo') {
+        @let busy = aiBusy().includes(quest.id);
+        <div class="ai-grade">
+          <div class="ai-grade-head">
+            <b><mat-icon>auto_awesome</mat-icon> Correção por IA</b>
+            <small class="muted"
+              >Cole sua resposta e o código (ou anexe os arquivos .py, .sql, .ipynb,
+              prints) — a IA corrige item por item contra os critérios e o
+              gabarito.</small
+            >
+          </div>
+          <textarea
+            rows="8"
+            class="ai-submission"
+            placeholder="Cole aqui suas respostas, código e saídas do terminal..."
+            [ngModel]="aiDraft(quest)"
+            (ngModelChange)="setAiDraft(quest, $event)"
+          ></textarea>
+          @if (aiImages()[quest.id]?.length) {
+            <div class="ai-thumbs">
+              @for (image of aiImages()[quest.id]; track $index) {
+                <figure>
+                  <img
+                    [src]="image"
+                    alt="anexo"
+                  />
+                  <button
+                    type="button"
+                    title="Remover"
+                    (click)="removeAiImage(quest, $index)"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </figure>
+              }
+            </div>
+          }
+          <div class="ai-grade-actions">
+            <label class="ai-attach">
+              <mat-icon>attach_file</mat-icon> Anexar arquivos
+              <input
+                type="file"
+                multiple
+                hidden
+                (change)="attachToSubmission(quest, $event)"
+              />
+            </label>
+            <label class="ai-docs">
+              <input
+                type="checkbox"
+                [checked]="usedDocs(quest)"
+                (change)="toggleUsedDocs(quest, $any($event.target).checked)"
+              />
+              Consultei documentação
+            </label>
+            <button
+              type="button"
+              class="primary"
+              [disabled]="busy"
+              (click)="gradeWithAi(quest, content)"
+            >
+              <mat-icon>{{ busy ? 'hourglass_top' : 'auto_awesome' }}</mat-icon>
+              {{
+                busy
+                  ? 'Corrigindo...'
+                  : quest.aiReview
+                    ? 'Corrigir de novo'
+                    : 'Corrigir com IA'
+              }}
+            </button>
+          </div>
+          @if (quest.aiReview; as review) {
+            <div
+              class="ai-review"
+              [class.good]="review.score >= 70"
+            >
+              <div class="ai-review-score">
+                <strong>{{ review.score }}</strong
+                ><small>/100</small>
+              </div>
+              <div>
+                <p>{{ review.summary }}</p>
+                @if (review.strengths.length) {
+                  <p class="ai-strengths">
+                    <b>Pontos fortes:</b> {{ review.strengths.join(' · ') }}
+                  </p>
+                }
+                @if (review.improve.length) {
+                  <p class="ai-improve">
+                    <b>Melhorar:</b> {{ review.improve.join(' · ') }}
+                  </p>
+                }
+                @if (!content.grading && review.items['geral']; as general) {
+                  <p>{{ general.feedback }}</p>
+                }
+                <small class="muted"
+                  >Corrigido em {{ review.at | date: 'dd/MM HH:mm' }}</small
+                >
+              </div>
+            </div>
+          }
+        </div>
+      }
+      @if (content.grading) {
+        <div class="self-grade">
+          <b
+            ><mat-icon>fact_check</mat-icon>
+            {{
+              quest.aiReview
+                ? 'Correção (preenchida pela IA — confira)'
+                : 'Correção (autoavaliação)'
+            }}</b
+          >
+          <p class="muted">
+            Para cada item, marque como fez. Só conta como feito se cumprir TODOS os
+            critérios — abra “o que precisa cumprir” e confira com o seu código rodando.
+          </p>
+          @for (group of content.grading.groups; track group.skillId) {
+            @let score = groupScore(quest, group);
+            <div class="grade-group">
+              <div class="grade-head">
+                <span>{{ group.label }}</span>
+                <span
+                  class="grade-score"
+                  [class.pass]="score.answered === score.total && score.passed"
+                  [class.fail]="score.answered === score.total && !score.passed"
+                  >{{ score.valid }}/{{ score.total }}
+                  @if (score.answered === score.total) {
+                    — {{ score.passed ? 'PASSOU' : 'FALHOU' }}
+                  } @else {
+                    — faltam {{ score.total - score.answered }}
+                  }
+                </span>
+              </div>
+              @for (item of group.items; track item.id) {
+                <div class="grade-item">
+                  <details>
+                    <summary>{{ item.label }}</summary>
+                    <ul>
+                      @for (criterion of item.criteria; track $index) {
+                        <li>{{ criterion }}</li>
+                      }
+                    </ul>
+                  </details>
+                  @if (quest.aiReview?.items?.[item.id]; as verdict) {
+                    <p
+                      class="ai-item-feedback"
+                      [class.pass]="verdict.passed"
+                    >
+                      <mat-icon>{{
+                        verdict.passed ? 'check_circle' : 'cancel'
+                      }}</mat-icon>
+                      {{ verdict.feedback }}
+                    </p>
+                  }
+                  <div class="grade-options">
+                    <button
+                      type="button"
+                      [class.on]="selfGrade(quest, item.id) === 'solo'"
+                      (click)="setSelfGrade(quest, item.id, 'solo')"
+                    >
+                      Sozinho
+                    </button>
+                    <button
+                      type="button"
+                      [class.on]="selfGrade(quest, item.id) === 'doc'"
+                      (click)="setSelfGrade(quest, item.id, 'doc')"
+                      [title]="
+                        group.countsDoc
+                          ? 'Conta para a aprovação'
+                          : 'Não conta para a aprovação deste teste'
+                      "
+                    >
+                      Com doc
+                    </button>
+                    <button
+                      type="button"
+                      class="fail"
+                      [class.on]="selfGrade(quest, item.id) === 'fail'"
+                      (click)="setSelfGrade(quest, item.id, 'fail')"
+                    >
+                      Não consegui
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+          <div class="grade-actions">
+            @if (quest.gradedAt) {
+              <small class="muted"
+                >Resultado registrado em
+                {{ quest.gradedAt | date: 'dd/MM HH:mm' }}.</small
+              >
+            }
+            <button
+              type="button"
+              class="primary"
+              (click)="recordGrading(quest, content.grading.groups)"
+            >
+              <mat-icon>verified</mat-icon> Registrar resultado
+            </button>
+          </div>
+        </div>
+      }
+      @if (content.evaluationRubric || content.solutionContent) {
+        <div class="reveal-actions">
+          @if (content.evaluationRubric) {
+            <button
+              type="button"
+              (click)="toggleRubric(quest.id)"
+            >
+              <mat-icon>rule</mat-icon>
+              {{
+                isRubricOpen(quest.id) ? 'Esconder rubrica' : 'Ver rubrica de avaliação'
+              }}
+            </button>
+          }
+          @if (content.solutionContent) {
+            <button
+              type="button"
+              (click)="toggleSolution(quest)"
+            >
+              <mat-icon>key</mat-icon>
+              {{
+                isSolutionOpen(quest.id) ? 'Esconder solução' : 'Ver solução (gabarito)'
+              }}
+            </button>
+          }
+        </div>
+        @if (isRubricOpen(quest.id) && content.evaluationRubric) {
+          <div class="reveal rubric">
+            <b>Rubrica de avaliação</b>
+            <career-content [source]="content.evaluationRubric" />
+          </div>
+        }
+        @if (isSolutionOpen(quest.id) && content.solutionContent) {
+          <div class="reveal solution">
+            <b>Solução</b>
+            <career-content [source]="content.solutionContent" />
+          </div>
+        }
+      }
+    }
+  }
+</ng-template>

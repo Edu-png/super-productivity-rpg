@@ -52,6 +52,17 @@ import { RpgConstellationBonuses } from './rpg-constellations.model';
 import { DomainStateStore } from '../../core/persistence/domain-state-store.service';
 import { RPG_REALMS } from './rpg-realms.data';
 import {
+  RPG_CATALOG_IMAGE_BY_NAME,
+  RPG_CLASS_ITEM_CATALOG,
+  RPG_PET_ITEM_ATTRIBUTE_BY_NAME,
+  RPG_PET_ITEM_CATALOG,
+} from './rpg-item-catalog.data';
+import {
+  applyImageReplacements,
+  shrinkLargeInlineImages,
+} from '../../util/shrink-image-data-url';
+import { CareerQuestState } from '../career-quest/career-quest.model';
+import {
   contractProgress,
   MEDAL_TIER_EXTRA,
   medalTierFor,
@@ -109,12 +120,139 @@ const rareItemImage = (assetId: string): string => {
   return `${RARE_ITEM_PACK_PATH}/item-${row}-${column}.png`;
 };
 
+/** Extra names per slot for drops - each maps to art via generatedItemImage. */
+const DROP_VARIANTS: Partial<Record<RpgItemSlot, { name: string; icon: string }[]>> = {
+  head: [
+    { name: 'Elmo do Foco', icon: 'sports_motorsports' },
+    { name: 'Elmo de Aço', icon: 'sports_motorsports' },
+  ],
+  neck: [
+    { name: 'Amuleto da Disciplina', icon: 'diamond' },
+    { name: 'Amuleto Violeta', icon: 'diamond' },
+  ],
+  chest: [
+    { name: 'Armadura da Constância', icon: 'checkroom' },
+    { name: 'Peitoral de Prata', icon: 'checkroom' },
+  ],
+  hands: [
+    { name: 'Luvas da Execução', icon: 'back_hand' },
+    { name: 'Luvas de Couro', icon: 'back_hand' },
+  ],
+  offHand: [
+    { name: 'Escudo da Rotina', icon: 'shield' },
+    { name: 'Escudo do Cavaleiro', icon: 'shield' },
+  ],
+  ringLeft: [
+    { name: 'Anel do Tempo', icon: 'radio_button_checked' },
+    { name: 'Anel Prateado', icon: 'radio_button_checked' },
+  ],
+  ringRight: [
+    { name: 'Anel da Constância', icon: 'radio_button_checked' },
+    { name: 'Anel Prateado', icon: 'radio_button_checked' },
+  ],
+  boots: [
+    { name: 'Botas do Caminho', icon: 'ice_skating' },
+    { name: 'Botas de Couro', icon: 'ice_skating' },
+  ],
+  companion: [
+    { name: 'Runa do Companheiro', icon: 'pets' },
+    { name: 'Coleira Encantada', icon: 'pets' },
+    { name: 'Sino do Vínculo', icon: 'notifications' },
+    { name: 'Pingente de Patinha', icon: 'pets' },
+  ],
+  relic: [
+    { name: 'Relíquia do Destino', icon: 'auto_awesome' },
+    { name: 'Chave do Tesouro', icon: 'key' },
+  ],
+};
+
+const BLADES = [
+  { name: 'Lâmina das Metas', icon: 'swords' },
+  { name: 'Espada de Treino', icon: 'swords' },
+  { name: 'Machado de Batalha', icon: 'hardware' },
+];
+const ARCANE = [
+  { name: 'Cajado Arcano', icon: 'auto_fix_high' },
+  { name: 'Tomo Antigo', icon: 'book_2' },
+  { name: 'Grimório Rúnico', icon: 'menu_book' },
+  { name: 'Orbe Astral', icon: 'brightness_7' },
+  { name: 'Varinha Lunar', icon: 'nightlight' },
+];
+/** Weapon drops per class - each name maps to art via generatedItemImage. */
+const CLASS_WEAPONS: Record<string, { name: string; icon: string }[]> = {
+  adventurer: BLADES,
+  warrior: BLADES,
+  barbarian: BLADES,
+  guardian: BLADES,
+  mage: ARCANE,
+  necromancer: ARCANE,
+  cleric: [ARCANE[0], ARCANE[1], ARCANE[3]],
+  rogue: [
+    { name: 'Adaga Sombria', icon: 'content_cut' },
+    { name: 'Lâmina das Metas', icon: 'swords' },
+  ],
+  ranger: [{ name: 'Arco Curto', icon: 'my_location' }, BLADES[0]],
+  archer: [{ name: 'Arco Longo', icon: 'my_location' }],
+  bard: [
+    { name: 'Alaúde Encantado', icon: 'music_note' },
+    { name: 'Varinha Lunar', icon: 'nightlight' },
+  ],
+  merchant: [
+    { name: 'Bolsa de Ouro', icon: 'business_center' },
+    { name: 'Chave do Tesouro', icon: 'key' },
+  ],
+};
+
+/** Pet attributes a companion accessory grants, by kind (name). */
+const companionPetAttributes = (
+  name: string,
+  power: number,
+): { loyalty: number; joy: number; scent: number } => {
+  const p = Math.max(0, power);
+  // Pet treats/toys feed one specific attribute (see RPG_PET_ITEM_CATALOG).
+  const petAttribute = RPG_PET_ITEM_ATTRIBUTE_BY_NAME.get(name);
+  if (petAttribute) {
+    return {
+      loyalty: petAttribute === 'loyalty' ? p : 0,
+      joy: petAttribute === 'joy' ? p : 0,
+      scent: petAttribute === 'scent' ? p : 0,
+    };
+  }
+  const normalized = name
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+  if (normalized.includes('coleira')) return { loyalty: p, joy: 0, scent: 0 };
+  if (normalized.includes('sino')) return { loyalty: 0, joy: p, scent: 0 };
+  if (normalized.includes('pingente')) return { loyalty: 0, joy: 0, scent: p };
+  const half = Math.ceil(p * 0.5);
+  return { loyalty: half, joy: half, scent: half };
+};
+
 const generatedItemImage = (name: string, slot: RpgItemSlot): string | null => {
   const normalized = name
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
   const namedIcons: [string, string][] = [
+    // Companion accessories (checked first: 'runa do companheiro' must not
+    // fall through to a generic keyword).
+    ['coleira', 'companion-collar'],
+    ['sino', 'companion-bell'],
+    ['pingente', 'companion-pendant'],
+    ['runa do companheiro', 'companion-rune'],
+    // Variant names that reuse existing art - must precede the generic
+    // keyword of their slot ('elmo', 'amuleto', 'luvas'...).
+    ['elmo de aco', 'steel-helmet'],
+    ['amuleto violeta', 'purple-amulet'],
+    ['peitoral', 'silver-breastplate'],
+    ['luvas de couro', 'leather-gloves'],
+    ['escudo do cavaleiro', 'knight-shield'],
+    ['botas de couro', 'leather-boots'],
+    ['anel prateado', 'silver-blue-ring'],
+    ['chave', 'treasure-key'],
+    ['orbe', 'arcane-orb'],
+    ['varinha', 'moon-wand'],
     ['grimorio', 'apprentice-grimoire'],
     ['tomo', 'ancient-tome'],
     ['cajado', 'wizard-staff'],
@@ -340,6 +478,106 @@ export class RpgProfileService {
   private readonly _subclassBonus = computed(
     () => RPG_SUBCLASS_BONUSES[this._state().subclassId],
   );
+  /**
+   * XP bonus for honours already earned: +0.5% per tier medal and +3% per
+   * class title. Read from the persisted unlock records (not from
+   * classTitleTiers / tierAchievementSets, which depend on level -> XP and
+   * would make xpMultiplier circular). A title i-1 is unlocked once
+   * classTierBaselines[class][i] is stamped; the last one via mastery.
+   */
+  readonly honorBonus = computed(() => {
+    const state = this._state();
+    // Unlocked titles come from classUnlockedTitleTiers; older saves only
+    // have classTierBaselines (key i stamped => tier i-1 unlocked) and
+    // mastery (tier 4).
+    const byClass = new Map<string, Set<number>>();
+    const add = (classId: string, tier: number): void => {
+      if (!byClass.has(classId)) byClass.set(classId, new Set());
+      byClass.get(classId)!.add(tier);
+    };
+    for (const [classId, tiers] of Object.entries(state.classUnlockedTitleTiers ?? {})) {
+      for (const key of Object.keys(tiers ?? {})) add(classId, Number(key));
+    }
+    for (const [classId, tiers] of Object.entries(state.classTierBaselines ?? {})) {
+      for (const key of Object.keys(tiers ?? {})) add(classId, Number(key) - 1);
+      if (state.masteredClassBonuses?.[classId as RpgClassId]) add(classId, 4);
+    }
+    const unlockedTiers = [...byClass.values()].flatMap((tiers) => [...tiers]);
+    const rewards = unlockedTiers.map((index) => this.titleReward(index));
+    return {
+      titles: unlockedTiers.length,
+      xp: rewards.reduce((sum, reward) => sum + reward.xp, 0),
+      gold: rewards.reduce((sum, reward) => sum + reward.gold, 0),
+    };
+  });
+  /** Bonus a class title grants once unlocked, growing with its tier (0..4). */
+  titleReward(tierIndex: number): { xp: number; gold: number } {
+    const xp = [0.02, 0.03, 0.04, 0.06, 0.08];
+    const gold = [0.01, 0.015, 0.02, 0.03, 0.04];
+    const index = Math.min(4, Math.max(0, tierIndex));
+    return { xp: xp[index], gold: gold[index] };
+  }
+  /**
+   * The honour bonus as it was computed before titles-only (+0.2-1% XP and
+   * +0.1-0.5% gold per medal by tier, +3% XP per title) - only used to freeze
+   * past XP at the multiplier the player actually had when history starts.
+   */
+  private _legacyHonorBonus(): { xp: number; gold: number } {
+    const state = this._state();
+    const xpByTier = [0.002, 0.0035, 0.005, 0.0075, 0.01];
+    const goldByTier = [0.001, 0.0015, 0.0025, 0.0035, 0.005];
+    let xp = this.honorBonus().titles * 0.03;
+    let gold = 0;
+    for (const id of Object.keys(state.unlockedTierAchievementIds ?? {})) {
+      const tier = Math.min(4, Math.max(0, Number(/^tier(\d+)-/.exec(id)?.[1] ?? 0)));
+      xp += xpByTier[tier];
+      gold += goldByTier[tier];
+    }
+    return { xp, gold };
+  }
+  /**
+   * Sorte (equipment + constellations): +0.2% level-up rare-drop chance per
+   * point, and it lifts that chance's 22% cap by 0.1% per point (up to 30%) -
+   * otherwise a capped character gained nothing from more luck.
+   */
+  readonly luckEffect = computed(() => {
+    const luck = this.equipmentBonuses().luck + this.constellationBonuses().luck;
+    return { luck, chance: luck * 0.002, cap: Math.min(0.3, 0.22 + luck * 0.001) };
+  });
+  /** Attributes the equipped companion accessory gives the pet (see itemBonuses). */
+  readonly petAttributes = computed(() => {
+    const itemId = this._state().equippedItems.companion;
+    const item = itemId
+      ? this._state().inventory.find((candidate) => candidate.id === itemId)
+      : undefined;
+    if (!item) return null;
+    const bonuses = this.itemBonuses(item);
+    return {
+      itemName: item.name,
+      loyalty: Math.round(bonuses.xpMultiplier / 0.005),
+      joy: Math.round(bonuses.goldMultiplier / 0.005),
+      scent: Math.round(bonuses.rareDrop / 0.0025),
+      ...bonuses,
+    };
+  });
+  /**
+   * Odds of each rarity for a level-up drop at the current level. Luck shifts
+   * every threshold up (0.5% "boost" per point, capped at 40%), so a lucky
+   * character gets better items, not just more of them. Legendary only from
+   * level 25.
+   */
+  readonly levelDropOdds = computed(() => this._levelDropOdds(this.level()));
+  private _levelDropOdds(
+    level: number,
+  ): Record<'uncommon' | 'rare' | 'epic' | 'legendary', number> {
+    const boost = Math.min(0.4, this.luckEffect().luck * 0.005);
+    return {
+      legendary: level >= 25 ? boost * 0.05 : 0,
+      epic: level >= 15 ? 0.02 + boost * 0.15 : 0,
+      rare: level >= 10 ? 0.08 + boost * 0.4 : 0,
+      uncommon: level >= 4 ? 0.35 + boost * 0.6 : 0,
+    };
+  }
   readonly baseTaskXp = computed(() =>
     Object.values(this._state().xpLedger).reduce((sum, entry) => sum + entry.xp, 0),
   );
@@ -354,6 +592,7 @@ export class RpgProfileService {
     multiplier += (this._state().skills['wisdom-core'] ?? 0) * 0.01;
     multiplier += this.equipmentBonuses().xpMultiplier;
     multiplier += this.constellationBonuses().xpMultiplier;
+    multiplier += this.honorBonus().xp;
     return multiplier;
   });
   readonly goldMultiplier = computed(() => {
@@ -364,11 +603,122 @@ export class RpgProfileService {
     }
     multiplier += this.equipmentBonuses().goldMultiplier;
     multiplier += this.constellationBonuses().goldMultiplier;
+    multiplier += this.honorBonus().gold;
     return multiplier;
   });
+  /**
+   * Where each bonus comes from, mirroring xpMultiplier / goldMultiplier and the
+   * level-up rare-drop roll. Values are fractions (0.1 = +10%).
+   */
+  readonly bonusBreakdown = computed(() => {
+    const state = this._state();
+    const skill = (id: string): number => state.skills[id] ?? 0;
+    const subclass = this._subclassBonus();
+    const equipment = this.equipmentBonuses();
+    const constellations = this.constellationBonuses();
+    const rows = [
+      {
+        source: 'Classe',
+        xp: state.classId === 'mage' ? 0.1 : state.classId === 'warrior' ? 0.05 : 0,
+        gold:
+          state.classId === 'merchant'
+            ? 0.2
+            : state.classId === 'bard'
+              ? Math.min(0.15, this.streak() * 0.01)
+              : 0,
+        rare: state.classId === 'rogue' ? 0.05 : 0,
+      },
+      { source: 'Subclasse', xp: subclass.xp ?? 0, gold: subclass.gold ?? 0, rare: 0 },
+      {
+        source: 'Talentos',
+        xp:
+          skill('focus-mastery') * 0.02 +
+          skill('deep-work') * 0.015 +
+          skill('wisdom-core') * 0.01,
+        gold: 0,
+        rare:
+          skill('treasure-hunter') * 0.02 +
+          skill('rare-instinct') * 0.015 +
+          skill('fortune-heart') * 0.05,
+      },
+      {
+        source: 'Equipamento',
+        xp: equipment.xpMultiplier,
+        gold: equipment.goldMultiplier,
+        rare: equipment.rareDrop,
+      },
+      {
+        source: 'Constelações',
+        xp: constellations.xpMultiplier,
+        gold: constellations.goldMultiplier,
+        rare: constellations.rareDrop,
+      },
+      {
+        source: `Sorte (${this.luckEffect().luck})`,
+        xp: 0,
+        gold: 0,
+        rare: this.luckEffect().chance,
+      },
+      {
+        source: `Títulos (${this.honorBonus().titles})`,
+        xp: this.honorBonus().xp,
+        gold: this.honorBonus().gold,
+        rare: 0,
+      },
+      { source: 'Nível', xp: 0, gold: 0, rare: 0.025 + this.level() * 0.003 },
+    ];
+    const rareSum = rows.reduce((sum, row) => sum + row.rare, 0);
+    const rareCap = this.luckEffect().cap;
+    // Only applies to tasks of projects mapped to this city (see _xpForTask /
+    // _realmTaskBonus), so it's shown apart and kept out of the totals.
+    const realm = RPG_REALM_BY_ID.get(state.currentRealmId);
+    return {
+      rows,
+      realm: realm
+        ? {
+            name: realm.name,
+            xp: realm.bonuses.xp,
+            gold: realm.bonuses.gold,
+            rare: realm.bonuses.rareDrop,
+          }
+        : null,
+      total: {
+        xp: this.xpMultiplier() - 1,
+        gold: this.goldMultiplier() - 1,
+        rare: Math.min(rareCap, rareSum),
+      },
+      rareCap,
+      rareCapped: rareSum > rareCap,
+    };
+  });
+  /**
+   * Task XP / gold-base weighted by the multiplier in effect when each entry
+   * was earned (multiplierHistory), so changing class, subclass, items or
+   * titles never re-scales XP already earned. Before the history is seeded,
+   * falls back to the live multipliers (the old behaviour).
+   */
+  private readonly _weightedTaskTotals = computed(() => {
+    const history = this._state().multiplierHistory;
+    const entries = Object.values(this._state().xpLedger);
+    if (!history?.length) {
+      const base = this.baseTaskXp();
+      return { xp: base * this.xpMultiplier(), gold: base * this.goldMultiplier() };
+    }
+    let xp = 0;
+    let gold = 0;
+    for (const entry of entries) {
+      let segment = history[0];
+      for (const candidate of history) {
+        if (candidate.at <= (entry.earnedAt ?? 0)) segment = candidate;
+        else break;
+      }
+      xp += entry.xp * segment.xp;
+      gold += entry.xp * segment.gold;
+    }
+    return { xp, gold };
+  });
   readonly totalXp = computed(() => {
-    const earned =
-      Math.round(this.baseTaskXp() * this.xpMultiplier()) + this._state().questBonusXp;
+    const earned = Math.round(this._weightedTaskTotals().xp) + this._state().questBonusXp;
     return Math.max(0, earned - this._penaltyXp());
   });
   readonly level = computed(() => Math.floor(Math.sqrt(this.totalXp() / 100)) + 1);
@@ -381,7 +731,7 @@ export class RpgProfileService {
   readonly coins = computed(() =>
     Math.max(
       0,
-      Math.floor(this.baseTaskXp() * this.goldMultiplier() * 0.1) +
+      Math.floor(this._weightedTaskTotals().gold * 0.1) +
         this._state().questBonusCoins -
         this._state().coinsSpent -
         this._penaltyCoins(),
@@ -502,7 +852,12 @@ export class RpgProfileService {
     const totals: Record<RpgAttributeId, number> = {
       health: 0,
       intelligence: 0,
-      discipline: Math.round(this.discipline()),
+      // Accumulated, unlike discipline() (an average that can never pass 100
+      // and so could never reach the 150+ tier targets): each tracked day adds
+      // its completion % / 10, so a perfect day is worth 10 points.
+      discipline: Math.round(
+        this.disciplineDays().reduce((sum, day) => sum + day.percentage / 10, 0),
+      ),
       social: 0,
       finance: 0,
     };
@@ -611,8 +966,8 @@ export class RpgProfileService {
     const metricValues = this._titleMetricValues();
     const currentClassId = this._state().classId;
     // Tier 0 counts from class-adoption time (classMetricBaselines); tiers
-    // 1-4 each count from the moment their OWN predecessor tier unlocked
-    // (classTierBaselines), not from class-adoption - so a tier's quest never
+    // 1-4 each count from the moment their predecessor tier is unlocked AND
+    // their own level is reached (classTierBaselines) - so a tier's quest never
     // shows progress that was actually earned while a still-locked previous
     // tier hadn't been reached yet.
     const classBaseline = this._state().classMetricBaselines?.[currentClassId] ?? 0;
@@ -660,25 +1015,53 @@ export class RpgProfileService {
   // whatever the shared metric already was. Called opportunistically (see
   // constructor) rather than from inside classTitleTiers, since computed()
   // must stay side-effect free.
+  // A tier's quest only starts counting once every other requirement to
+  // unlock it is met: previous tier unlocked AND the tier's level reached.
+  // Also records unlocked titles (classUnlockedTitleTiers) and drops
+  // baselines stamped early by the old rule (before the level was reached).
   private _persistTierBaselineTransitions(): void {
     const state = this._state();
     const classId = state.classId;
+    const level = this.level();
     const tiers = this.classTitleTiers();
     const existing = state.classTierBaselines?.[classId] ?? {};
+    const existingUnlocked = state.classUnlockedTitleTiers?.[classId] ?? {};
     const metricValues = this._titleMetricValues();
-    const updates: Record<number, number> = {};
-    for (let i = 0; i < tiers.length - 1; i++) {
-      const nextIndex = i + 1;
-      if (tiers[i].isUnlocked && existing[nextIndex] === undefined) {
-        updates[nextIndex] = metricValues[tiers[nextIndex].metric];
+    const baselines: Record<number, number> = { ...existing };
+    const unlocked: Record<number, number> = { ...existingUnlocked };
+    let changed = false;
+    // Old rule: baseline key i was stamped as soon as tier i-1 unlocked.
+    for (const key of Object.keys(existing)) {
+      if (unlocked[Number(key) - 1] === undefined) {
+        unlocked[Number(key) - 1] = Date.now();
+        changed = true;
       }
     }
-    if (Object.keys(updates).length === 0) return;
+    tiers.forEach((tier, i) => {
+      if (tier.isUnlocked && unlocked[i] === undefined) {
+        unlocked[i] = Date.now();
+        changed = true;
+      }
+      if (i === 0) return;
+      const ready = unlocked[i - 1] !== undefined && level >= tier.level;
+      if (!ready && baselines[i] !== undefined && unlocked[i] === undefined) {
+        delete baselines[i];
+        changed = true;
+      } else if (ready && baselines[i] === undefined) {
+        baselines[i] = metricValues[tier.metric];
+        changed = true;
+      }
+    });
+    if (!changed) return;
     this._save({
       ...state,
       classTierBaselines: {
         ...(state.classTierBaselines ?? {}),
-        [classId]: { ...existing, ...updates },
+        [classId]: baselines,
+      },
+      classUnlockedTitleTiers: {
+        ...(state.classUnlockedTitleTiers ?? {}),
+        [classId]: unlocked,
       },
     });
   }
@@ -865,6 +1248,7 @@ export class RpgProfileService {
           this._backfillPenaltyMoneyLog();
           this._persistNewlyUnlockedTierAchievements();
           this._persistTierBaselineTransitions();
+          this._recordMultiplierChange();
         }),
       );
     });
@@ -876,6 +1260,37 @@ export class RpgProfileService {
     effect(() => {
       const failedTaskIds = this._roster().failedTaskIds;
       this._habitTracker.setFailedTaskIds(new Set(Object.keys(failedTaskIds ?? {})));
+    });
+  }
+
+  /**
+   * Appends to multiplierHistory whenever the live XP/gold multiplier changes,
+   * so the new value only applies from now on. First run seeds the history
+   * with the multiplier the player had up to now (legacy honour bonus
+   * included), keeping every bit of past XP exactly where it was.
+   */
+  private _recordMultiplierChange(): void {
+    const state = this._state();
+    const xp = this.xpMultiplier();
+    const gold = this.goldMultiplier();
+    const history = state.multiplierHistory ?? [];
+    if (!history.length) {
+      const honor = this.honorBonus();
+      const legacy = this._legacyHonorBonus();
+      this._save({
+        ...state,
+        multiplierHistory: [
+          { at: 0, xp: xp - honor.xp + legacy.xp, gold: gold - honor.gold + legacy.gold },
+          { at: Date.now(), xp, gold },
+        ],
+      });
+      return;
+    }
+    const last = history[history.length - 1];
+    if (Math.abs(last.xp - xp) < 1e-9 && Math.abs(last.gold - gold) < 1e-9) return;
+    this._save({
+      ...state,
+      multiplierHistory: [...history, { at: Date.now(), xp, gold }],
     });
   }
 
@@ -1307,6 +1722,14 @@ export class RpgProfileService {
     return isFirstTime;
   }
 
+  /** Replaces this character's Career Quest state through an updater. */
+  updateCareerQuest(
+    change: (current: CareerQuestState | undefined) => CareerQuestState,
+  ): void {
+    const state = this._state();
+    this._save({ ...state, careerQuest: change(state.careerQuest) });
+  }
+
   /** Marks everything still pending as moved into the real punishment savings box. */
   markPenaltyMoneyTransferred(): void {
     const state = this._state();
@@ -1566,6 +1989,19 @@ export class RpgProfileService {
     rareDrop: number;
   } {
     const basePower = Number.isFinite(Number(item.power)) ? Number(item.power) : 0;
+    if (item.slot === 'companion' && !item.stats) {
+      // Companion accessories power up the pet, and the pet's attributes are
+      // what reach the player: Lealdade -> XP, Alegria -> ouro, Faro -> drop raro.
+      const pet = companionPetAttributes(item.name, basePower);
+      return {
+        power: 0,
+        intelligence: 0,
+        luck: 0,
+        xpMultiplier: pet.loyalty * 0.005,
+        goldMultiplier: pet.joy * 0.005,
+        rareDrop: pet.scent * 0.0025,
+      };
+    }
     const fallback = {
       power: ['chest', 'mainHand', 'offHand', 'hands'].includes(item.slot)
         ? basePower
@@ -1805,6 +2241,29 @@ export class RpgProfileService {
     return star.connections.some((connectionId) => this.starRank(connectionId) > 0);
   }
 
+  /**
+   * Why a star can't be unlocked right now, in the order the player should fix
+   * it - null when it can. Shown on the unlock button so a level or point gate
+   * isn't mistaken for a broken connection.
+   */
+  starLockReason(starId: string): string | null {
+    const star = RPG_CONSTELLATION_STARS.find((candidate) => candidate.id === starId);
+    if (!star || star.id === 'destiny-core') return null;
+    if (this.starRank(star.id) >= star.maxLevel) return 'Talento dominado';
+    if (!star.connections.some((connectionId) => this.starRank(connectionId) > 0)) {
+      return 'Desbloqueie antes uma estrela ligada a esta';
+    }
+    const requiredLevel = star.requiredLevel ?? 1;
+    if (this.level() < requiredLevel) {
+      return `Requer nível ${requiredLevel} (você está no ${this.level()})`;
+    }
+    const missing = star.cost - this.availableSkillPoints();
+    if (missing > 0) {
+      return `Falta${missing > 1 ? 'm' : ''} ${missing} ponto${missing > 1 ? 's' : ''} (custa ${star.cost})`;
+    }
+    return null;
+  }
+
   unlockStar(starId: string): boolean {
     const star = RPG_CONSTELLATION_STARS.find((candidate) => candidate.id === starId);
     if (!star || !this.canUnlockStar(starId)) return false;
@@ -2013,6 +2472,14 @@ export class RpgProfileService {
       xp: Math.min(1500, 100 + Math.round(difficulty * 3) + habitCount * 25),
       gold: Math.min(350, 20 + Math.round(difficulty / 3) + habitCount * 10),
     };
+  }
+
+  /**
+   * Whether the active character is the owner's real one (the same owner the
+   * monthly-medal history uses) - personal seed data must only go there.
+   */
+  isOwnerCharacter(): boolean {
+    return this._state().id === this._monthlyMedalHistoryOwnerId();
   }
 
   // Which single character the historical 2026 monthly-medal import belongs
@@ -2429,9 +2896,10 @@ export class RpgProfileService {
     // Subclass can be switched freely between any already-unlocked option for
     // the current class - it isn't a one-time commitment (the UI now always
     // offers the full list with locked ones disabled, see rpg-profile
-    // .component.html's Subclasse selector).
+    // .component.html's Subclasse selector). 'none' (no subclass) is allowed
+    // too - otherwise picking it left the old subclass active while the
+    // selector showed none.
     if (
-      subclassId === 'none' ||
       this.level() < RPG_SUBCLASS_UNLOCK_LEVELS[subclassId] ||
       !this._subclassBelongsToClass(subclassId, state.classId)
     ) {
@@ -3119,16 +3587,17 @@ export class RpgProfileService {
       // Nv. 1 ≈ 2,8%, Nv. 10 ≈ 5,5%, Nv. 50 ≈ 17,5%.
       const levelChance = level * 0.003;
       const baseChance = 0.025 + levelChance;
-      const equipmentChance =
-        this.equipmentBonuses().rareDrop + this.equipmentBonuses().luck * 0.002;
+      const luck = this.luckEffect();
       const bonusChance =
         treasureBonus +
         rareInstinctBonus +
         fortuneHeartBonus +
         rogueBonus +
-        equipmentChance;
+        this.equipmentBonuses().rareDrop +
+        this.constellationBonuses().rareDrop +
+        luck.chance;
       // Sorte e talentos ajudam, porém nunca tornam o drop de nível rotineiro.
-      const chance = Math.min(0.22, baseChance + bonusChance);
+      const chance = Math.min(luck.cap, baseChance + bonusChance);
       if (Math.random() <= chance) {
         drops.push(this._createDrop('level', this._rollLevelRarity(level)));
       }
@@ -3171,11 +3640,74 @@ export class RpgProfileService {
   }
 
   private _rollLevelRarity(level: number): RpgItemRarity {
+    const odds = this._levelDropOdds(level);
     const roll = Math.random();
-    if (level >= 15 && roll < 0.02) return 'epic';
-    if (level >= 10 && roll < 0.08) return 'rare';
-    if (level >= 4 && roll < 0.35) return 'uncommon';
+    let threshold = odds.legendary;
+    if (roll < threshold) return 'legendary';
+    threshold += odds.epic;
+    if (roll < threshold) return 'epic';
+    threshold += odds.rare;
+    if (roll < threshold) return 'rare';
+    threshold += odds.uncommon;
+    if (roll < threshold) return 'uncommon';
     return 'common';
+  }
+
+  /**
+   * Roleta: trades 5 unequipped items for one new item a rarity above the
+   * weakest of them; luck (1% per point, max 30%) can push it two steps up.
+   */
+  rerollItems(itemIds: string[]): { ok: boolean; message: string; itemId?: string } {
+    const uniqueIds = [...new Set(itemIds)];
+    if (uniqueIds.length !== 5) {
+      return { ok: false, message: 'Selecione exatamente 5 itens para roletar.' };
+    }
+    const state = this._state();
+    const items = uniqueIds
+      .map((id) => state.inventory.find((candidate) => candidate.id === id))
+      .filter((item): item is RpgItem => !!item);
+    if (items.length !== 5)
+      return { ok: false, message: 'Um dos itens não existe mais.' };
+    if (
+      items.some((item) => item.id === PET_COMPANION_ID || item.id === STARTER_RING.id)
+    ) {
+      return { ok: false, message: 'Mascote e Anel do Poder não entram na roleta.' };
+    }
+    if (items.some((item) => this.isItemEquipped(item.id))) {
+      return { ok: false, message: 'Desequipe os itens antes de roletar.' };
+    }
+    const order: RpgItemRarity[] = [
+      'common',
+      'uncommon',
+      'rare',
+      'epic',
+      'legendary',
+      'mythic',
+    ];
+    const weakest = Math.min(...items.map((item) => order.indexOf(item.rarity)));
+    const jump = Math.random() < Math.min(0.3, this.luckEffect().luck * 0.01) ? 2 : 1;
+    const rarity = order[Math.min(order.length - 1, weakest + jump)];
+    const reward = this._createDrop('level', rarity);
+    this._save({
+      ...state,
+      inventory: [
+        ...state.inventory.filter((candidate) => !uniqueIds.includes(candidate.id)),
+        reward,
+      ],
+    });
+    const rarityLabel: Record<RpgItemRarity, string> = {
+      common: 'comum',
+      uncommon: 'incomum',
+      rare: 'raro',
+      epic: 'épico',
+      legendary: 'lendário',
+      mythic: 'mítico',
+    };
+    return {
+      ok: true,
+      message: `Roleta: ${reward.name} (${rarityLabel[rarity]})${jump === 2 ? ' - a Sorte subiu duas raridades!' : '.'}`,
+      itemId: reward.id,
+    };
   }
 
   private _rollBossRarity(): RpgItemRarity {
@@ -3332,7 +3864,16 @@ export class RpgProfileService {
     const slots = (Object.keys(templates) as RpgItemSlot[]).filter(
       (slot) => slot !== 'pet',
     );
-    const slot = slots[Math.floor(Math.random() * slots.length)];
+    // Weapons were 1 in 11 and almost never usable by the player's class -
+    // weight them x3 so new weapons actually show up.
+    const weighted = slots.flatMap((slot) =>
+      slot === 'mainHand' ? [slot, slot, slot] : [slot],
+    );
+    const slot = weighted[Math.floor(Math.random() * weighted.length)];
+    const pick = <T>(list: readonly T[]): T =>
+      list[Math.floor(Math.random() * list.length)];
+    const variants = DROP_VARIANTS[slot];
+    if (variants?.length) templates[slot] = pick(variants);
     const usesRarePack = ['rare', 'epic', 'legendary', 'mythic'].includes(rarity);
     const slotAssets = usesRarePack ? RARE_ITEM_ASSETS[slot] : ITEM_PACK_ASSETS[slot];
     const spriteAssetId = slotAssets[Math.floor(Math.random() * slotAssets.length)];
@@ -3358,10 +3899,36 @@ export class RpgProfileService {
       'archer',
       'barbarian',
     ];
-    const requiredClass =
-      Math.random() < 0.65
+    // Weapons lean harder on the player's own class (85%) than other gear.
+    const ownClassChance = slot === 'mainHand' ? 0.85 : 0.65;
+    let requiredClass =
+      Math.random() < ownClassChance
         ? this._state().classId
         : classes[Math.floor(Math.random() * classes.length)];
+    if (slot === 'mainHand') {
+      templates.mainHand = pick(CLASS_WEAPONS[requiredClass] ?? CLASS_WEAPONS.adventurer);
+    }
+    // Themed catalog: companion drops lean on treats/toys for the player's own
+    // pet type; other drops on the class's 10 themed items. Each brings its
+    // own art. 60% each, the rest stays on the generic per-slot pool.
+    let itemSlot: RpgItemSlot = slot;
+    let catalogImage: string | undefined;
+    if (slot === 'companion') {
+      const petItems = RPG_PET_ITEM_CATALOG[this._state().pet.type] ?? [];
+      if (petItems.length && Math.random() < 0.6) {
+        const def = pick(petItems);
+        templates.companion = { name: def.name, icon: def.icon };
+        catalogImage = def.image;
+        requiredClass = this._state().classId;
+      }
+    } else if (Math.random() < 0.6) {
+      const def = pick(RPG_CLASS_ITEM_CATALOG[requiredClass] ?? []);
+      if (def) {
+        itemSlot = def.slot;
+        templates[itemSlot] = { name: def.name, icon: def.icon };
+        catalogImage = def.image;
+      }
+    }
     const requiredLevel: Record<RpgItemRarity, number> = {
       common: 1,
       uncommon: 2,
@@ -3372,15 +3939,16 @@ export class RpgProfileService {
     };
     return {
       id: crypto.randomUUID(),
-      ...templates[slot],
+      ...templates[itemSlot],
       spriteAssetId,
       imageUrl:
-        generatedItemImage(templates[slot].name, slot) ??
+        catalogImage ??
+        generatedItemImage(templates[itemSlot].name, itemSlot) ??
         (usesRarePack ? rareItemImage(spriteAssetId) : itemPackImage(spriteAssetId)),
       rarity,
       requiredClass,
       requiredLevel: requiredLevel[rarity],
-      slot,
+      slot: itemSlot,
       power: rarityPower[rarity],
       obtainedAt: Date.now(),
       source,
@@ -3650,6 +4218,37 @@ export class RpgProfileService {
     void this._domainState.put('rpg:profiles', roster);
   }
 
+  /**
+   * Item images are stored on the item when it drops, and this load path
+   * doesn't re-derive them (_withStarterRing only runs for the legacy
+   * localStorage roster) - so companion accessories would keep whatever art
+   * they dropped with. Re-point them at their current generated sprite.
+   */
+  private _withCompanionAccessoryImages(roster: RpgProfilesState): RpgProfilesState {
+    const characters = Object.fromEntries(
+      Object.entries(roster.characters).map(([id, character]) => [
+        id,
+        {
+          ...character,
+          inventory: character.inventory.map((item) => {
+            // Catalog items keep their own art; companion accessories get the
+            // current generated sprite (only by name - never a slot fallback).
+            const catalogImage = RPG_CATALOG_IMAGE_BY_NAME.get(item.name);
+            if (catalogImage)
+              return { ...item, imageUrl: catalogImage, spriteAssetId: undefined };
+            if (item.slot !== 'companion') return item;
+            const named = /coleira|sino|pingente|runa do companheiro/i.test(
+              item.name.normalize('NFD').replace(/\p{Diacritic}/gu, ''),
+            );
+            const imageUrl = named ? generatedItemImage(item.name, 'companion') : null;
+            return imageUrl ? { ...item, imageUrl, spriteAssetId: undefined } : item;
+          }),
+        },
+      ]),
+    );
+    return { ...roster, characters };
+  }
+
   private async _hydrateDomainState(): Promise<void> {
     if (localStorage.getItem(LS.RPG_PROFILE)) {
       await this._domainState.put('rpg:profiles', this._roster());
@@ -3659,7 +4258,7 @@ export class RpgProfileService {
     }
     const stored = await this._domainState.get<RpgProfilesState>('rpg:profiles');
     if (stored?.characters?.[stored.activeCharacterId]) {
-      this._roster.set(stored);
+      this._roster.set(this._withCompanionAccessoryImages(stored));
     }
     this._healPhantomDefaultCharacter();
     this._runEmergencyRecoveryOnce();
@@ -3667,6 +4266,15 @@ export class RpgProfileService {
     this._healLeakedMonthlyMedalHistory();
     this._creditAugustCodificadorOnce();
     this._hydrated.set(true);
+    void this._shrinkStoredImages();
+  }
+
+  // Reward/penalty/avatar photos used to be stored at full resolution (~3 MB
+  // each), bloating every save, sync and backup. Downscale them once.
+  private async _shrinkStoredImages(): Promise<void> {
+    const replacements = await shrinkLargeInlineImages(this._roster());
+    if (!replacements.size) return;
+    this._saveRoster(applyImageReplacements(this._roster(), replacements));
   }
 
   // One-time seed of the reward/penalty templates the owner asked to have

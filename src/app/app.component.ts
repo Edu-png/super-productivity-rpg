@@ -24,6 +24,7 @@ import { IS_ELECTRON } from './app.constants';
 import { IS_MAC } from './util/is-mac';
 import { expandAnimation } from './ui/animations/expand.ani';
 import { warpRouteAnimation } from './ui/animations/warp-route';
+import { PluginUserPersistenceService } from './plugins/plugin-user-persistence.service';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { fadeAnimation } from './ui/animations/fade.ani';
 import { BannerService } from './core/banner/banner.service';
@@ -160,6 +161,7 @@ export class AppComponent implements OnDestroy, AfterViewInit {
   private _taskWidgetSettingsService = inject(TaskWidgetSettingsService);
   private _keyboardLayoutService = inject(KeyboardLayoutService);
   private _dataInitStateService = inject(DataInitStateService);
+  private _pluginUserPersistenceService = inject(PluginUserPersistenceService);
   private _materialIconsLoaderService = inject(MaterialIconsLoaderService);
   readonly onboardingHintService = inject(OnboardingHintService);
 
@@ -242,6 +244,12 @@ export class AppComponent implements OnDestroy, AfterViewInit {
           }
         });
     }
+
+    this._dataInitStateService.isAllDataLoadedInitially$
+      .pipe(first())
+      .subscribe(
+        () => void this._pluginUserPersistenceService.pruneDeadLifeRpgDataOnce(),
+      );
 
     // Clear app entrance animation after it completes
     if (this.isAppEntrance()) {

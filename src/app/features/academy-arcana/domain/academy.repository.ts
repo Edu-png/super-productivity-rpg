@@ -40,6 +40,7 @@ export abstract class AcademyRepository {
   ): Promise<Flashcard[]>;
   abstract putReview(review: FlashcardReview): Promise<void>;
   abstract getFlashcard(id: string): Promise<Flashcard | undefined>;
+  abstract listDeckFlashcards(profileId: string, deckId: string): Promise<Flashcard[]>;
   abstract dashboard(profileId: string, now: Date): Promise<AcademyDashboardSnapshot>;
   abstract getSettings(profileId: string): Promise<AcademySettings>;
   abstract putSettings(settings: AcademySettings): Promise<void>;

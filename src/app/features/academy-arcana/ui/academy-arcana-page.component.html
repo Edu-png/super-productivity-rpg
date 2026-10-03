@@ -157,37 +157,50 @@
         <mat-icon>style</mat-icon>
       </header>
       <div class="review-today-list">
-        @for (row of todayReviewList(); track row.node.id) {
-          <div
-            role="button"
-            tabindex="0"
-            class="review-today-row"
-            (click)="openTopicReview(row.node.id)"
-            (keyup.enter)="openTopicReview(row.node.id)"
+        @for (group of todayReviewGroups(); track group.areaId) {
+          <h4
+            class="review-area-title"
+            [style.--area-color]="group.color"
           >
-            <mat-icon>{{
-              row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
-            }}</mat-icon>
-            <span class="review-today-path">{{ row.path }}</span>
-            @if (row.overdueDays > 0) {
-              <small class="overdue"
-                >{{ row.overdueDays }} dia{{
-                  row.overdueDays === 1 ? '' : 's'
-                }}
-                atrasado</small
-              >
-            } @else {
-              <small>Revisar hoje</small>
-            }
-            <button
-              type="button"
-              class="skip-review-btn"
-              title="Pular por hoje"
-              (click)="skipTopicReview(row.node.id, $event)"
+            {{ group.title }}
+          </h4>
+          @for (row of group.rows; track row.node.id) {
+            <div
+              role="button"
+              tabindex="0"
+              class="review-today-row"
+              (click)="openTopicReview(row.node.id)"
+              (keyup.enter)="openTopicReview(row.node.id)"
             >
-              <mat-icon>snooze</mat-icon>
-            </button>
-          </div>
+              <mat-icon>{{
+                row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
+              }}</mat-icon>
+              <span class="review-today-path"
+                >{{ row.path }}
+                @if (row.node.category) {
+                  <small>· {{ nodeTypeLabel(row.node) }}</small>
+                }
+              </span>
+              @if (row.overdueDays > 0) {
+                <small class="overdue"
+                  >{{ row.overdueDays }} dia{{
+                    row.overdueDays === 1 ? '' : 's'
+                  }}
+                  atrasado</small
+                >
+              } @else {
+                <small>Revisar hoje</small>
+              }
+              <button
+                type="button"
+                class="skip-review-btn"
+                title="Pular por hoje"
+                (click)="skipTopicReview(row.node.id, $event)"
+              >
+                <mat-icon>snooze</mat-icon>
+              </button>
+            </div>
+          }
         } @empty {
           <p class="review-today-empty">
             Nenhuma revisão pendente por agora. Adicione um tópico à revisão na Biblioteca
@@ -198,26 +211,41 @@
 
       <h3 class="review-week-title">Esta semana</h3>
       <div class="review-today-list">
-        @for (row of thisWeekReviewList(); track row.node.id) {
-          <div
-            role="button"
-            tabindex="0"
-            class="review-today-row"
-            (click)="openTopicReview(row.node.id)"
-            (keyup.enter)="openTopicReview(row.node.id)"
+        @for (group of thisWeekReviewGroups(); track group.areaId) {
+          <h4
+            class="review-area-title"
+            [style.--area-color]="group.color"
           >
-            <mat-icon>event_upcoming</mat-icon>
-            <span class="review-today-path">{{ row.path }}</span>
-            <small>em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small>
-            <button
-              type="button"
-              class="skip-review-btn"
-              title="Adiar mais 1 dia"
-              (click)="skipTopicReview(row.node.id, $event)"
+            {{ group.title }}
+          </h4>
+          @for (row of group.rows; track row.node.id) {
+            <div
+              role="button"
+              tabindex="0"
+              class="review-today-row"
+              (click)="openTopicReview(row.node.id)"
+              (keyup.enter)="openTopicReview(row.node.id)"
             >
-              <mat-icon>snooze</mat-icon>
-            </button>
-          </div>
+              <mat-icon>event_upcoming</mat-icon>
+              <span class="review-today-path"
+                >{{ row.path }}
+                @if (row.node.category) {
+                  <small>· {{ nodeTypeLabel(row.node) }}</small>
+                }
+              </span>
+              <small
+                >em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small
+              >
+              <button
+                type="button"
+                class="skip-review-btn"
+                title="Adiar mais 1 dia"
+                (click)="skipTopicReview(row.node.id, $event)"
+              >
+                <mat-icon>snooze</mat-icon>
+              </button>
+            </div>
+          }
         } @empty {
           <p class="review-today-empty">
             Nenhuma revisão programada para os próximos 7 dias.
@@ -844,7 +872,7 @@
               ><span>0</span>
             </div>
             <svg
-              viewBox="0 0 700 190"
+              viewBox="0 0 700 170"
               preserveAspectRatio="none"
               role="img"
               [attr.aria-label]="'Distrações por dia, média ' + dailyStats.average"
@@ -867,16 +895,6 @@
                 >
                   <title>{{ bar.tooltip }}</title>
                 </rect>
-                @if (bar.showLabel) {
-                  <text
-                    class="bar-label"
-                    [attr.x]="bar.center"
-                    y="186"
-                    text-anchor="middle"
-                  >
-                    {{ bar.label }}
-                  </text>
-                }
               }
               <line
                 class="average-line"
@@ -892,6 +910,13 @@
                 ></polyline>
               }
             </svg>
+            <div class="chart-x-labels">
+              @for (bar of daily.bars; track bar.id) {
+                @if (bar.showLabel) {
+                  <span [style.left.%]="bar.leftPercent">{{ bar.label }}</span>
+                }
+              }
+            </div>
           </div>
           <div class="chart-legend">
             <div><i class="legend-normal"></i><span>Até a média</span></div>
@@ -913,7 +938,7 @@
         <header>
           <div>
             <span>FOCO ARCANO</span>
-            <h2>Distrações por bloco de estudos</h2>
+            <h2>Distrações por dia e tipo</h2>
           </div>
           @if (distractionStats().blocks.length) {
             <div class="distraction-summary">
@@ -930,11 +955,12 @@
               ><span>0</span>
             </div>
             <svg
-              viewBox="0 0 700 190"
+              viewBox="0 0 700 170"
               preserveAspectRatio="none"
               role="img"
               [attr.aria-label]="
-                'Distrações por bloco, média ' + distractionStats().average
+                'Distrações por dia e tipo, média diária ' +
+                dailyDistractionStats().average
               "
             >
               <line
@@ -944,27 +970,19 @@
                 x2="700"
                 y2="170"
               ></line>
-              @for (bar of chart.bars; track bar.id) {
-                <rect
-                  [class.above]="bar.isAbove"
-                  [attr.x]="bar.x"
-                  [attr.y]="bar.y"
-                  [attr.width]="bar.width"
-                  [attr.height]="bar.height"
-                  rx="3"
-                >
-                  <title>{{ bar.tooltip }}</title>
-                </rect>
-                @if (bar.showLabel) {
-                  <text
-                    class="bar-label"
-                    [attr.x]="bar.center"
-                    y="186"
-                    text-anchor="middle"
-                  >
-                    {{ bar.label }}
-                  </text>
-                }
+              @for (column of chart.columns; track column.id) {
+                <g class="stack">
+                  <title>{{ column.tooltip }}</title>
+                  @for (segment of column.segments; track segment.name) {
+                    <rect
+                      [attr.x]="column.x"
+                      [attr.y]="segment.y"
+                      [attr.width]="column.width"
+                      [attr.height]="segment.height"
+                      [style.fill]="segment.color"
+                    ></rect>
+                  }
+                </g>
               }
               <line
                 class="average-line"
@@ -974,11 +992,21 @@
                 [attr.y2]="chart.averageY"
               ></line>
             </svg>
+            <div class="chart-x-labels">
+              @for (column of chart.columns; track column.id) {
+                @if (column.showLabel) {
+                  <span [style.left.%]="column.leftPercent">{{ column.label }}</span>
+                }
+              }
+            </div>
           </div>
           <div class="chart-legend">
-            <div><i class="legend-normal"></i><span>Até a média</span></div>
-            <div><i class="legend-above"></i><span>Acima da média</span></div>
-            <div><i class="legend-average"></i><span>Média</span></div>
+            @for (item of chart.series; track item.name) {
+              <div>
+                <i [style.background]="item.color"></i><span>{{ item.name }}</span>
+              </div>
+            }
+            <div><i class="legend-average"></i><span>Média diária</span></div>
           </div>
           <h3 class="distraction-subtitle">O que mais te distrai</h3>
           @for (row of distractionStats().categories; track row.category) {
@@ -994,6 +1022,48 @@
             </div>
           } @empty {
             <p class="chart-empty">Nenhuma distração registrada nos últimos blocos. 🎯</p>
+          }
+          <h3 class="distraction-subtitle">O que mais derruba seus dias de estudo</h3>
+          <p class="impact-help">
+            Minutos estudados nos dias em que a distração apareceu vs. nos dias sem ela
+            (últimos 60 dias). Mostra relação, não prova a causa.
+          </p>
+          @for (row of distractionImpact(); track row.category) {
+            <div
+              class="category-bar impact-bar"
+              [class.hurts]="row.deltaPercent < 0"
+              [title]="
+                row.daysWith +
+                ' dias com ' +
+                row.category +
+                ': média de ' +
+                row.minutesWith +
+                ' min · ' +
+                row.daysWithout +
+                ' dias sem: ' +
+                row.minutesWithout +
+                ' min'
+              "
+            >
+              <span>{{ row.category }}</span>
+              <span class="category-track"
+                ><span
+                  class="category-fill"
+                  [style.width.%]="row.width"
+                ></span
+              ></span>
+              <b>{{ row.deltaPercent > 0 ? '+' : '' }}{{ row.deltaPercent }}%</b>
+              <small
+                >{{ row.minutesWith }} min com · {{ row.minutesWithout }} min sem ({{
+                  row.deltaMinutes > 0 ? '+' : ''
+                }}{{ row.deltaMinutes }} min/dia)</small
+              >
+            </div>
+          } @empty {
+            <p class="chart-empty">
+              Ainda faltam dados: cada categoria precisa de pelo menos 2 dias com e 2 dias
+              sem ela.
+            </p>
           }
         } @else {
           <p class="chart-empty">
@@ -1032,6 +1102,155 @@
           </div>
         </div>
       </article>
+
+      @let quiz = quizChart();
+      <article class="arcane-card quiz-card">
+        <header>
+          <div>
+            <span>PROVAS DO CONHECIMENTO</span>
+            <h2>Notas de quiz e prova</h2>
+          </div>
+          @if (quiz.count) {
+            <div class="distraction-summary">
+              <b>{{ quiz.count }}</b> nota(s) ·
+              <b [class.trend-bad]="quiz.low.length">{{ quiz.low.length }}</b> abaixo de
+              70%
+            </div>
+          }
+        </header>
+        @if (quiz.count) {
+          <svg
+            class="quiz-chart"
+            viewBox="0 0 600 200"
+          >
+            @for (label of quiz.yLabels; track label.value) {
+              <text
+                x="0"
+                [attr.y]="label.y + 4"
+              >
+                {{ label.value }}%
+              </text>
+            }
+            <line
+              class="quiz-70"
+              x1="34"
+              x2="600"
+              [attr.y1]="quiz.line70"
+              [attr.y2]="quiz.line70"
+            />
+            @for (serie of quiz.series; track serie.areaId) {
+              <polyline
+                [attr.points]="serie.polyline"
+                [attr.stroke]="serie.color"
+              />
+              @for (point of serie.points; track $index) {
+                <circle
+                  [attr.cx]="point.x"
+                  [attr.cy]="point.y"
+                  r="5"
+                  [attr.fill]="point.low ? '#d9576b' : serie.color"
+                >
+                  <title>{{ serie.title }} · {{ point.label }}</title>
+                </circle>
+              }
+            }
+          </svg>
+          <div class="chart-legend">
+            @for (serie of quiz.series; track serie.areaId) {
+              <div>
+                <i [style.background]="serie.color"></i><span>{{ serie.title }}</span>
+              </div>
+            }
+            <div><i class="legend-average"></i><span>70%</span></div>
+          </div>
+          <h3 class="distraction-subtitle">Abaixo de 70% (prioridade na revisão)</h3>
+          @for (row of quiz.low; track row.node.id) {
+            <button
+              type="button"
+              class="quiz-low-row"
+              (click)="openQuizNode(row.node)"
+            >
+              <span
+                >{{ row.node.title }} <small>· {{ row.area }}</small></span
+              >
+              <b>{{ row.percent }}%</b>
+            </button>
+          } @empty {
+            <p class="chart-empty">Nenhuma nota abaixo de 70%. 🎯</p>
+          }
+        } @else {
+          <p class="chart-empty">
+            Registre a nota de um quiz ou prova no editor de um conteúdo para ver a
+            evolução aqui.
+          </p>
+        }
+      </article>
+
+      @if (gemini.configured()) {
+        <article class="arcane-card week-plan-card">
+          <header>
+            <div>
+              <span>ORÁCULO DA SEMANA</span>
+              <h2>Plano de estudo da semana</h2>
+            </div>
+            <label class="week-plan-minutes">
+              <input
+                type="number"
+                min="25"
+                step="5"
+                [ngModel]="weekPlanMinutes()"
+                (ngModelChange)="setWeekPlanMinutes($event)"
+              />
+              min/dia
+            </label>
+            <button
+              type="button"
+              class="ai-inline"
+              [disabled]="weekPlanBusy()"
+              (click)="generateWeekPlan()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{
+                weekPlanBusy()
+                  ? 'Montando...'
+                  : weekPlan()
+                    ? 'Gerar novo plano'
+                    : 'Gerar plano com IA'
+              }}
+            </button>
+          </header>
+          @if (weekPlanMessage()) {
+            <p class="chart-empty">{{ weekPlanMessage() }}</p>
+          }
+          @if (weekPlan(); as plan) {
+            <p class="week-plan-summary">
+              {{ plan.summary }}
+              <small>· gerado em {{ plan.generatedAt | date: 'dd/MM HH:mm' }}</small>
+            </p>
+            <div class="week-plan-days">
+              @for (day of plan.days; track $index) {
+                <section>
+                  <b>{{ day.day }}</b>
+                  @for (block of day.blocks; track $index) {
+                    <div [class]="'plan-block kind-' + block.kind">
+                      <span>{{ block.title }}</span>
+                      <small>{{ block.minutes }} min · {{ block.kind }}</small>
+                    </div>
+                  }
+                  @if (day.note) {
+                    <em>{{ day.note }}</em>
+                  }
+                </section>
+              }
+            </div>
+          } @else if (!weekPlanBusy()) {
+            <p class="chart-empty">
+              Usa suas revisões pendentes, notas abaixo de 70%, o que está em andamento,
+              seu ritmo real e os livros que você está lendo.
+            </p>
+          }
+        </article>
+      }
     </section>
   } @else if (tab() === 'library') {
     <section class="library-layout">
@@ -1079,13 +1298,69 @@
             <span>GALERIA DE CONHECIMENTO</span>
             <h2>{{ selectedArea()?.title || 'Selecione uma área' }}</h2>
           </div>
-          <button
-            type="button"
-            (click)="exportData(['studies'])"
-          >
-            <mat-icon>archive</mat-icon> Exportar estudos
-          </button>
+          <div class="library-header-actions">
+            <div
+              class="library-view-toggle"
+              role="group"
+              aria-label="Visualização"
+            >
+              <button
+                type="button"
+                [class.active]="libraryView() === 'grid'"
+                (click)="setLibraryView('grid')"
+              >
+                <mat-icon>grid_view</mat-icon> Grade
+              </button>
+              <button
+                type="button"
+                [class.active]="libraryView() === 'kanban'"
+                (click)="setLibraryView('kanban')"
+              >
+                <mat-icon>view_kanban</mat-icon> Kanban
+              </button>
+            </div>
+            <button
+              type="button"
+              (click)="exportData(['studies'])"
+            >
+              <mat-icon>archive</mat-icon> Exportar estudos
+            </button>
+          </div>
         </header>
+        <div class="academy-search">
+          <mat-icon>search</mat-icon>
+          <input
+            [ngModel]="academySearch()"
+            (ngModelChange)="academySearch.set($event)"
+            placeholder="Buscar em todas as áreas: títulos, anotações, texto das fotos, cadernos..."
+            aria-label="Buscar na Academia"
+          />
+          @if (academySearch()) {
+            <button
+              type="button"
+              title="Limpar busca"
+              (click)="academySearch.set('')"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </div>
+        @if (academySearch().trim().length >= 2) {
+          <div class="academy-search-results">
+            @for (result of academySearchResults(); track result.node.id) {
+              <button
+                type="button"
+                (click)="openSearchResult(result.node)"
+              >
+                <b>{{ result.node.title }}</b>
+                <small>{{ result.area }} · encontrado em {{ result.where }}</small>
+                <span>{{ result.snippet }}</span>
+              </button>
+            } @empty {
+              <p class="chart-empty">Nada encontrado.</p>
+            }
+          </div>
+        }
         <nav
           class="library-breadcrumbs"
           aria-label="Caminho da biblioteca"
@@ -1131,69 +1406,259 @@
             Adicionar
           </button>
         </div>
-        <div class="node-grid">
-          @for (node of visibleLibraryNodes(); track node.id) {
-            <article
-              [style.--node-color]="node.color"
-              [class.leaf]="node.kind === 'subtopic'"
-              (click)="openLibraryNode(node)"
-            >
-              <button
-                type="button"
-                class="node-settings"
-                title="Editar descrição, links e anotações"
-                (click)="$event.stopPropagation(); openNodeEditor(node)"
+        @if (libraryView() === 'kanban') {
+          <div
+            class="library-kanban"
+            cdkDropListGroup
+          >
+            @for (column of libraryKanban(); track column.id) {
+              <section
+                class="kanban-column"
+                cdkDropList
+                [cdkDropListData]="column.id"
+                (cdkDropListDropped)="dropOnKanbanColumn($event)"
               >
-                <mat-icon>settings</mat-icon>
-              </button>
-              <button
-                type="button"
-                class="node-delete"
-                title="Excluir"
-                (click)="$event.stopPropagation(); deleteLibraryNode(node)"
-              >
-                <mat-icon>delete</mat-icon>
-              </button>
-              <mat-icon>{{ node.icon }}</mat-icon>
-              <span>{{ nodeKindLabel(node.kind) }}</span>
-              <h3>{{ node.title }}</h3>
-              @if (node.description) {
-                <p>{{ node.description }}</p>
-              }
-              @if (node.links?.length) {
-                <small><mat-icon>link</mat-icon>{{ node.links?.length }} links</small>
-              }
-              <small>Dificuldade {{ node.difficulty }}/5 · peso {{ node.weight }}</small>
-              @if (academy.topicReviewFor(node.id); as review) {
-                <div
-                  class="review-status-badge"
-                  [class]="reviewBadgeStatus(review)"
-                  (click)="$event.stopPropagation(); openTopicReview(node.id)"
-                >
-                  <mat-icon>{{ reviewBadgeIcon(review) }}</mat-icon
-                  >{{ reviewBadgeLabel(review) }}
-                </div>
-              } @else {
-                <button
-                  type="button"
-                  class="add-to-review-btn"
-                  title="Adicionar à repetição espaçada"
-                  (click)="addNodeToReview(node, $event)"
-                >
-                  <mat-icon>alarm_add</mat-icon> Adicionar à revisão
-                </button>
-              }
-            </article>
-          } @empty {
+                <header>
+                  <mat-icon>{{ column.icon }}</mat-icon>
+                  {{ column.label }}
+                  <small>{{ column.nodes.length }}</small>
+                </header>
+                @for (node of column.nodes; track node.id) {
+                  <article
+                    cdkDrag
+                    [cdkDragData]="node"
+                    cdkDragPreviewContainer="parent"
+                    [style.--node-color]="node.color"
+                    [class.leaf]="node.kind === 'subtopic'"
+                    (click)="onLibraryCardClick(node)"
+                  >
+                    <button
+                      type="button"
+                      class="node-settings"
+                      [title]="
+                        isSummaryCard(node)
+                          ? 'Entrar'
+                          : 'Editar descrição, links e anotações'
+                      "
+                      (click)="$event.stopPropagation(); onLibraryCardCorner(node)"
+                    >
+                      <mat-icon>{{
+                        isSummaryCard(node) ? 'login' : 'settings'
+                      }}</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="node-delete"
+                      title="Excluir"
+                      (click)="$event.stopPropagation(); deleteLibraryNode(node)"
+                    >
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                    @if (node.kind !== 'folder' && !academy.topicReviewFor(node.id)) {
+                      <button
+                        type="button"
+                        class="node-review"
+                        title="Adicionar à revisão"
+                        (click)="addNodeToReview(node, $event)"
+                      >
+                        <mat-icon>alarm_add</mat-icon>
+                      </button>
+                    }
+                    <span
+                      ><mat-icon>{{ nodeTypeIcon(node) }}</mat-icon
+                      >{{ nodeTypeLabel(node) }}</span
+                    >
+                    <h3>{{ node.title }}</h3>
+                    @if (nodeProgress().has(node.id)) {
+                      @let progress = (nodeProgress().get(node.id) ?? 0) * 100;
+                      <div
+                        class="node-progress"
+                        [title]="'Progresso: ' + (progress | number: '1.0-0') + '%'"
+                      >
+                        <span><span [style.width.%]="progress"></span></span>
+                        <b>{{ progress | number: '1.0-0' }}%</b>
+                      </div>
+                      @if (nodeEta().get(node.id); as eta) {
+                        <small
+                          class="node-eta"
+                          [title]="eta.title"
+                          ><mat-icon>schedule</mat-icon>{{ eta.label }}</small
+                        >
+                      }
+                    }
+                    <div class="node-tags">
+                      @let boardStatus = nodeBoardStatus(node);
+                      <small
+                        class="status-tag"
+                        [class]="'status-' + boardStatus.id"
+                        ><mat-icon>{{ boardStatus.icon }}</mat-icon
+                        >{{ boardStatus.label }}</small
+                      >
+                      @if (node.priority && node.priority !== 'medium') {
+                        <small
+                          class="priority-badge"
+                          [class]="'priority-' + node.priority"
+                          >Prioridade {{ priorityLabel(node) }}</small
+                        >
+                      }
+                    </div>
+                    @if (academy.topicReviewFor(node.id); as review) {
+                      <div
+                        class="review-status-badge"
+                        [class]="reviewBadgeStatus(review)"
+                        (click)="$event.stopPropagation(); openTopicReview(node.id)"
+                      >
+                        <mat-icon>{{ reviewBadgeIcon(review) }}</mat-icon
+                        >{{ reviewBadgeLabel(review) }}
+                      </div>
+                    }
+                    @if (node.links?.length) {
+                      <div class="node-links">
+                        @for (link of node.links; track $index) {
+                          <a
+                            [href]="link.url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            [title]="link.label"
+                            (click)="$event.stopPropagation()"
+                            ><mat-icon>link</mat-icon></a
+                          >
+                        }
+                      </div>
+                    }
+                  </article>
+                }
+              </section>
+            }
+          </div>
+          @if (!visibleLibraryNodes().length) {
             <div class="empty-state">
               <mat-icon>menu_book</mat-icon>
               <h3>Este nível ainda está vazio</h3>
-              @if (nextLibraryKind()) {
-                <p>Crie o primeiro {{ nodeKindLabel(nextLibraryKind()) }} acima.</p>
-              }
             </div>
           }
-        </div>
+        } @else {
+          <div
+            class="node-grid"
+            cdkDropList
+            cdkDropListOrientation="mixed"
+            (cdkDropListDropped)="dropOnGrid($event)"
+          >
+            @for (node of visibleLibraryNodes(); track node.id) {
+              <article
+                cdkDrag
+                [cdkDragData]="node"
+                cdkDragPreviewContainer="parent"
+                [style.--node-color]="node.color"
+                [class.leaf]="node.kind === 'subtopic'"
+                (click)="onLibraryCardClick(node)"
+              >
+                <button
+                  type="button"
+                  class="node-settings"
+                  [title]="
+                    isSummaryCard(node) ? 'Entrar' : 'Editar descrição, links e anotações'
+                  "
+                  (click)="$event.stopPropagation(); onLibraryCardCorner(node)"
+                >
+                  <mat-icon>{{ isSummaryCard(node) ? 'login' : 'settings' }}</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  class="node-delete"
+                  title="Excluir"
+                  (click)="$event.stopPropagation(); deleteLibraryNode(node)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+                @if (node.kind !== 'folder' && !academy.topicReviewFor(node.id)) {
+                  <button
+                    type="button"
+                    class="node-review"
+                    title="Adicionar à revisão"
+                    (click)="addNodeToReview(node, $event)"
+                  >
+                    <mat-icon>alarm_add</mat-icon>
+                  </button>
+                }
+                <mat-icon>{{ nodeTypeIcon(node) }}</mat-icon>
+                <span>{{ nodeTypeLabel(node) }}</span>
+                <h3>{{ node.title }}</h3>
+                @if (nodeProgress().has(node.id)) {
+                  @let progress = (nodeProgress().get(node.id) ?? 0) * 100;
+                  <div
+                    class="node-progress"
+                    [title]="'Progresso: ' + (progress | number: '1.0-0') + '%'"
+                  >
+                    <span><span [style.width.%]="progress"></span></span>
+                    <b>{{ progress | number: '1.0-0' }}%</b>
+                  </div>
+                  @if (nodeEta().get(node.id); as eta) {
+                    <small
+                      class="node-eta"
+                      [title]="eta.title"
+                      ><mat-icon>schedule</mat-icon>{{ eta.label }}</small
+                    >
+                  }
+                }
+                <div class="node-tags">
+                  @let boardStatus = nodeBoardStatus(node);
+                  <small
+                    class="status-tag"
+                    [class]="'status-' + boardStatus.id"
+                    ><mat-icon>{{ boardStatus.icon }}</mat-icon
+                    >{{ boardStatus.label }}</small
+                  >
+                  @if (node.priority && node.priority !== 'medium') {
+                    <small
+                      class="priority-badge"
+                      [class]="'priority-' + node.priority"
+                      >Prioridade {{ priorityLabel(node) }}</small
+                    >
+                  }
+                </div>
+                @if (node.description) {
+                  <p>{{ node.description }}</p>
+                }
+                @if (node.links?.length) {
+                  <div class="node-links">
+                    @for (link of node.links; track $index) {
+                      <a
+                        [href]="link.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        [title]="link.label"
+                        (click)="$event.stopPropagation()"
+                        ><mat-icon>link</mat-icon></a
+                      >
+                    }
+                  </div>
+                }
+                <small
+                  >Dificuldade {{ node.difficulty }}/5 · peso {{ node.weight }}</small
+                >
+                @if (academy.topicReviewFor(node.id); as review) {
+                  <div
+                    class="review-status-badge"
+                    [class]="reviewBadgeStatus(review)"
+                    (click)="$event.stopPropagation(); openTopicReview(node.id)"
+                  >
+                    <mat-icon>{{ reviewBadgeIcon(review) }}</mat-icon
+                    >{{ reviewBadgeLabel(review) }}
+                  </div>
+                }
+              </article>
+            } @empty {
+              <div class="empty-state">
+                <mat-icon>menu_book</mat-icon>
+                <h3>Este nível ainda está vazio</h3>
+                @if (nextLibraryKind()) {
+                  <p>Crie o primeiro {{ nodeKindLabel(nextLibraryKind()) }} acima.</p>
+                }
+              </div>
+            }
+          </div>
+        }
         <div class="flashcard-creator">
           <h3>Criar flashcard nesta área</h3>
           <textarea
@@ -1222,37 +1687,50 @@
         </div>
       </header>
       <div class="review-today-list">
-        @for (row of todayReviewList(); track row.node.id) {
-          <div
-            role="button"
-            tabindex="0"
-            class="review-today-row"
-            (click)="openTopicReview(row.node.id)"
-            (keyup.enter)="openTopicReview(row.node.id)"
+        @for (group of todayReviewGroups(); track group.areaId) {
+          <h4
+            class="review-area-title"
+            [style.--area-color]="group.color"
           >
-            <mat-icon>{{
-              row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
-            }}</mat-icon>
-            <span class="review-today-path">{{ row.path }}</span>
-            @if (row.overdueDays > 0) {
-              <small class="overdue"
-                >{{ row.overdueDays }} dia{{
-                  row.overdueDays === 1 ? '' : 's'
-                }}
-                atrasado</small
-              >
-            } @else {
-              <small>Revisar hoje</small>
-            }
-            <button
-              type="button"
-              class="skip-review-btn"
-              title="Pular por hoje"
-              (click)="skipTopicReview(row.node.id, $event)"
+            {{ group.title }}
+          </h4>
+          @for (row of group.rows; track row.node.id) {
+            <div
+              role="button"
+              tabindex="0"
+              class="review-today-row"
+              (click)="openTopicReview(row.node.id)"
+              (keyup.enter)="openTopicReview(row.node.id)"
             >
-              <mat-icon>snooze</mat-icon>
-            </button>
-          </div>
+              <mat-icon>{{
+                row.overdueDays > 0 ? 'error' : 'radio_button_unchecked'
+              }}</mat-icon>
+              <span class="review-today-path"
+                >{{ row.path }}
+                @if (row.node.category) {
+                  <small>· {{ nodeTypeLabel(row.node) }}</small>
+                }
+              </span>
+              @if (row.overdueDays > 0) {
+                <small class="overdue"
+                  >{{ row.overdueDays }} dia{{
+                    row.overdueDays === 1 ? '' : 's'
+                  }}
+                  atrasado</small
+                >
+              } @else {
+                <small>Revisar hoje</small>
+              }
+              <button
+                type="button"
+                class="skip-review-btn"
+                title="Pular por hoje"
+                (click)="skipTopicReview(row.node.id, $event)"
+              >
+                <mat-icon>snooze</mat-icon>
+              </button>
+            </div>
+          }
         } @empty {
           <p class="review-today-empty">Nenhum tópico pendente de revisão.</p>
         }
@@ -1260,26 +1738,41 @@
 
       <h3 class="review-week-title">Esta semana</h3>
       <div class="review-today-list">
-        @for (row of thisWeekReviewList(); track row.node.id) {
-          <div
-            role="button"
-            tabindex="0"
-            class="review-today-row"
-            (click)="openTopicReview(row.node.id)"
-            (keyup.enter)="openTopicReview(row.node.id)"
+        @for (group of thisWeekReviewGroups(); track group.areaId) {
+          <h4
+            class="review-area-title"
+            [style.--area-color]="group.color"
           >
-            <mat-icon>event_upcoming</mat-icon>
-            <span class="review-today-path">{{ row.path }}</span>
-            <small>em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small>
-            <button
-              type="button"
-              class="skip-review-btn"
-              title="Adiar mais 1 dia"
-              (click)="skipTopicReview(row.node.id, $event)"
+            {{ group.title }}
+          </h4>
+          @for (row of group.rows; track row.node.id) {
+            <div
+              role="button"
+              tabindex="0"
+              class="review-today-row"
+              (click)="openTopicReview(row.node.id)"
+              (keyup.enter)="openTopicReview(row.node.id)"
             >
-              <mat-icon>snooze</mat-icon>
-            </button>
-          </div>
+              <mat-icon>event_upcoming</mat-icon>
+              <span class="review-today-path"
+                >{{ row.path }}
+                @if (row.node.category) {
+                  <small>· {{ nodeTypeLabel(row.node) }}</small>
+                }
+              </span>
+              <small
+                >em {{ row.daysUntil }} dia{{ row.daysUntil === 1 ? '' : 's' }}</small
+              >
+              <button
+                type="button"
+                class="skip-review-btn"
+                title="Adiar mais 1 dia"
+                (click)="skipTopicReview(row.node.id, $event)"
+              >
+                <mat-icon>snooze</mat-icon>
+              </button>
+            </div>
+          }
         } @empty {
           <p class="review-today-empty">
             Nenhuma revisão programada para os próximos 7 dias.
@@ -1437,6 +1930,52 @@
           <input [(ngModel)]="editorTitle" />
         </label>
         <label>
+          Categoria
+          <select [(ngModel)]="editorCategory">
+            <option [ngValue]="undefined">
+              Sem categoria ({{ nodeKindLabel(editingNode()?.kind ?? null) }})
+            </option>
+            @for (category of nodeCategories; track category.id) {
+              <option [ngValue]="category.id">{{ category.label }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Prioridade
+          <select [(ngModel)]="editorPriority">
+            @for (priority of nodePriorities; track priority.id) {
+              <option [ngValue]="priority.id">{{ priority.label }}</option>
+            }
+          </select>
+        </label>
+        <div class="quiz-score-field">
+          <span>Nota do quiz/prova <small>(opcional)</small></span>
+          <div>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              [(ngModel)]="editorQuizScore"
+              placeholder="Nota"
+              aria-label="Nota obtida"
+            />
+            <b>de</b>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              [(ngModel)]="editorQuizMax"
+              placeholder="Máx. (ex.: 10)"
+              aria-label="Nota máxima"
+            />
+            @if (editorQuizScore !== null && editorQuizMax) {
+              <strong
+                >{{ (editorQuizScore / editorQuizMax) * 100 | number: '1.0-0' }}%</strong
+              >
+            }
+          </div>
+        </div>
+        <label>
           Descrição
           <textarea
             rows="4"
@@ -1480,6 +2019,129 @@
             </button>
           </div>
         </div>
+        <div class="links-editor photos-editor">
+          <h3>Fotos</h3>
+          @if (editorPhotos.length) {
+            <div class="photo-grid">
+              @for (photo of editorPhotos; track photo.id) {
+                <figure>
+                  <img
+                    [src]="photo.dataUrl"
+                    [alt]="photo.name"
+                    [title]="photo.name"
+                    (click)="photoPreview.set(photo)"
+                  />
+                  <button
+                    type="button"
+                    class="photo-rotate"
+                    title="Girar 90°"
+                    (click)="rotateEditorPhoto(photo.id)"
+                  >
+                    <mat-icon>rotate_right</mat-icon>
+                  </button>
+                  <button
+                    type="button"
+                    title="Remover foto"
+                    (click)="removeEditorPhoto(photo.id)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </figure>
+              }
+            </div>
+          }
+          @if (editorPhotos.length && gemini.configured()) {
+            <div class="photo-texts">
+              @for (photo of editorPhotos; track photo.id; let index = $index) {
+                <details [open]="!photo.text">
+                  <summary>
+                    <mat-icon>notes</mat-icon>Texto da foto {{ index + 1 }}
+                    @if (readingPhotoIds().includes(photo.id)) {
+                      <small>· lendo com IA...</small>
+                    } @else if (!photo.text) {
+                      <button
+                        type="button"
+                        class="ai-inline"
+                        (click)="$event.preventDefault(); readPhotoText(photo.id)"
+                      >
+                        <mat-icon>auto_awesome</mat-icon>Ler texto com IA
+                      </button>
+                    }
+                  </summary>
+                  @if (photo.text) {
+                    <textarea
+                      rows="6"
+                      [ngModel]="photo.text"
+                      (ngModelChange)="setPhotoText(photo.id, $event)"
+                    ></textarea>
+                  }
+                </details>
+              }
+            </div>
+          }
+          <label class="photo-upload">
+            <mat-icon>add_photo_alternate</mat-icon>Anexar fotos do computador
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              (change)="addEditorPhotos($event)"
+            />
+          </label>
+        </div>
+        <div class="links-editor notebooks-editor">
+          <h3>Cadernos</h3>
+          @for (ref of editorNotebooks; track ref.id) {
+            <div>
+              <span
+                ><mat-icon>menu_book</mat-icon>{{ ref.notebook }}
+                @if (notebookPages(ref); as pages) {
+                  <small>· {{ pages }}</small>
+                }
+              </span>
+              <button
+                type="button"
+                title="Remover caderno"
+                (click)="removeEditorNotebook(ref.id)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          }
+          <div class="link-creator notebook-creator">
+            <input
+              [(ngModel)]="editorNotebookName"
+              placeholder="Caderno (ex.: Caderno 1)"
+              list="academy-known-notebooks"
+              (keyup.enter)="addEditorNotebook()"
+            />
+            <datalist id="academy-known-notebooks">
+              @for (name of knownNotebooks(); track name) {
+                <option [value]="name"></option>
+              }
+            </datalist>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="editorNotebookFrom"
+              placeholder="Da página"
+            />
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="editorNotebookTo"
+              placeholder="Até a página"
+              (keyup.enter)="addEditorNotebook()"
+            />
+            <button
+              type="button"
+              (click)="addEditorNotebook()"
+            >
+              <mat-icon>add</mat-icon>Adicionar
+            </button>
+          </div>
+        </div>
         <section class="notion-editor">
           <header>
             <div>
@@ -1512,6 +2174,80 @@
               </button>
             </nav>
           </header>
+          @if (gemini.configured()) {
+            <div class="notes-ai-bar">
+              <span><mat-icon>auto_awesome</mat-icon>IA</span>
+              <button
+                type="button"
+                [disabled]="summaryBusy()"
+                title="Resumo de 1 página no topo das anotações"
+                (click)="generateSummary()"
+              >
+                <mat-icon>summarize</mat-icon
+                >{{ summaryBusy() ? 'Resumindo...' : 'Resumo do módulo' }}
+              </button>
+              <button
+                type="button"
+                [disabled]="mindMapBusy()"
+                title="Desenha o mapa mental no editor de desenho"
+                (click)="generateMindMap()"
+              >
+                <mat-icon>account_tree</mat-icon
+                >{{ mindMapBusy() ? 'Desenhando...' : 'Mapa mental' }}
+              </button>
+              <button
+                type="button"
+                [class.active]="tutorOpen()"
+                title="Tire dúvidas com base no seu material"
+                (click)="tutorOpen.set(!tutorOpen())"
+              >
+                <mat-icon>school</mat-icon>Tutor
+              </button>
+            </div>
+            @if (tutorOpen()) {
+              <div class="tutor-panel">
+                <div class="tutor-messages">
+                  @for (message of tutorMessages(); track $index) {
+                    <div [class]="'tutor-msg ' + message.role">
+                      @if (message.role === 'tutor') {
+                        <div
+                          markdown
+                          [data]="message.text"
+                        ></div>
+                      } @else {
+                        {{ message.text }}
+                      }
+                    </div>
+                  } @empty {
+                    <p class="muted">
+                      Pergunte sobre este assunto - o tutor responde com base nas suas
+                      anotações, no texto das fotos e nos subtópicos, citando de onde
+                      tirou.
+                    </p>
+                  }
+                  @if (tutorBusy()) {
+                    <div class="tutor-msg tutor">Pensando...</div>
+                  }
+                </div>
+                <div class="tutor-input">
+                  <textarea
+                    rows="2"
+                    [(ngModel)]="tutorQuestion"
+                    placeholder="Ex.: não entendi gradiente descendente"
+                    (keydown.enter)="$event.preventDefault(); askTutor()"
+                  ></textarea>
+                  <button
+                    type="button"
+                    class="primary"
+                    [disabled]="tutorBusy() || !tutorQuestion.trim()"
+                    (click)="askTutor()"
+                  >
+                    <mat-icon>send</mat-icon>
+                  </button>
+                </div>
+              </div>
+            }
+          }
           @if (notesMode() === 'write') {
             <div
               class="markdown-toolbar"
@@ -1587,7 +2323,100 @@
               >
                 <mat-icon>horizontal_rule</mat-icon>
               </button>
+              <button
+                type="button"
+                class="flashcard-from-selection"
+                title="Selecione um trecho das anotações e clique para virar flashcard"
+                (mousedown)="$event.preventDefault()"
+                (click)="startFlashcardFromSelection()"
+              >
+                <mat-icon>style</mat-icon>Flashcard do trecho
+              </button>
+              @if (gemini.configured()) {
+                <button
+                  type="button"
+                  class="flashcard-from-selection ai-flashcards"
+                  title="Com um trecho selecionado: 5 flashcards dele. Sem seleção: 5 por página (anotações e cada foto)."
+                  [disabled]="aiCardsBusy()"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="generateAiFlashcards()"
+                >
+                  <mat-icon>auto_awesome</mat-icon
+                  >{{ aiCardsBusy() ? 'Gerando...' : '5 flashcards com IA' }}
+                </button>
+              }
             </div>
+            @if (editorAiMessage()) {
+              <small class="flashcard-notice">{{ editorAiMessage() }}</small>
+            }
+            @if (aiCards(); as cards) {
+              <div class="ai-cards-review">
+                @for (card of cards; track $index; let index = $index) {
+                  <label [class.discarded]="!card.keep">
+                    <input
+                      type="checkbox"
+                      [checked]="card.keep"
+                      (change)="toggleAiCard(index)"
+                    />
+                    <span
+                      ><b>{{ card.question }}</b
+                      ><small>{{ card.answer }}</small
+                      ><em>{{ card.source }}</em></span
+                    >
+                  </label>
+                }
+                <div>
+                  <button
+                    type="button"
+                    (click)="aiCards.set(null)"
+                  >
+                    Descartar
+                  </button>
+                  <button
+                    type="button"
+                    class="primary"
+                    [disabled]="aiCardsBusy()"
+                    (click)="saveAiFlashcards()"
+                  >
+                    <mat-icon>style</mat-icon>Guardar marcados
+                  </button>
+                </div>
+              </div>
+            }
+            @if (selectionFlashcard(); as draft) {
+              <div class="selection-flashcard">
+                <label
+                  >Pergunta<textarea
+                    rows="2"
+                    [(ngModel)]="draft.question"
+                  ></textarea></label
+                ><label
+                  >Resposta<textarea
+                    rows="3"
+                    [(ngModel)]="draft.answer"
+                  ></textarea>
+                </label>
+                <div>
+                  <button
+                    type="button"
+                    (click)="selectionFlashcard.set(null)"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    class="primary"
+                    [disabled]="!draft.question.trim() || !draft.answer.trim()"
+                    (click)="saveSelectionFlashcard(draft)"
+                  >
+                    <mat-icon>style</mat-icon>Criar flashcard
+                  </button>
+                </div>
+              </div>
+            }
+            @if (flashcardNotice()) {
+              <small class="flashcard-notice">{{ flashcardNotice() }}</small>
+            }
             <textarea
               #notesTextarea
               class="notes-editor"
@@ -1774,7 +2603,16 @@
             >
               <mat-icon>snooze</mat-icon> Pular
             </button>
-            @if (!reviewAnswerVisible()) {
+            @if (gemini.configured() && !activeReview()) {
+              <button
+                type="button"
+                class="active-review-btn"
+                (click)="startActiveReview()"
+              >
+                <mat-icon>auto_awesome</mat-icon> Revisão ativa com IA
+              </button>
+            }
+            @if (!reviewAnswerVisible() && !activeReview()) {
               <button
                 type="button"
                 class="primary"
@@ -1784,6 +2622,85 @@
               </button>
             }
           </div>
+
+          @if (activeReview(); as ar) {
+            <div class="active-review">
+              @if (ar.loading && !ar.questions.length) {
+                <p class="muted">A IA está preparando 3 perguntas abertas...</p>
+              } @else if (ar.error && !ar.questions.length) {
+                <p class="muted">{{ ar.error }}</p>
+              } @else {
+                <p class="muted">
+                  Responda com suas palavras, sem consultar o material. A IA corrige e a
+                  nota da revisão sai da correção.
+                </p>
+                @for (question of ar.questions; track $index; let i = $index) {
+                  <div class="active-q">
+                    <b>{{ i + 1 }}. {{ question }}</b>
+                    <textarea
+                      rows="3"
+                      [disabled]="!!ar.result"
+                      [ngModel]="ar.answers[i]"
+                      (ngModelChange)="setActiveAnswer(i, $event)"
+                      placeholder="Sua resposta..."
+                    ></textarea>
+                    @if (ar.result?.items?.[i]; as item) {
+                      <div
+                        class="active-feedback"
+                        [class.good]="item.score >= 70"
+                      >
+                        <strong>{{ item.score }}</strong>
+                        <span>
+                          {{ item.feedback }}
+                          @if (item.missing) {
+                            <em>Faltou: {{ item.missing }}</em>
+                          }
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+                @if (ar.error) {
+                  <p class="muted">{{ ar.error }}</p>
+                }
+                @if (ar.result; as result) {
+                  @let rating = activeReviewRating(result.overall);
+                  <div class="active-total">
+                    <span
+                      >Nota geral <strong>{{ result.overall }}</strong
+                      >/100 → revisão "<b>{{ ratingLabel(rating) }}</b
+                      >"</span
+                    >
+                    <small>{{ result.summary }}</small>
+                    <button
+                      type="button"
+                      class="primary"
+                      (click)="submitActiveReview()"
+                    >
+                      Registrar revisão
+                    </button>
+                  </div>
+                } @else {
+                  <div class="active-actions">
+                    <button
+                      type="button"
+                      (click)="activeReview.set(null)"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      class="primary"
+                      [disabled]="ar.loading"
+                      (click)="gradeActiveReview()"
+                    >
+                      {{ ar.loading ? 'Corrigindo...' : 'Corrigir respostas' }}
+                    </button>
+                  </div>
+                }
+              }
+            </div>
+          }
 
           @if (reviewAnswerVisible()) {
             <div class="rating-row">
@@ -1930,3 +2847,160 @@
     </div>
   }
 </main>
+
+@if (photoPreview(); as photo) {
+  <div
+    class="photo-lightbox"
+    (click)="photoPreview.set(null)"
+  >
+    <img
+      [src]="photo.dataUrl"
+      [alt]="photo.name"
+    />
+  </div>
+}
+
+@if (quiz(); as q) {
+  <div class="quiz-backdrop">
+    <section class="quiz-modal">
+      <header class="quiz-head">
+        <div>
+          <span class="quiz-kicker"
+            ><mat-icon>auto_awesome</mat-icon>Prova do conhecimento</span
+          >
+          <h2>{{ q.node.title }}</h2>
+        </div>
+        <button
+          type="button"
+          class="quiz-close"
+          title="Pular quiz"
+          (click)="quiz.set(null)"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      @if (q.loading) {
+        <div class="quiz-state">
+          <mat-icon class="quiz-spin">autorenew</mat-icon>
+          <p>A IA está preparando 10 perguntas sobre o assunto...</p>
+        </div>
+      } @else if (q.error) {
+        <div class="quiz-state">
+          <mat-icon>error_outline</mat-icon>
+          <p>{{ q.error }}</p>
+          <button
+            type="button"
+            class="quiz-primary"
+            (click)="startQuiz(q.node)"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      } @else if (!q.submitted) {
+        @let question = q.questions[q.step];
+        <div class="quiz-progress">
+          @for (item of q.questions; track $index; let i = $index) {
+            <button
+              type="button"
+              [class.current]="i === q.step"
+              [class.answered]="q.answers[i] !== null"
+              [title]="'Pergunta ' + (i + 1)"
+              (click)="quizGo(i)"
+            ></button>
+          }
+          <small>Pergunta {{ q.step + 1 }} de {{ q.questions.length }}</small>
+        </div>
+        <p class="quiz-question-text">{{ question.question }}</p>
+        <div class="quiz-options">
+          @for (option of question.options; track $index; let oi = $index) {
+            <button
+              type="button"
+              [class.chosen]="q.answers[q.step] === oi"
+              (click)="answerQuiz(q.step, oi)"
+            >
+              <span class="quiz-letter">{{ quizLetters[oi] }}</span>
+              <span>{{ option }}</span>
+            </button>
+          }
+        </div>
+        <footer class="quiz-foot">
+          <button
+            type="button"
+            class="quiz-ghost"
+            [disabled]="q.step === 0"
+            (click)="quizGo(q.step - 1)"
+          >
+            <mat-icon>arrow_back</mat-icon>Anterior
+          </button>
+          @if (q.step < q.questions.length - 1) {
+            <button
+              type="button"
+              class="quiz-primary"
+              [disabled]="q.answers[q.step] === null"
+              (click)="quizGo(q.step + 1)"
+            >
+              Próxima<mat-icon>arrow_forward</mat-icon>
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="quiz-primary"
+              [disabled]="q.answers.includes(null)"
+              [title]="q.answers.includes(null) ? 'Responda todas as perguntas' : ''"
+              (click)="submitQuiz()"
+            >
+              <mat-icon>task_alt</mat-icon>Corrigir
+            </button>
+          }
+        </footer>
+      } @else {
+        @let percent = (q.correct / q.questions.length) * 100;
+        <div
+          class="quiz-result"
+          [class.good]="percent >= 70"
+        >
+          <strong>{{ percent | number: '1.0-0' }}%</strong>
+          <span
+            >{{ q.correct }} de {{ q.questions.length }} certas ·
+            {{
+              percent >= 70
+                ? 'Mandou bem!'
+                : 'Abaixo de 70% - este assunto sobe na fila de revisão'
+            }}</span
+          >
+        </div>
+        <ol class="quiz-review">
+          @for (question of q.questions; track $index; let qi = $index) {
+            @let right = q.answers[qi] === question.correctIndex;
+            <li [class.right]="right">
+              <mat-icon>{{ right ? 'check_circle' : 'cancel' }}</mat-icon>
+              <div>
+                <b>{{ question.question }}</b>
+                @if (!right) {
+                  <small class="quiz-yours"
+                    >Sua resposta: {{ question.options[q.answers[qi] ?? 0] }}</small
+                  >
+                }
+                <small class="quiz-correct"
+                  >Correta: {{ question.options[question.correctIndex] }}</small
+                >
+                <em>{{ question.explanation }}</em>
+              </div>
+            </li>
+          }
+        </ol>
+        <footer class="quiz-foot">
+          <span>Nota salva no assunto.</span>
+          <button
+            type="button"
+            class="quiz-primary"
+            (click)="quiz.set(null)"
+          >
+            Fechar
+          </button>
+        </footer>
+      }
+    </section>
+  </div>
+}

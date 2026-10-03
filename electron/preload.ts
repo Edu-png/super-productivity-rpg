@@ -211,6 +211,24 @@ const ea: ElectronAPI = {
   rpgBackup: (args) => _invoke('RPG_BACKUP', args) as Promise<void>,
   rpgBackupPickFolder: () =>
     _invoke('RPG_BACKUP_PICK_FOLDER') as Promise<string | undefined>,
+  geminiStatus: () =>
+    _invoke('GEMINI_STATUS') as Promise<{
+      configured: boolean;
+      model: string | null;
+      message: string;
+    }>,
+  geminiGenerate: (args) =>
+    _invoke('GEMINI_GENERATE', args) as Promise<{
+      ok: boolean;
+      text: string;
+      model?: string;
+      error?: string;
+    }>,
+  coverLookup: (args) => _invoke('COVER_LOOKUP', args) as Promise<string | null>,
+  coverCandidates: (args) =>
+    _invoke('COVER_CANDIDATES', args) as Promise<
+      { dataUrl: string; label: string; source: string }[]
+    >,
 
   updateCurrentTask: (
     task,

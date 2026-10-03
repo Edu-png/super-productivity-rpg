@@ -51,7 +51,7 @@
     <tree-dnd
       [nodes]="treeNodes()"
       (nodesChange)="onTreeUpdated($event)"
-      [indent]="16"
+      [indent]="showLabels() ? 16 : 0"
     >
       <!-- Template for folder nodes -->
       <ng-template

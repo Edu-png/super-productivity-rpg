@@ -7,6 +7,8 @@ import { initDebug } from './debug';
 import electronDl from 'electron-dl';
 import { IPC } from './shared-with-frontend/ipc-events.const';
 import { initBackupAdapter } from './backup';
+import { initGeminiIpc } from './gemini';
+import { initCoverLookupIpc } from './cover-lookup';
 import { initLocalFileSyncAdapter } from './local-file-sync';
 import { initFullScreenBlocker } from './full-screen-blocker';
 import { CONFIG } from './CONFIG';
@@ -290,6 +292,8 @@ export const startApp = (): void => {
 
   appIN.on('ready', () => createMainWin());
   appIN.on('ready', () => initBackupAdapter());
+  appIN.on('ready', () => initGeminiIpc());
+  appIN.on('ready', () => initCoverLookupIpc());
   appIN.on('ready', () => initLocalFileSyncAdapter());
   appIN.on('ready', () => initFullScreenBlocker(IS_DEV));
 

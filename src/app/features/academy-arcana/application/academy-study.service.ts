@@ -7,12 +7,18 @@ import {
   FlashcardReview,
   StudyArea,
   StudyNode,
+  StudyNodeCategory,
   StudyNodeKind,
+  StudyNodePriority,
+  StudyNodeStatus,
   StudyDistraction,
   StudySession,
   SyncMetadata,
   TopicReviewLog,
   TopicReviewState,
+  quizScorePercent,
+  studyNodeCategoryInfo,
+  studyNodeStatus,
 } from '../domain/academy.models';
 import { AcademyRepository } from '../domain/academy.repository';
 import { importCronogramaSchedule } from './cronograma-import';
@@ -67,7 +73,11 @@ export class AcademyStudyService {
   readonly dueTopicReviews = computed(() =>
     this.topicReviews()
       .filter((state) => state.dueAt <= Date.now())
-      .sort((a, b) => a.dueAt - b.dueAt),
+      .sort(
+        (a, b) =>
+          this.reviewPriority(b.nodeId) - this.reviewPriority(a.nodeId) ||
+          a.dueAt - b.dueAt,
+      ),
   );
 
   constructor(private readonly repository: AcademyRepository) {}
@@ -125,6 +135,7 @@ export class AcademyStudyService {
     ]);
     this.areas.set(areas.filter((item) => !item.deletedAt));
     this.nodes.set(nodes.filter((item) => !item.deletedAt));
+    await this.repairCompletedParents();
     this.dashboard.set(dashboard);
     this.settings.set(settings);
     this.dueCards.set(dueCards.filter((card) => !card.suspended && !card.deletedAt));
@@ -188,6 +199,8 @@ export class AcademyStudyService {
     };
     await this.repository.putNode(node);
     this.nodes.update((nodes) => [...nodes, node]);
+    const reopened = this.reopenCompletedAncestors(parentId);
+    await Promise.all(reopened.map((item) => this.repository.putNode(item)));
     this.queueCloudSave();
   }
 
@@ -199,6 +212,11 @@ export class AcademyStudyService {
       notesMarkdown: string;
       links: Array<{ label: string; url: string }>;
       drawing: StudyNode['drawing'];
+      category?: StudyNodeCategory;
+      priority?: StudyNodePriority;
+      photos?: StudyNode['photos'];
+      notebooks?: StudyNode['notebooks'];
+      quizScore?: StudyNode['quizScore'];
     },
   ): Promise<void> {
     const current = this.nodes().find((node) => node.id === nodeId);
@@ -210,6 +228,18 @@ export class AcademyStudyService {
       notesMarkdown: details.notesMarkdown,
       links: details.links.filter((link) => link.url.trim()),
       drawing: details.drawing,
+      category: details.category,
+      priority: details.priority,
+      photos: details.photos ?? current.photos,
+      notebooks: details.notebooks ?? current.notebooks,
+      quizScore:
+        details.quizScore === undefined
+          ? current.quizScore
+          : details.quizScore &&
+              (details.quizScore.score !== current.quizScore?.score ||
+                details.quizScore.max !== current.quizScore?.max)
+            ? { ...details.quizScore, at: Date.now() }
+            : details.quizScore && { ...details.quizScore, at: current.quizScore?.at },
       updatedAt: Date.now(),
       revision: current.revision + 1,
     };
@@ -217,6 +247,156 @@ export class AcademyStudyService {
     this.nodes.update((nodes) =>
       nodes.map((node) => (node.id === nodeId ? updated : node)),
     );
+    this.queueCloudSave();
+  }
+
+  /** Saves fields of an already-stored node (AI results arriving later). */
+  async patchNode(
+    nodeId: string,
+    patch: (node: StudyNode) => Partial<StudyNode> | null,
+  ): Promise<void> {
+    const current = this.nodes().find((node) => node.id === nodeId);
+    if (!current) return;
+    const changes = patch(current);
+    if (!changes) return;
+    const updated: StudyNode = {
+      ...current,
+      ...changes,
+      updatedAt: Date.now(),
+      revision: current.revision + 1,
+    };
+    await this.repository.putNode(updated);
+    this.nodes.update((nodes) =>
+      nodes.map((node) => (node.id === nodeId ? updated : node)),
+    );
+    this.queueCloudSave();
+  }
+
+  /**
+   * Saves a drag-reordered sibling list: each node's position becomes its
+   * index, and a node dropped among higher/lower-priority items takes on the
+   * priority given for it so the list stays sorted by priority.
+   */
+  async reorderNodes(
+    ordered: Array<{ id: string; priority: StudyNodePriority }>,
+  ): Promise<void> {
+    const now = Date.now();
+    const changed: StudyNode[] = [];
+    ordered.forEach((item, position) => {
+      const current = this.nodes().find((node) => node.id === item.id);
+      if (
+        !current ||
+        (current.position === position &&
+          (current.priority ?? 'medium') === item.priority)
+      ) {
+        return;
+      }
+      changed.push({
+        ...current,
+        position,
+        priority: item.priority,
+        updatedAt: now,
+        revision: current.revision + 1,
+      });
+    });
+    if (!changed.length) return;
+    const byId = new Map(changed.map((node) => [node.id, node]));
+    this.nodes.update((nodes) => nodes.map((node) => byId.get(node.id) ?? node));
+    await Promise.all(changed.map((node) => this.repository.putNode(node)));
+    this.queueCloudSave();
+  }
+
+  /**
+   * Moves a node to a kanban column. When that leaves every sibling in the
+   * same column, the parent folder follows (and so on up the tree). Marking
+   * something completed also completes everything inside it, and a parent
+   * only stays completed while all its children are.
+   */
+  /** Returns every node whose status changed (the node, ancestors, descendants). */
+  async setNodeStatus(nodeId: string, status: StudyNodeStatus): Promise<StudyNode[]> {
+    const changed: StudyNode[] = [];
+    const apply = (current: StudyNode): void => {
+      changed.push(this.applyNodeStatus(current, status));
+    };
+    if (status === 'completed') {
+      const pending = this.nodes().filter((node) => node.parentId === nodeId);
+      while (pending.length) {
+        const child = pending.pop() as StudyNode;
+        if (studyNodeStatus(child) !== status) apply(child);
+        pending.push(...this.nodes().filter((node) => node.parentId === child.id));
+      }
+    }
+    let current = this.nodes().find((node) => node.id === nodeId);
+    while (current && studyNodeStatus(current) !== status) {
+      apply(current);
+      const parentId = current.parentId;
+      if (!parentId) break;
+      const siblings = this.nodes().filter((node) => node.parentId === parentId);
+      if (siblings.some((node) => studyNodeStatus(node) !== status)) break;
+      current = this.nodes().find((node) => node.id === parentId);
+    }
+    if (status !== 'completed') {
+      const parentId = this.nodes().find((node) => node.id === nodeId)?.parentId;
+      changed.push(...this.reopenCompletedAncestors(parentId ?? null));
+    }
+    if (!changed.length) return [];
+    await Promise.all(changed.map((node) => this.repository.putNode(node)));
+    await this.refreshDashboard();
+    this.queueCloudSave();
+    return changed;
+  }
+
+  /** Sets a node's column in memory (not persisted) and returns the update. */
+  private applyNodeStatus(current: StudyNode, status: StudyNodeStatus): StudyNode {
+    const now = Date.now();
+    const updated: StudyNode = {
+      ...current,
+      status,
+      completedAt: status === 'completed' ? (current.completedAt ?? now) : null,
+      updatedAt: now,
+      revision: current.revision + 1,
+    };
+    this.nodes.update((nodes) =>
+      nodes.map((node) => (node.id === updated.id ? updated : node)),
+    );
+    return updated;
+  }
+
+  /**
+   * Walks up from `parentId` moving any completed ancestor that now has an
+   * unfinished child back to "Estudando" (in memory; caller persists).
+   */
+  private reopenCompletedAncestors(parentId: string | null): StudyNode[] {
+    const changed: StudyNode[] = [];
+    const visited = new Set<string>();
+    let current = parentId
+      ? this.nodes().find((node) => node.id === parentId)
+      : undefined;
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+      const children = this.nodes().filter((node) => node.parentId === current?.id);
+      if (
+        studyNodeStatus(current) === 'completed' &&
+        children.some((node) => studyNodeStatus(node) !== 'completed')
+      ) {
+        changed.push(this.applyNodeStatus(current, 'studying'));
+      }
+      const nextId = current.parentId;
+      current = nextId ? this.nodes().find((node) => node.id === nextId) : undefined;
+    }
+    return changed;
+  }
+
+  /** Fixes parents left completed while some child isn't (e.g. added later). */
+  private async repairCompletedParents(): Promise<void> {
+    const parentIds = new Set(
+      this.nodes()
+        .filter((node) => node.parentId && studyNodeStatus(node) !== 'completed')
+        .map((node) => node.parentId as string),
+    );
+    const changed = [...parentIds].flatMap((id) => this.reopenCompletedAncestors(id));
+    if (!changed.length) return;
+    await Promise.all(changed.map((node) => this.repository.putNode(node)));
     this.queueCloudSave();
   }
 
@@ -435,6 +615,11 @@ export class AcademyStudyService {
     return completed;
   }
 
+  /** All flashcards of an area (used to avoid generating duplicates). */
+  areaFlashcards(areaId: string): Promise<Flashcard[]> {
+    return this.repository.listDeckFlashcards(this.profileId(), areaId);
+  }
+
   async addFlashcard(
     areaId: string,
     nodeId: string | null,
@@ -513,6 +698,14 @@ export class AcademyStudyService {
     this.queueCloudSave();
   }
 
+  private reviewPriority(nodeId: string): number {
+    const node = this.nodes().find((item) => item.id === nodeId);
+    const category = studyNodeCategoryInfo(node?.category)?.reviewPriority ?? 1;
+    // A quiz/exam grade below 70% jumps ahead of every category.
+    const percent = node ? quizScorePercent(node) : null;
+    return percent !== null && percent < 70 ? category + 10 : category;
+  }
+
   topicReviewFor(nodeId: string): TopicReviewState | null {
     return this.topicReviews().find((state) => state.nodeId === nodeId) ?? null;
   }
@@ -521,8 +714,10 @@ export class AcademyStudyService {
     return this.topicReviewFor(nodeId) !== null;
   }
 
+  /** Folders only group things, so only what's inside them can be reviewed. */
   async addNodeToReview(nodeId: string, areaId: string): Promise<void> {
-    if (this.isNodeInReview(nodeId)) return;
+    const node = this.nodes().find((item) => item.id === nodeId);
+    if (!node || node.kind === 'folder' || this.isNodeInReview(nodeId)) return;
     const now = Date.now();
     const state: TopicReviewState = {
       ...this.metadata(),
@@ -542,6 +737,7 @@ export class AcademyStudyService {
     this.topicReviews.update((rows) => [...rows, state]);
     await this.refreshDashboard();
     this.queueCloudSave();
+    await this.setNodeStatus(nodeId, 'reviewing');
   }
 
   /**
@@ -598,6 +794,8 @@ export class AcademyStudyService {
       state.difficulty,
       elapsedDays,
       rating,
+      studyNodeCategoryInfo(this.nodes().find((node) => node.id === nodeId)?.category)
+        ?.reviewIntervalFactor,
     );
     const updated: TopicReviewState = {
       ...state,

@@ -185,6 +185,62 @@
         } @empty {
           <p>Nenhum jogo em andamento.</p>
         }
+        @if (nextGameSuggestions().length) {
+          <h3 class="next-book-title">Próximo jogo sugerido</h3>
+          @for (suggestion of nextGameSuggestions(); track suggestion.game.id) {
+            <div
+              class="current-game next-book"
+              (click)="editGame(suggestion.game)"
+            >
+              <span [style.background]="suggestion.game.color"></span>
+              <div>
+                <b>{{ suggestion.game.title }}</b
+                ><small>{{ suggestion.reasons.join(' · ') }}</small>
+              </div>
+            </div>
+          }
+        }
+        @if (gemini.configured()) {
+          <div class="ai-suggestions">
+            <h3 class="next-book-title">Sugestões da IA (pelas suas notas)</h3>
+            @for (suggestion of aiGameSuggestions(); track suggestion.title) {
+              <div class="current-game ai-suggestion">
+                <span></span>
+                <div>
+                  <b
+                    >{{ suggestion.title
+                    }}{{ suggestion.creator ? ' · ' + suggestion.creator : '' }}</b
+                  ><small>{{ suggestion.genre }} · {{ suggestion.reason }}</small>
+                </div>
+                <button
+                  type="button"
+                  title="Adicionar à lista de desejos (ficha preenchida pela IA)"
+                  (click)="addAiSuggestionToWishlist(suggestion)"
+                >
+                  <mat-icon>bookmark_add</mat-icon>Desejos
+                </button>
+              </div>
+            }
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="aiBusy()"
+              (click)="loadAiGameSuggestions()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{
+                aiBusy()
+                  ? 'Consultando IA...'
+                  : aiGameSuggestions().length
+                    ? 'Novas sugestões'
+                    : 'Pedir sugestões à IA'
+              }}
+            </button>
+            @if (aiMessage() && !editingGame()) {
+              <small class="ai-message">{{ aiMessage() }}</small>
+            }
+          </div>
+        }
       </article>
     </section>
   }
@@ -311,6 +367,31 @@
         Adicionar jogo
       </button>
     </section>
+    @if (gemini.configured()) {
+      <small class="ai-message creator-ai-hint">
+        <mat-icon>auto_awesome</mat-icon>
+        {{
+          aiMessage() && !editingGame()
+            ? aiMessage()
+            : 'Só o título já basta: a IA preenche desenvolvedora, gênero, plataformas e sinopse.'
+        }}
+      </small>
+    }
+    @if (missingCovers()) {
+      <button
+        type="button"
+        class="ai-button missing-covers"
+        [disabled]="coverBusy()"
+        (click)="fetchMissingCovers()"
+      >
+        <mat-icon>image_search</mat-icon
+        >{{
+          coverBusy()
+            ? 'Buscando capas...'
+            : 'Buscar capas que faltam (' + missingCovers() + ')'
+        }}
+      </button>
+    }
     <section class="library-tools panel">
       <div class="views">
         @for (view of ['gallery', 'list', 'table', 'shelf', 'timeline']; track view) {
@@ -831,6 +912,58 @@
           ×</button
         ><small>FICHA DO JOGO</small>
         <h2>Editar jogo</h2>
+        @if (gemini.configured()) {
+          <div class="ai-row">
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="aiBusy()"
+              (click)="autofillEditingGame()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{ aiBusy() ? 'Consultando IA...' : 'Preencher campos vazios com IA' }}
+            </button>
+            @if (!game.coverDataUrl) {
+              <button
+                type="button"
+                class="ai-button"
+                [disabled]="coverBusy()"
+                (click)="fetchEditingGameCover()"
+              >
+                <mat-icon>image_search</mat-icon
+                >{{ coverBusy() ? 'Buscando...' : 'Buscar capa' }}
+              </button>
+            }
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="coverBusy()"
+              (click)="openCoverPicker()"
+            >
+              <mat-icon>collections</mat-icon>Escolher capa
+            </button>
+            @if (aiMessage()) {
+              <small>{{ aiMessage() }}</small>
+            }
+          </div>
+          @if (coverOptions(); as options) {
+            <div class="cover-options">
+              @for (option of options; track $index) {
+                <button
+                  type="button"
+                  [title]="option.source + ' · ' + option.label"
+                  (click)="chooseCover(option.dataUrl)"
+                >
+                  <img
+                    [src]="option.dataUrl"
+                    [alt]="option.label"
+                  />
+                  <small>{{ option.source }}</small>
+                </button>
+              }
+            </div>
+          }
+        }
         <div class="edit-grid">
           <label>Título<input [(ngModel)]="game.title" /></label
           ><label>Desenvolvedora<input [(ngModel)]="game.developer" /></label
@@ -949,6 +1082,12 @@
             <mat-icon>auto_awesome</mat-icon>O XP é automático: cada sessão registrada
             concede XP conforme o tempo jogado.
           </p>
+          <label class="wide"
+            >Sinopse<textarea
+              rows="3"
+              [(ngModel)]="game.synopsis"
+            ></textarea>
+          </label>
           <label class="wide"
             >Observações<textarea [(ngModel)]="game.notes"></textarea>
           </label>

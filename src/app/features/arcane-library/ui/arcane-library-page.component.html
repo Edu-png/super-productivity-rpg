@@ -29,6 +29,23 @@
       } @else {
         <small class="pace-hint">Meta batida! 🎉</small>
       }
+      @let forecast = goalForecast();
+      @if (forecast.perDay > 0) {
+        <small
+          class="pace-hint forecast-hint"
+          [class.forecast-ok]="forecast.meets"
+          [title]="'Ritmo: páginas lidas nos últimos 60 dias ÷ 60. Conta os livros em andamento (os mais perto do fim primeiro) e depois a lista de desejos.'"
+          >Previsão: no seu ritmo ({{ forecast.perDay | number: '1.0-1' }} pág./dia) você
+          chega a ~{{ forecast.projected }}/{{ forecast.goal }} até 31/12
+          @if (forecast.meets) {
+            · bate a meta ✓
+          } @else if (forecast.shortQueue) {
+            · faltam livros na lista de desejos para chegar à meta
+          } @else {
+            · precisaria de ~{{ forecast.neededPerDay | number: '1.0-0' }} pág./dia
+          }
+        </small>
+      }
     </div>
   </header>
 
@@ -132,7 +149,7 @@
           <small>CONSTÂNCIA ANUAL</small>
           <h2>Mapa de leitura · {{ annualDays()[0]?.date.slice(0, 4) }}</h2>
         </div>
-        <span>Quanto mais escuro, mais tempo lendo.</span>
+        <span>Quanto mais escuro, mais tempo lendo (relativo ao seu ano).</span>
       </header>
       <div class="heatmap">
         @for (day of annualDays(); track day.date) {
@@ -143,8 +160,32 @@
         }
       </div>
       <footer>
-        Menos <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i
-        ><i class="level-3"></i><i class="level-4"></i> Mais
+        @let cut = heatThresholds();
+        Menos
+        <i
+          class="level-0"
+          title="Sem leitura"
+        ></i
+        ><i
+          class="level-1"
+          [title]="'Até ' + cut[0] + ' min'"
+        ></i
+        ><i
+          class="level-2"
+          [title]="'Até ' + cut[1] + ' min'"
+        ></i
+        ><i
+          class="level-3"
+          [title]="'Até ' + cut[2] + ' min'"
+        ></i
+        ><i
+          class="level-4"
+          [title]="'Mais de ' + cut[2] + ' min'"
+        ></i>
+        Mais
+        <small class="heat-scale"
+          >(≤{{ cut[0] }} · ≤{{ cut[1] }} · ≤{{ cut[2] }} · >{{ cut[2] }} min)</small
+        >
       </footer>
     </section>
     <section class="panel monthly-reading-panel">
@@ -183,6 +224,11 @@
           <span class="above">Acima da média</span>
           <span class="similar">Próxima da média (±10%)</span>
           <span class="below">Abaixo da média</span>
+          @if (readingSpeedChart().outlierCount) {
+            <span class="outlier"
+              >Outlier · fora da média ({{ readingSpeedChart().outlierCount }})</span
+            >
+          }
         </div>
         <div class="speed-chart-scroll">
           <svg
@@ -214,12 +260,14 @@
               <circle
                 [attr.cx]="point.x"
                 [attr.cy]="point.y"
-                r="4.5"
+                [attr.r]="point.outlier ? 6 : 4.5"
                 [attr.class]="point.tone"
               >
                 <title>
                   {{ point.date }} · {{ point.pages }} páginas em {{ point.minutes }} min
-                  · {{ point.speed.toFixed(2) }} pág/min
+                  · {{ point.speed.toFixed(2) }} pág/min{{
+                    point.outlier ? ' · outlier, fora da média' : ''
+                  }}
                 </title>
               </circle>
             }
@@ -252,7 +300,12 @@
             <span [style.background]="book.color"></span>
             <div>
               <b>{{ book.title }}</b
-              ><small>{{ book.currentPage }}/{{ book.pages }} páginas</small>
+              ><small
+                >{{ book.currentPage }}/{{ book.pages }} páginas
+                @if (bookEtas().get(book.id); as eta) {
+                  <span [title]="eta.title"> · {{ eta.label }}</span>
+                }
+              </small>
             </div>
             <strong>{{ progress(book) }}%</strong
             ><button
@@ -265,6 +318,62 @@
           </div>
         } @empty {
           <p>Nenhum livro em andamento.</p>
+        }
+        @if (nextBookSuggestions().length) {
+          <h3 class="next-book-title">Próximo livro sugerido</h3>
+          @for (suggestion of nextBookSuggestions(); track suggestion.book.id) {
+            <div
+              class="current-book next-book"
+              (click)="editBook(suggestion.book)"
+            >
+              <span [style.background]="suggestion.book.color"></span>
+              <div>
+                <b>{{ suggestion.book.title }}</b
+                ><small>{{ suggestion.reasons.join(' · ') }}</small>
+              </div>
+            </div>
+          }
+        }
+        @if (gemini.configured()) {
+          <div class="ai-suggestions">
+            <h3 class="next-book-title">Sugestões da IA (pelas suas notas)</h3>
+            @for (suggestion of aiBookSuggestions(); track suggestion.title) {
+              <div class="current-book ai-suggestion">
+                <span></span>
+                <div>
+                  <b
+                    >{{ suggestion.title
+                    }}{{ suggestion.creator ? ' · ' + suggestion.creator : '' }}</b
+                  ><small>{{ suggestion.genre }} · {{ suggestion.reason }}</small>
+                </div>
+                <button
+                  type="button"
+                  title="Adicionar à lista de desejos (ficha preenchida pela IA)"
+                  (click)="addAiSuggestionToWishlist(suggestion)"
+                >
+                  <mat-icon>bookmark_add</mat-icon>Desejos
+                </button>
+              </div>
+            }
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="aiBusy()"
+              (click)="loadAiBookSuggestions()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{
+                aiBusy()
+                  ? 'Consultando IA...'
+                  : aiBookSuggestions().length
+                    ? 'Novas sugestões'
+                    : 'Pedir sugestões à IA'
+              }}
+            </button>
+            @if (aiMessage() && !editingBook()) {
+              <small class="ai-message">{{ aiMessage() }}</small>
+            }
+          </div>
         }
       </article>
     </section>
@@ -381,6 +490,31 @@
         Adicionar tomo
       </button>
     </section>
+    @if (gemini.configured()) {
+      <small class="ai-message creator-ai-hint">
+        <mat-icon>auto_awesome</mat-icon>
+        {{
+          aiMessage() && !editingBook()
+            ? aiMessage()
+            : 'Só o título já basta: a IA preenche autor, páginas, gênero e sinopse.'
+        }}
+      </small>
+    }
+    @if (missingCovers()) {
+      <button
+        type="button"
+        class="ai-button missing-covers"
+        [disabled]="coverBusy()"
+        (click)="fetchMissingCovers()"
+      >
+        <mat-icon>image_search</mat-icon
+        >{{
+          coverBusy()
+            ? 'Buscando capas...'
+            : 'Buscar capas que faltam (' + missingCovers() + ')'
+        }}
+      </button>
+    }
     <section class="library-tools panel">
       <div class="views">
         @for (view of ['gallery', 'list', 'table', 'shelf', 'timeline']; track view) {
@@ -542,6 +676,13 @@
               @if (readingDays(book); as days) {
                 <b class="reading-time"
                   ><mat-icon>schedule</mat-icon>{{ days }} dia(s) lendo</b
+                >
+              }
+              @if (bookEtas().get(book.id); as eta) {
+                <b
+                  class="reading-time book-eta"
+                  [title]="eta.title"
+                  ><mat-icon>flag</mat-icon>{{ eta.label }}</b
                 >
               }
             </div>
@@ -764,43 +905,110 @@
   }
 
   @if (tab() === 'challenges') {
-    <section class="panel creator">
-      <input
-        [(ngModel)]="challengeTitle"
-        placeholder="Nome do desafio"
-      /><select [(ngModel)]="challengeMetric">
-        <option value="books">Livros</option>
-        <option value="pages">Páginas</option>
-        <option value="minutes">Minutos</option>
-        <option value="streak">Dias seguidos</option></select
-      ><input
-        type="number"
-        [(ngModel)]="challengeTarget"
-      /><button
+    <section class="panel challenge-creator">
+      <label>
+        <small>NOME</small>
+        <input
+          [(ngModel)]="challengeTitle"
+          placeholder="Ex.: Desafio anual"
+        />
+      </label>
+      <label>
+        <small>MEDIR POR</small>
+        <select [(ngModel)]="challengeMetric">
+          <option value="books">Livros</option>
+          <option value="pages">Páginas</option>
+          <option value="minutes">Minutos</option>
+          <option value="streak">Dias seguidos</option>
+        </select>
+      </label>
+      <label>
+        <small>META</small>
+        <input
+          type="number"
+          min="1"
+          [(ngModel)]="challengeTarget"
+        />
+      </label>
+      <label>
+        <small>CONTAR A PARTIR DE</small>
+        <input
+          type="date"
+          [(ngModel)]="challengeStart"
+        />
+      </label>
+      <button
         class="gold"
-        (click)="library.addChallenge(challengeTitle, challengeMetric, challengeTarget)"
+        (click)="
+          library.addChallenge(
+            challengeTitle,
+            challengeMetric,
+            challengeTarget,
+            challengeStart
+          )
+        "
       >
-        Criar desafio
+        <mat-icon>add</mat-icon> Criar desafio
       </button>
     </section>
     <section class="challenge-grid">
-      @for (challenge of library.challenges(); track challenge.id) {
-        <article class="panel">
-          <button
-            class="delete-challenge"
-            title="Excluir desafio"
-            (click)="library.removeChallenge(challenge.id)"
-          >
-            <mat-icon>delete</mat-icon></button
-          ><mat-icon>workspace_premium</mat-icon>
-          <h3>{{ challenge.title }}</h3>
-          <progress
-            [value]="challenge.progress"
-            [max]="challenge.target"
-          ></progress
-          ><span>{{ challenge.progress }}/{{ challenge.target }}</span
-          ><b>+{{ challenge.xpReward }} XP · +{{ challenge.goldReward }} ouro</b>
+      @for (row of challengeRows(); track row.challenge.id) {
+        <article
+          class="panel challenge-card"
+          [class.done]="row.done"
+        >
+          <header>
+            <span class="challenge-icon"
+              ><mat-icon>{{ row.icon }}</mat-icon></span
+            >
+            <div>
+              <h3>{{ row.challenge.title }}</h3>
+              <small>{{ row.label.toUpperCase() }}</small>
+            </div>
+            <button
+              class="delete-challenge"
+              title="Excluir desafio"
+              (click)="library.removeChallenge(row.challenge.id)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </header>
+          <div class="challenge-count">
+            <strong>{{ row.progress }}</strong>
+            <span>/ {{ row.challenge.target }} {{ row.label }}</span>
+            <b>{{ row.percent.toFixed(0) }}%</b>
+          </div>
+          <div class="challenge-bar">
+            <i [style.width.%]="row.percent"></i>
+          </div>
+          @if (row.done) {
+            <p class="challenge-status">
+              <mat-icon>emoji_events</mat-icon> Desafio cumprido!
+            </p>
+          } @else {
+            <p class="challenge-status">
+              Faltam {{ row.challenge.target - row.progress }} {{ row.label }}
+            </p>
+          }
+          <footer>
+            <label>
+              <small>CONTANDO DESDE</small>
+              <input
+                type="date"
+                [ngModel]="row.start"
+                (ngModelChange)="library.setChallengeStartDate(row.challenge.id, $event)"
+              />
+            </label>
+            <span class="challenge-reward"
+              >+{{ row.challenge.xpReward }} XP · +{{
+                row.challenge.goldReward
+              }}
+              ouro</span
+            >
+          </footer>
         </article>
+      } @empty {
+        <p class="challenge-empty">Nenhum desafio ainda. Crie o primeiro acima.</p>
       }
     </section>
   }
@@ -819,8 +1027,55 @@
           (click)="calendarPickerDate.set(null)"
         >
           ×</button
-        ><small>REGISTRAR LEITURA</small>
+        ><small>LEITURAS DO DIA</small>
         <h2>{{ pickDate }}</h2>
+        @for (entry of dayLogs(); track entry.original.id) {
+          <div class="day-log">
+            <b>{{ bookTitle(entry.original.bookId) }}</b>
+            <div class="log-form">
+              <label
+                >Data<input
+                  type="date"
+                  [(ngModel)]="entry.draft.date"
+                  [max]="today" /></label
+              ><label
+                >Minutos<input
+                  type="number"
+                  min="1"
+                  [(ngModel)]="entry.draft.minutes" /></label
+              ><label
+                >Página inicial<input
+                  type="number"
+                  min="0"
+                  [(ngModel)]="entry.draft.startPage" /></label
+              ><label
+                >Página final<input
+                  type="number"
+                  min="0"
+                  [(ngModel)]="entry.draft.endPage" /></label
+              ><textarea
+                [(ngModel)]="entry.draft.notes"
+                placeholder="Observações..."
+              ></textarea>
+            </div>
+            <div class="day-log-actions">
+              <button
+                type="button"
+                (click)="deleteDayLog(entry)"
+              >
+                <mat-icon>delete</mat-icon>Excluir
+              </button>
+              <button
+                type="button"
+                class="gold"
+                (click)="saveDayLog(entry)"
+              >
+                <mat-icon>save</mat-icon>Salvar alterações
+              </button>
+            </div>
+          </div>
+        }
+        <small>NOVA LEITURA NESTE DIA</small>
         <div class="log-form">
           <label
             >Livro<select
@@ -916,6 +1171,58 @@
           ×</button
         ><small>FICHA DO TOMO</small>
         <h2>Editar livro</h2>
+        @if (gemini.configured()) {
+          <div class="ai-row">
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="aiBusy()"
+              (click)="autofillEditingBook()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{ aiBusy() ? 'Consultando IA...' : 'Preencher campos vazios com IA' }}
+            </button>
+            @if (!book.coverDataUrl) {
+              <button
+                type="button"
+                class="ai-button"
+                [disabled]="coverBusy()"
+                (click)="fetchEditingBookCover()"
+              >
+                <mat-icon>image_search</mat-icon
+                >{{ coverBusy() ? 'Buscando...' : 'Buscar capa' }}
+              </button>
+            }
+            <button
+              type="button"
+              class="ai-button"
+              [disabled]="coverBusy()"
+              (click)="openCoverPicker()"
+            >
+              <mat-icon>collections</mat-icon>Escolher capa
+            </button>
+            @if (aiMessage()) {
+              <small>{{ aiMessage() }}</small>
+            }
+          </div>
+          @if (coverOptions(); as options) {
+            <div class="cover-options">
+              @for (option of options; track $index) {
+                <button
+                  type="button"
+                  [title]="option.source + ' · ' + option.label"
+                  (click)="chooseCover(option.dataUrl)"
+                >
+                  <img
+                    [src]="option.dataUrl"
+                    [alt]="option.label"
+                  />
+                  <small>{{ option.source }}</small>
+                </button>
+              }
+            </div>
+          }
+        }
         <div class="edit-grid">
           <label>Título<input [(ngModel)]="book.title" /></label
           ><label>Autor<input [(ngModel)]="book.author" /></label
@@ -1027,6 +1334,12 @@
             <mat-icon>auto_awesome</mat-icon>O XP é automático: cada página registrada
             concede 1 XP.
           </p>
+          <label class="wide"
+            >Sinopse<textarea
+              rows="3"
+              [(ngModel)]="book.synopsis"
+            ></textarea>
+          </label>
           <label class="wide"
             >Observações<textarea [(ngModel)]="book.notes"></textarea>
           </label>

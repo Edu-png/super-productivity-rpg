@@ -319,6 +319,30 @@ export class PluginUserPersistenceService {
   }
 
   /**
+   * One-time removal of the `life-rpg:*` chunks left in state by the disabled
+   * CloudDomainSyncService (2026-08-01). Nothing reads them anymore, but the
+   * ~50 MB of stale snapshots were serialized into every automatic backup,
+   * blocking the Electron main process (and keyboard input) each time.
+   * Dispatches in small batches with event-loop breaks (sync rule 6).
+   */
+  async pruneDeadLifeRpgDataOnce(): Promise<void> {
+    const FLAG = 'sp-pruned-dead-life-rpg-user-data-2026-10-02-v1';
+    if (localStorage.getItem(FLAG)) return;
+    const currentState = await firstValueFrom(
+      this._store.select(selectPluginUserDataFeatureState),
+    );
+    const matches = currentState.filter((item) => item.id.startsWith('life-rpg:'));
+    for (let i = 0; i < matches.length; i++) {
+      this._cancelPending(matches[i].id);
+      this._store.dispatch(deletePluginUserData({ pluginId: matches[i].id }));
+      if (i % 50 === 49) await new Promise((r) => setTimeout(r, 0));
+    }
+    await new Promise((r) => setTimeout(r, 0));
+    localStorage.setItem(FLAG, String(Date.now()));
+    PluginLog.log(`Pruned ${matches.length} dead life-rpg user data entries`);
+  }
+
+  /**
    * Clear all plugin user data (removes each one individually to create operations)
    *
    * Yields the event loop after the dispatch loop — CLAUDE.md sync rule 6:

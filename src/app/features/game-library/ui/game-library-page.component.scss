@@ -1111,3 +1111,115 @@ progress {
     overflow: auto;
   }
 }
+
+.next-book-title {
+  margin: 16px 0 6px;
+  color: #f5e9c8;
+  font-size: 14px;
+}
+
+.next-book {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.ai-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+
+  small {
+    color: #9fd3c7;
+  }
+}
+
+.ai-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #6b5aa6;
+  background: rgba(150, 112, 231, 0.12);
+  color: #d9c8ff;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
+}
+
+.ai-suggestions {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+
+  .ai-button {
+    justify-self: start;
+  }
+}
+
+.ai-suggestion > span {
+  background: linear-gradient(#9670e7, #4f3191);
+}
+
+.ai-message {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #9fd3c7;
+  font-size: 12px;
+
+  mat-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+}
+
+.creator-ai-hint {
+  margin: -6px 0 14px 4px;
+}
+
+.missing-covers {
+  margin: 0 0 14px 4px;
+}
+
+.cover-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+
+  button {
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid #3a3550;
+    background: #0d0e19;
+    cursor: pointer;
+
+    &:hover {
+      border-color: #e1ad3c;
+    }
+  }
+
+  img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+  }
+
+  small {
+    color: #a39cba;
+    font-size: 10px;
+  }
+}

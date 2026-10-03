@@ -38,6 +38,182 @@ export interface StudyNode extends SyncMetadata {
   difficulty: number;
   weight: number;
   completedAt: number | null;
+  /**
+   * What kind of material this item is (mind map, video, article...), separate
+   * from `kind`, which is only its place in the folder > course > ... tree.
+   * Absent on nodes created before categories existed.
+   */
+  category?: StudyNodeCategory;
+  /** Kanban column - read it through studyNodeStatus(). */
+  status?: StudyNodeStatus;
+  /** Sorts ahead of `position`. Absent means 'medium'. */
+  priority?: StudyNodePriority;
+  /** Photos attached from disk (downscaled data URLs). */
+  photos?: StudyNodePhoto[];
+  /** Where this content was written down on paper: notebook + page range. */
+  notebooks?: StudyNodeNotebookRef[];
+  /** Quiz/exam grade, when there was one: score out of `max` (max optional). */
+  quizScore?: { score: number; max: number | null; at?: number } | null;
+}
+
+/**
+ * Quiz/exam grade as 0-100. Without a max, a score up to 10 is read as out of
+ * 10 and anything larger as out of 100.
+ */
+export function quizScorePercent(node: StudyNode): number | null {
+  const quiz = node.quizScore;
+  if (!quiz || !Number.isFinite(quiz.score)) return null;
+  const max = quiz.max && quiz.max > 0 ? quiz.max : quiz.score <= 10 ? 10 : 100;
+  return Math.max(0, Math.min(100, (quiz.score / max) * 100));
+}
+
+export interface StudyNodePhoto {
+  id: string;
+  name: string;
+  dataUrl: string;
+  /** Text read from the photo by the AI (editable), used by the search. */
+  text?: string;
+}
+
+export interface StudyNodeNotebookRef {
+  id: string;
+  notebook: string;
+  fromPage: number | null;
+  toPage: number | null;
+}
+
+export type StudyNodePriority = 'high' | 'medium' | 'low';
+
+export const STUDY_NODE_PRIORITIES: Array<{ id: StudyNodePriority; label: string }> = [
+  { id: 'high', label: 'Alta' },
+  { id: 'medium', label: 'Média' },
+  { id: 'low', label: 'Baixa' },
+];
+
+export function studyNodePriorityRank(node: StudyNode): number {
+  return { high: 0, medium: 1, low: 2 }[node.priority ?? 'medium'];
+}
+
+export type StudyNodeStatus =
+  | 'backlog'
+  | 'studying'
+  | 'reviewing'
+  | 'studied'
+  | 'completed'
+  | 'paused';
+
+export const STUDY_NODE_STATUSES: Array<{
+  id: StudyNodeStatus;
+  label: string;
+  icon: string;
+}> = [
+  { id: 'backlog', label: 'Backlog', icon: 'inventory_2' },
+  { id: 'studying', label: 'Estudando', icon: 'auto_stories' },
+  { id: 'reviewing', label: 'Revisando', icon: 'replay' },
+  { id: 'studied', label: 'Estudado', icon: 'task_alt' },
+  { id: 'completed', label: 'Completo', icon: 'workspace_premium' },
+  { id: 'paused', label: 'Parado', icon: 'pause_circle' },
+];
+
+/** Stored column, falling back to 'completed'/'backlog' for older nodes. */
+export function studyNodeStatus(node: StudyNode): StudyNodeStatus {
+  return node.status ?? (node.completedAt ? 'completed' : 'backlog');
+}
+
+export type StudyNodeCategory =
+  | 'course'
+  | 'mind-map'
+  | 'video'
+  | 'article'
+  | 'book'
+  | 'review'
+  | 'quiz'
+  | 'exam'
+  | 'other';
+
+export interface StudyNodeCategoryInfo {
+  id: StudyNodeCategory;
+  label: string;
+  icon: string;
+  /** Higher comes first in the due-review queue. */
+  reviewPriority: number;
+  /**
+   * Scales the interval until the next topic review. Below 1 brings the item
+   * back more often - used for mind maps, which recap a whole subject at once.
+   */
+  reviewIntervalFactor: number;
+}
+
+export const STUDY_NODE_CATEGORIES: StudyNodeCategoryInfo[] = [
+  {
+    id: 'course',
+    label: 'Curso',
+    icon: 'school',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'mind-map',
+    label: 'Mapa mental',
+    icon: 'account_tree',
+    reviewPriority: 3,
+    reviewIntervalFactor: 0.7,
+  },
+  {
+    id: 'review',
+    label: 'Revisão',
+    icon: 'history_edu',
+    reviewPriority: 2,
+    reviewIntervalFactor: 0.85,
+  },
+  {
+    id: 'video',
+    label: 'Vídeo',
+    icon: 'smart_display',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'article',
+    label: 'Artigo',
+    icon: 'article',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'book',
+    label: 'Livro',
+    icon: 'menu_book',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'quiz',
+    label: 'Quiz',
+    icon: 'quiz',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'exam',
+    label: 'Prova',
+    icon: 'assignment',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+  {
+    id: 'other',
+    label: 'Outro',
+    icon: 'category',
+    reviewPriority: 1,
+    reviewIntervalFactor: 1,
+  },
+];
+
+export function studyNodeCategoryInfo(
+  category: StudyNodeCategory | undefined,
+): StudyNodeCategoryInfo | null {
+  return STUDY_NODE_CATEGORIES.find((item) => item.id === category) ?? null;
 }
 
 export interface ExcalidrawDrawing {

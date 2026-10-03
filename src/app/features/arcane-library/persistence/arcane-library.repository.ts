@@ -211,6 +211,66 @@ export class ArcaneLibraryRepository {
     return aggregate;
   }
 
+  async listLogsByDate(profileId: string, date: string): Promise<ReadingLog[]> {
+    const rows = await (
+      await this.db
+    ).getAllFromIndex('logs', 'by-profile-date', [profileId, date]);
+    return rows.sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  /**
+   * Replaces (or, with `next` null, deletes) a log, moving its contribution
+   * between the daily aggregates by delta - aggregates can hold minutes that
+   * have no log behind them, so they're never rebuilt from logs.
+   */
+  async replaceLog(
+    previous: ReadingLog,
+    next: ReadingLog | null,
+  ): Promise<ReadingDailyAggregate[]> {
+    const db = await this.db;
+    const tx = db.transaction(['logs', 'aggregates'], 'readwrite');
+    const store = tx.objectStore('aggregates');
+    const touched = new Map<string, ReadingDailyAggregate>();
+    const apply = async (log: ReadingLog, sign: 1 | -1): Promise<void> => {
+      const id = `${log.profileId}:${log.date}`;
+      const aggregate = touched.get(id) ??
+        (await store.get(id)) ?? {
+          id,
+          profileId: log.profileId,
+          date: log.date,
+          minutes: 0,
+          pages: 0,
+          sessions: 0,
+          xp: 0,
+          gold: 0,
+          bookMinutes: {},
+        };
+      aggregate.minutes = Math.max(0, aggregate.minutes + sign * log.minutes);
+      aggregate.pages = Math.max(
+        0,
+        aggregate.pages + sign * Math.max(0, log.endPage - log.startPage),
+      );
+      aggregate.sessions = Math.max(0, aggregate.sessions + sign);
+      aggregate.xp = Math.max(0, aggregate.xp + sign * log.xpEarned);
+      aggregate.gold = Math.max(0, aggregate.gold + sign * log.goldEarned);
+      const bookMinutes = Math.max(
+        0,
+        (aggregate.bookMinutes[log.bookId] ?? 0) + sign * log.minutes,
+      );
+      if (bookMinutes) aggregate.bookMinutes[log.bookId] = bookMinutes;
+      else delete aggregate.bookMinutes[log.bookId];
+      touched.set(id, aggregate);
+    };
+    await apply(previous, -1);
+    if (next) await apply(next, 1);
+    for (const aggregate of touched.values()) await store.put(aggregate);
+    if (next) await tx.objectStore('logs').put(next);
+    else await tx.objectStore('logs').delete(previous.id);
+    await tx.done;
+    this.queueCloudSave(previous.profileId);
+    return [...touched.values()];
+  }
+
   async listLogs(bookId: string): Promise<ReadingLog[]> {
     const rows = await (await this.db).getAll('logs');
     return rows
