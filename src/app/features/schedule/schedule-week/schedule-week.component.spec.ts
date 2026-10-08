@@ -101,8 +101,7 @@ describe('ScheduleWeekComponent', () => {
     fixture.componentRef.setInput('daysToShow', ['2026-05-11']);
     fixture.detectChanges();
 
-    const morning = fixture.nativeElement.querySelector('.sleep-period-morning');
-    const evening = fixture.nativeElement.querySelector('.sleep-period-evening');
+    const [morning, evening] = fixture.nativeElement.querySelectorAll('.sleep-period');
 
     expect(morning.style.gridRow).toBe('1 / 71');
     expect(evening.style.gridRow).toBe('265 / 289');

@@ -124,6 +124,14 @@ describe('adjustToLiveFormlyForm', () => {
       expect(result[0].modelOptions?.updateOn).toBe('blur');
     });
 
+    it('should add blur update behavior to time fields', () => {
+      const items: FormlyFieldConfig[] = [{ key: 'timeField', type: 'time' }];
+
+      const result = adjustToLiveFormlyForm(items);
+
+      expect(result[0].modelOptions?.updateOn).toBe('blur');
+    });
+
     it('should add blur update behavior to icon fields', () => {
       const items: FormlyFieldConfig[] = [{ key: 'iconField', type: 'icon' }];
 

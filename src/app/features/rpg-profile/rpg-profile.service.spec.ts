@@ -223,7 +223,7 @@ describe('RpgProfileService', () => {
     expect(service.nextLevelXp() - service.levelStartXp()).toBe(300);
   });
 
-  it('applies dungeon penalties without allowing negative balances', async () => {
+  it('applies dungeon penalties, keeping XP at zero but letting coins go negative', async () => {
     taskService.getAllTasksEverywhere.and.resolveTo([
       task({
         id: 'earned',
@@ -236,7 +236,7 @@ describe('RpgProfileService', () => {
     service.addPenalty('Quebrei o combinado', 200, 200);
 
     expect(service.totalXp()).toBe(0);
-    expect(service.coins()).toBe(0);
+    expect(service.coins()).toBeLessThan(0);
     expect(service.state().penalties[0].title).toBe('Quebrei o combinado');
   });
 

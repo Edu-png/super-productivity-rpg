@@ -1,4 +1,4 @@
-@if (isTimeTrackingEnabled() && !task().isDone && !task().subTasks?.length) {
+@if (isTimeTrackingEnabled() && !task().isDone) {
   @if (isCurrent()) {
     <button
       (click)="parent.pauseTask()"

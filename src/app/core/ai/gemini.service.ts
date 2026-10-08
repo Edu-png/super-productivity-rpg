@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { IS_ELECTRON } from '../../app.constants';
+import { parseModelJson } from './parse-model-json';
 
 export type GeminiPart =
   | { text: string }
@@ -32,16 +33,26 @@ export class GeminiService {
   }
 
   /** One request; throws with a readable message on failure. */
-  async generate(parts: GeminiPart[], options: { json?: boolean } = {}): Promise<string> {
+  async generate(
+    parts: GeminiPart[],
+    options: { json?: boolean; search?: boolean } = {},
+  ): Promise<string> {
     if (!IS_ELECTRON) throw new Error('IA disponível só na versão desktop.');
-    const result = await window.ea.geminiGenerate({ parts, json: options.json });
+    const result = await window.ea.geminiGenerate({
+      parts,
+      json: options.json,
+      search: options.search,
+    });
     if (!result.ok) throw new Error(result.error ?? 'Erro do Gemini.');
     return result.text;
   }
 
   /** generate() with a JSON response, parsed. */
-  async generateJson<T>(parts: GeminiPart[]): Promise<T> {
-    const text = await this.generate(parts, { json: true });
-    return JSON.parse(text.replace(/^```(json)?\s*|\s*```$/g, '')) as T;
+  async generateJson<T>(
+    parts: GeminiPart[],
+    options: { search?: boolean } = {},
+  ): Promise<T> {
+    const text = await this.generate(parts, { json: true, search: options.search });
+    return parseModelJson<T>(text);
   }
 }

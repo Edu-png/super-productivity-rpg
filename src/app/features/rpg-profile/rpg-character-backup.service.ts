@@ -12,6 +12,8 @@ import {
   GameLibraryCloudSnapshot,
 } from '../game-library/persistence/game-library.repository';
 import { TaskHabitService } from '../habit-tracker/task-habit.service';
+import { WorkAgendaRepository } from '../work-agenda/work-agenda.repository';
+import { WorkAgendaSnapshot } from '../work-agenda/work-agenda.model';
 import { TaskHabitState } from '../habit-tracker/task-habit.model';
 import { IS_ELECTRON } from '../../app.constants';
 import { getBackupTimestamp } from '../../../../electron/shared-with-frontend/get-backup-timestamp';
@@ -29,6 +31,7 @@ export interface RpgCharacterBackup {
     arcaneLibrary: LibraryCloudSnapshot;
     gameLibrary?: GameLibraryCloudSnapshot;
     habitTracker: TaskHabitState;
+    workAgenda?: WorkAgendaSnapshot;
   };
 }
 
@@ -45,14 +48,16 @@ export class RpgCharacterBackupService {
   private readonly libraryRepo = inject(ArcaneLibraryRepository);
   private readonly gameLibraryRepo = inject(GameLibraryRepository);
   private readonly habitTracker = inject(TaskHabitService);
+  private readonly workAgendaRepo = inject(WorkAgendaRepository);
 
   async exportCharacter(characterId: string): Promise<RpgCharacterBackup> {
     const character = this.profile.characters().find((item) => item.id === characterId);
     if (!character) throw new Error('Personagem não encontrado.');
-    const [academyArcana, arcaneLibrary, gameLibrary] = await Promise.all([
+    const [academyArcana, arcaneLibrary, gameLibrary, workAgenda] = await Promise.all([
       this.academyRepo.export(characterId),
       this.libraryRepo.exportProfile(characterId),
       this.gameLibraryRepo.exportProfile(characterId),
+      this.workAgendaRepo.exportProfile(characterId),
     ]);
     const habitTracker = this.habitTracker.exportForCharacter(characterId);
     return {
@@ -67,6 +72,7 @@ export class RpgCharacterBackupService {
         arcaneLibrary,
         gameLibrary,
         habitTracker,
+        workAgenda,
       },
     };
   }
@@ -100,6 +106,9 @@ export class RpgCharacterBackupService {
       this.libraryRepo.importProfile(backup.domains.arcaneLibrary),
       ...(backup.domains.gameLibrary
         ? [this.gameLibraryRepo.importProfile(backup.domains.gameLibrary)]
+        : []),
+      ...(backup.domains.workAgenda
+        ? [this.workAgendaRepo.importProfile(backup.domains.workAgenda)]
         : []),
     ]);
     this.habitTracker.importForCharacter(backup.domains.habitTracker);

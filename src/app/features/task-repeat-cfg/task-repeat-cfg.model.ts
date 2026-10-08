@@ -99,7 +99,31 @@ export interface TaskRepeatCfgCopy {
   deletedInstanceDates?: string[];
   // When true, missed/overdue instances are silently skipped instead of being created
   skipOverdue?: boolean;
+  // Earlier versions of the schedule fields, each valid through `until` (YYYY-MM-DD),
+  // so past days in the schedule keep the routine they actually had.
+  scheduleHistory?: RepeatCfgScheduleSnapshot[];
 }
+
+export type RepeatCfgScheduleSnapshot = { until: string } & Partial<
+  Pick<
+    TaskRepeatCfgCopy,
+    | 'startTime'
+    | 'defaultEstimate'
+    | 'repeatCycle'
+    | 'repeatEvery'
+    | 'startDate'
+    | 'monday'
+    | 'tuesday'
+    | 'wednesday'
+    | 'thursday'
+    | 'friday'
+    | 'saturday'
+    | 'sunday'
+    | 'monthlyWeekOfMonth'
+    | 'monthlyWeekday'
+    | 'monthlyLastDay'
+  >
+>;
 
 export type TaskRepeatCfg = Readonly<TaskRepeatCfgCopy>;
 

@@ -3,6 +3,7 @@ import { ImexViewService } from '../../imex/imex-meta/imex-view.service';
 import { TranslateService } from '@ngx-translate/core';
 import { LocalBackupService } from '../../imex/local-backup/local-backup.service';
 import { RpgCharacterBackupService } from '../../features/rpg-profile/rpg-character-backup.service';
+import { WorkAgendaService } from '../../features/work-agenda/work-agenda.service';
 import { GlobalConfigService } from '../../features/config/global-config.service';
 import { SnackService } from '../snack/snack.service';
 import { PluginService } from '../../plugins/plugin.service';
@@ -60,6 +61,9 @@ export class StartupService {
   private _translateService = inject(TranslateService);
   private _localBackupService = inject(LocalBackupService);
   private _rpgCharacterBackupService = inject(RpgCharacterBackupService);
+  // Created at startup (not only when its tab opens) so the work missions see
+  // its daily stats and finished cards get logged from the start.
+  private _workAgendaService = inject(WorkAgendaService);
   private _globalConfigService = inject(GlobalConfigService);
   private _snackService = inject(SnackService);
   private _ratePromptService = inject(RatePromptService);

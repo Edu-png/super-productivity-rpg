@@ -270,7 +270,7 @@
     </button>
   }
 
-  @if (!task.subTaskIds.length && missingEstimateMinutes > 0) {
+  @if (missingEstimateMinutes > 0) {
     <button
       (click)="completeEstimatedTime()"
       mat-menu-item

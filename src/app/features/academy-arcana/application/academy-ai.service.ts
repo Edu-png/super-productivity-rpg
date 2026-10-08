@@ -1,5 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import { GeminiPart, GeminiService } from '../../../core/ai/gemini.service';
+import { CodeLabRunnerService } from '../../code-lab/code-lab-runner.service';
+import { outputMatches } from '../../code-lab/code-lab-output';
+import { CodeLabChallenge, CodeLabTest } from '../../code-lab/code-lab.model';
 
 export interface AiFlashcard {
   question: string;
@@ -7,15 +10,43 @@ export interface AiFlashcard {
 }
 
 export interface AiQuizQuestion {
+  /** "code": an exercise judged by its tests (options/correctIndex unused). */
+  kind: 'choice' | 'code';
   question: string;
   options: string[];
   correctIndex: number;
   explanation: string;
+  challenge?: CodeLabChallenge;
+  /** Reference solution, shown after the quiz is graded. */
+  solution?: string;
+}
+
+/** Quiz question as the model returns it, before validation. */
+interface AiRawQuizQuestion {
+  kind?: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation?: string;
+  language?: string;
+  starterCode?: string;
+  solution?: string;
+  setup?: string;
+  ordered?: boolean;
+  tests?: CodeLabTest[];
 }
 
 export interface AiWeekPlanDay {
   day: string;
-  blocks: { title: string; minutes: number; kind: 'estudo' | 'revisão' | 'leitura' }[];
+  blocks: {
+    title: string;
+    minutes: number;
+    kind: 'estudo' | 'revisão' | 'leitura' | 'sugestão' | 'carreira';
+    /** Where to find a suggested content (e.g. a YouTube search). */
+    hint?: string;
+    /** Ticked off by the user in the plan. */
+    done?: boolean;
+  }[];
   note: string;
 }
 
@@ -32,6 +63,8 @@ export interface AiMindMap {
 
 export interface AiWeekPlan {
   summary: string;
+  /** 3-4 concrete outcomes the week should deliver. */
+  goals?: string[];
   days: AiWeekPlanDay[];
 }
 
@@ -44,6 +77,7 @@ const imagePart = (dataUrl: string): GeminiPart | null => {
 @Injectable({ providedIn: 'root' })
 export class AcademyAiService {
   private readonly gemini = inject(GeminiService);
+  private readonly codeRunner = inject(CodeLabRunnerService);
 
   /** Transcribes a (handwritten) notebook page. */
   async readPhoto(dataUrl: string): Promise<string> {
@@ -95,36 +129,132 @@ export class AcademyAiService {
     return (result.cards ?? []).filter((card) => card.question && card.answer);
   }
 
-  /** 5 multiple-choice questions about a finished subject. */
+  /**
+   * 10 questions about a finished subject. Programming subjects (Python/SQL)
+   * get 5 interview-style coding exercises (half the quiz) among them; each exercise's
+   * tests are checked against the AI's own reference solution and the ones it
+   * fails are dropped, so a wrong test never fails the student.
+   */
   async quiz(
     topic: string,
     content: string,
     images: string[],
-  ): Promise<AiQuizQuestion[]> {
+  ): Promise<{ questions: AiQuizQuestion[]; droppedCode: number }> {
     const parts: GeminiPart[] = images
       .slice(0, 3)
       .map(imagePart)
       .filter((part): part is GeminiPart => !!part);
     parts.push({
       text:
-        `Assunto concluído: "${topic}".\n` +
-        (content ? `Material do aluno:\n${content.slice(0, 15000)}\n` : '') +
-        `Crie um quiz de 10 questões de múltipla escolha em português para verificar ` +
-        `se o aluno aprendeu este assunto${content ? ', baseado principalmente no material' : ''}. ` +
-        `4 alternativas cada, só uma correta, dificuldade média. ` +
-        `Responda só JSON: {"questions": [{"question": string, "options": string[4], ` +
-        `"correctIndex": number (0-3), "explanation": string (1 frase)}]}`,
+        `Assunto concluído: "${topic}".
+` +
+        (content
+          ? `Material do aluno:
+${content.slice(0, 15000)}
+`
+          : '') +
+        `Crie um quiz de 10 questões em português para verificar se o aluno aprendeu ` +
+        `este assunto${content ? ', baseado principalmente no material e completando com o que o tema pede' : ''}. ` +
+        `Dificuldade média.
+` +
+        `Questões de múltipla escolha: {"kind": "choice", "question": string, "options": string[4], ` +
+        `"correctIndex": number (0-3), "explanation": string (1 frase)}.
+` +
+        `SE o assunto envolver programação em Python ou SQL, faça EXATAMENTE 5 das 10 como exercícios de ` +
+        `código estilo entrevista (fácil a médio), na linguagem do assunto: {"kind": "code", ` +
+        `"question": string (enunciado claro, com exemplo de entrada e saída), "language": "python" | "sql", ` +
+        `"starterCode": string (esqueleto, ex. a assinatura da função), "solution": string (solução correta), ` +
+        `"tests": [{"name": string, "stdin": string?, "after": string?, "expected": string}] (3 a 5, ` +
+        `com casos de borda), "setup": string?, "ordered": boolean?, "explanation": string}.
+` +
+        `Regras dos testes de Python: o código do aluno roda, depois "after" (no mesmo escopo), e a ` +
+        `SAÍDA (stdout) inteira é comparada com "expected". Prefira pedir uma função e testar com ` +
+        `after = "print(funcao(args))"; se pedir um programa que lê input(), use "stdin" (uma linha por input). ` +
+        `"expected" é exatamente o que o print mostraria (repr do Python para listas/dicts, True/False).
+` +
+        `Regras de SQL (SQLite): "setup" cria as tabelas e insere os dados (CREATE TABLE + INSERT, poucos ` +
+        `registros); o aluno escreve UMA consulta; "expected" tem uma linha por registro do resultado, ` +
+        `valores separados por " | ", NULL escrito como NULL, sem cabeçalho; "ordered": true só se o ` +
+        `enunciado exige ORDER BY. Evite resultados com casas decimais longas.
+` +
+        `Se o assunto NÃO for de programação, faça as 10 de múltipla escolha.
+` +
+        (content
+          ? ''
+          : `O aluno não tem anotações deste assunto: pesquise na web o conteúdo que ele ` +
+            `costuma cobrir (cursos, documentação) e baseie as questões nisso.
+`) +
+        `Responda só JSON: {"questions": [...]}`,
     });
-    const result = await this.gemini.generateJson<{ questions: AiQuizQuestion[] }>(parts);
-    return (result.questions ?? [])
-      .filter(
-        (item) =>
-          item.question &&
-          item.options?.length >= 2 &&
-          item.correctIndex >= 0 &&
-          item.correctIndex < item.options.length,
-      )
-      .slice(0, 10);
+    // Without notes the quiz is grounded on a web search instead.
+    const result = await this.gemini.generateJson<
+      { questions?: AiRawQuizQuestion[] } | AiRawQuizQuestion[]
+    >(parts, { search: !content });
+    // The model sometimes answers with the bare array instead of {questions}.
+    const raw = Array.isArray(result) ? result : (result.questions ?? []);
+    const questions: AiQuizQuestion[] = [];
+    let droppedCode = 0;
+    for (const item of raw) {
+      if (item?.kind === 'code') {
+        const code = await this.validCodeQuestion(item, questions.length);
+        if (code) questions.push(code);
+        else droppedCode++;
+      } else if (
+        item.question &&
+        item.options?.length >= 2 &&
+        item.correctIndex >= 0 &&
+        item.correctIndex < item.options.length
+      ) {
+        questions.push({
+          kind: 'choice',
+          question: item.question,
+          options: item.options,
+          correctIndex: item.correctIndex,
+          explanation: item.explanation ?? '',
+        });
+      }
+    }
+    return { questions: questions.slice(0, 10), droppedCode };
+  }
+
+  /** Keeps only the tests the reference solution passes; null when none survive. */
+  private async validCodeQuestion(
+    item: AiRawQuizQuestion,
+    index: number,
+  ): Promise<AiQuizQuestion | null> {
+    const language =
+      item.language === 'sql' ? 'sql' : item.language === 'python' ? 'python' : null;
+    if (!language || !item.question || !item.solution || !item.tests?.length) return null;
+    const tests: CodeLabTest[] = [];
+    for (const test of item.tests) {
+      if (!test?.name || typeof test.expected !== 'string') continue;
+      const run = await this.codeRunner.run(language, item.solution, {
+        stdin: test.stdin,
+        setup: item.setup,
+        after: test.after,
+      });
+      const ordered = language === 'python' || !!item.ordered;
+      if (!run.error && outputMatches(run.output, test.expected, ordered))
+        tests.push(test);
+    }
+    if (!tests.length) return null;
+    return {
+      kind: 'code',
+      question: item.question,
+      options: [],
+      correctIndex: -1,
+      explanation: item.explanation ?? '',
+      solution: item.solution,
+      challenge: {
+        id: `quiz-${Date.now()}-${index}`,
+        language,
+        prompt: item.question,
+        starterCode: item.starterCode ?? '',
+        setup: item.setup,
+        tests,
+        ordered: item.ordered,
+      },
+    };
   }
 
   /** Tutor chat grounded on the student's own material, citing the source. */
@@ -230,30 +360,97 @@ export class AcademyAiService {
     ]);
   }
 
-  async weekPlan(context: string, minutesPerDay: number): Promise<AiWeekPlan> {
+  async weekPlan(
+    context: string,
+    minutesPerDay: number,
+    careerMinutes: number,
+  ): Promise<AiWeekPlan> {
     return this.gemini.generateJson<AiWeekPlan>([
       {
         text:
-          `Monte um plano de estudo para os próximos 7 dias, em português, seguindo ` +
-          `estas regras:\n` +
+          `Monte um plano de estudo para os dias úteis listados, em português, ` +
+          `seguindo estas regras:\n` +
           `1. ESTUDO: blocos de 50 min, tirados SÓ da "FILA DE ESTUDO", na ordem ` +
-          `dada. Continue o mesmo item em dias seguidos até avançar bem antes de ` +
-          `pular para o próximo (no máximo 2 itens diferentes por dia). Escreva o ` +
-          `título do bloco com o caminho curto (ex.: "Curso X › Seção 2").\n` +
-          `2. REVISÃO: no máximo UM bloco de 25 min por dia, juntando 2-4 revisões ` +
-          `pendentes no mesmo bloco (ex.: "Revisão: A, B e C"). Comece pelos itens ` +
-          `com nota abaixo de 70%. Não precisa zerar todas as revisões na semana.\n` +
-          `3. LEITURA: só os livros da lista "LIVROS DE DATA SCIENCE"; se estiver ` +
+          `dada - cada item já é o conteúdo concreto a estudar (os marcados ` +
+          `CONTINUAR foram estudados por último e vêm primeiro). Use o conteúdo ` +
+          `exato da fila, nunca só o nome do curso ou da área. O item principal ` +
+          `continua em dias seguidos até avançar bem (no máximo 2 itens de estudo ` +
+          `diferentes por dia). Título do bloco = os 2-3 últimos níveis do caminho ` +
+          `(ex.: "Python › Seção 1: Lógica de Programação").\n` +
+          `2. MISTURA: nunca coloque 2 blocos seguidos do mesmo assunto no dia - ` +
+          `intercale estudo, revisão e leitura, e assuntos diferentes (Python, AWS, ` +
+          `ML...). Quando houver um segundo item de estudo no dia, alterne-o entre ` +
+          `os itens da fila ao longo da semana, em vez de repetir o mesmo.\n` +
+          `3. REVISÃO: TODAS as revisões da lista "REVISÕES" precisam entrar no ` +
+          `plano, cada uma com tempo reservado. As ATRASADAS vão nos primeiros dias; ` +
+          `as que vencem na semana, no dia do vencimento (ou no dia seguinte, se o ` +
+          `dia lotar). Blocos de 25 min com no máximo 2 revisões cada (ex.: ` +
+          `"Revisão: A e B"); pode haver mais de um bloco de revisão no dia. ` +
+          `Revisão tem prioridade sobre leitura. Itens com nota abaixo de 70% primeiro.\n` +
+          `4. LEITURA: só os livros da lista "LIVROS DE DATA SCIENCE"; se estiver ` +
           `vazia, não coloque leitura. No máximo 1 bloco de leitura por dia.\n` +
-          `4. Não invente assuntos que não estejam nas listas.\n` +
-          `5. LIMITE DE TEMPO: cada dia soma NO MÁXIMO ${minutesPerDay} min no total ` +
+          `5. Não invente assuntos que não estejam nas listas. O plano é só de ` +
+          `Ciência de Dados.\n` +
+          `6. LIMITE DE TEMPO: cada dia soma NO MÁXIMO ${minutesPerDay} min no total ` +
           `(estudo + revisão + leitura). Ex.: com 100 min, 50 de estudo + 25 de ` +
-          `revisão + 25 de leitura, ou 2 blocos de 50. Prefira encher o dia com estudo ` +
-          `da fila; revisão e leitura entram quando couberem. Deixe 1 dia mais leve.\n\n` +
+          `revisão + 25 de leitura. Ordem de prioridade dentro do dia: revisões ` +
+          `que vencem/estão atrasadas, depois estudo da fila, depois leitura.\n` +
+          (careerMinutes
+            ? `7. CARREIRA: além do limite, cada dia ganha UM bloco extra kind ` +
+              `"carreira" de até ${careerMinutes} min com a próxima ação do "PLANO DE ` +
+              `CARREIRA", na ordem de prioridade. Continue a mesma ação nos dias ` +
+              `seguintes até cobrir as horas estimadas dela. Se a lista estiver ` +
+              `vazia, não coloque carreira.\n`
+            : `7. Não coloque blocos de carreira.\n`) +
+          `8. Use exatamente os rótulos de "DIAS DO PLANO", um dia para cada (só dias ` +
+          `úteis; sábado e domingo ficam livres).\n` +
+          `9. METAS: 3 metas concretas e verificáveis do que a semana entrega se o ` +
+          `plano for cumprido (ex.: "Zerar as 3 revisões atrasadas", "Concluir ` +
+          `Semana 01 de ML Specialist", "Avançar Python POO até o fim da seção 2").\n\n` +
           `Dados:\n${context}\n\n` +
-          `Responda só JSON: {"summary": string (2 frases), "days": [{"day": string ` +
-          `(ex.: "Seg 06/10"), "blocks": [{"title": string, "minutes": number, ` +
-          `"kind": "estudo"|"revisão"|"leitura"}], "note": string (curta)}]}`,
+          `Responda só JSON: {"summary": string (2 frases), "goals": string[3], ` +
+          `"days": [{"day": string (ex.: "Seg 06/10"), "blocks": [{"title": string, ` +
+          `"minutes": number, "kind": "estudo"|"revisão"|"leitura"|"carreira"}], ` +
+          `"note": string (curta)}]}`,
+      },
+    ]);
+  }
+
+  /** Lighter plan for several side areas, suggesting topics where nothing is in progress. */
+  async otherAreasWeekPlan(context: string, minutesPerDay: number): Promise<AiWeekPlan> {
+    return this.gemini.generateJson<AiWeekPlan>([
+      {
+        text:
+          `Monte um plano de estudo para os dias úteis listados, em português, para ` +
+          `áreas variadas (o aluno estuda vários temas, um pouco de cada). Regras:\n` +
+          `1. Só as áreas de "ÁREAS DO PLANO". UMA ÁREA POR DIA: todos os blocos do ` +
+          `dia (estudo, sugestão e revisão) são da mesma área - nunca misture áreas ` +
+          `no mesmo dia. Distribua as áreas pelos dias da semana; se houver mais ` +
+          `áreas que dias, priorize as que têm revisões e conteúdo em andamento.\n` +
+          `2. ESTUDO: se a área tem conteúdo na "FILA DE ESTUDO", use esse conteúdo ` +
+          `exato (os marcados CONTINUAR primeiro), kind "estudo". Título = os 2-3 ` +
+          `últimos níveis do caminho.\n` +
+          `3. SUGESTÃO: para as áreas em "ÁREAS SEM NADA EM ANDAMENTO", sugira um ` +
+          `tema concreto e introdutório para a semana (kind "sugestão"), ex.: ` +
+          `"Psicologia: córtex pré-frontal e tomada de decisão". Prefira algo do ` +
+          `backlog dela, se houver. Siga o "FOCO E PREFERÊNCIAS DO ALUNO". Só ` +
+          `conteúdo gratuito, fácil de achar (YouTube, artigos abertos); em "hint" ` +
+          `diga onde achar, ex.: 'YouTube: "dopamina e motivação"'. Se a área ` +
+          `aparecer em mais de um dia, continue o mesmo tema, aprofundando.\n` +
+          `4. REVISÃO: TODAS as revisões da lista entram, cada uma com tempo ` +
+          `reservado (blocos de 15-25 min, no máximo 2 revisões por bloco). ` +
+          `Cada revisão vai no dia da área dela; a área com revisões ATRASADAS ` +
+          `ganha um dos primeiros dias. Revisão tem prioridade sobre o resto do ` +
+          `dia. Itens com nota abaixo de 70% primeiro.\n` +
+          `5. LIMITE DE TEMPO: cada dia soma NO MÁXIMO ${minutesPerDay} min no ` +
+          `total. Blocos de estudo/sugestão de 20 a 45 min.\n` +
+          `6. Use exatamente os rótulos de "DIAS DO PLANO", um dia para cada.\n` +
+          `7. METAS: 3 metas concretas e verificáveis do que a semana entrega.\n\n` +
+          `Dados:\n${context}\n\n` +
+          `Responda só JSON: {"summary": string (2 frases), "goals": string[3], ` +
+          `"days": [{"day": string, "blocks": [{"title": string, "minutes": number, ` +
+          `"kind": "estudo"|"revisão"|"sugestão", "hint": string (só em sugestão)}], ` +
+          `"note": string (curta)}]}`,
       },
     ]);
   }

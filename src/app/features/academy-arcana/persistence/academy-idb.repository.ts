@@ -449,7 +449,11 @@ export class AcademyIdbRepository extends AcademyRepository {
       'by-profile-due',
       IDBKeyRange.bound(lower(profileId), [profileId, Date.now()]),
     );
-    const pendingTopicReviews = await this.countDueTopicReviews(profileId, Date.now());
+    // Reviews of deleted nodes are hidden from the list, so they must not count either.
+    const liveNodeIds = new Set(nodes.map((node) => node.id));
+    const pendingTopicReviews = (await this.listTopicReviews(profileId)).filter(
+      (state) => state.dueAt <= Date.now() && liveNodeIds.has(state.nodeId),
+    ).length;
     const recentDays = aggregates;
     let streak = 0;
     const studied = new Set(

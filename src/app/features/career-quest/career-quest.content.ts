@@ -1,9 +1,11 @@
 /* eslint-disable max-len -- prose content; lines are sentences, not code */
 import {
+  CareerContentBlock,
   CareerContentSection,
   CareerQuestContent,
   CareerQuestGrading,
 } from './career-quest.model';
+import { CAREER_CHALLENGE_BY_ID } from './career-quest.challenges';
 
 /**
  * Structured content of quests that need more than an objective line.
@@ -255,6 +257,11 @@ const SQL_ENTRY: CareerQuestContent = {
               'Restaure o banco de exemplo dvdrental (tutorial do postgresqltutorial.com).',
               'Responda em sql/entrada.sql: uma query por item, com um comentário curto explicando a lógica.',
             ],
+          },
+          {
+            type: 'callout',
+            tone: 'tip',
+            text: 'Sem Postgres à mão? Cada query também tem uma versão executável aqui no app, num banco reduzido (SQLite) com as mesmas tabelas do dvdrental. Os números são menores, mas a lógica é a mesma.',
           },
           {
             type: 'code',
@@ -646,8 +653,50 @@ const GIT_LINUX_GRADING: CareerQuestGrading = {
   ],
 };
 
+// ---------------------------------------------------------------- RUNNABLE EXERCISES
+/** Section title → runnable exercises appended to it (see career-quest.challenges). */
+const CHALLENGES_BY_SECTION = new Map<string, string[]>([
+  ['1. Estatísticas', ['cq-py-1']],
+  ['2. CSV', ['cq-py-2']],
+  ['3. Classe', ['cq-py-3']],
+  ['4. Comprehensions', ['cq-py-4']],
+  ['5. Caça aos bugs', ['cq-py-5']],
+  [
+    'Queries 1–4: filtros, JOINs e agregação',
+    ['cq-sql-1', 'cq-sql-2', 'cq-sql-3', 'cq-sql-4'],
+  ],
+  [
+    'Queries 5–7: subquery, ranking e window function',
+    ['cq-sql-5', 'cq-sql-6', 'cq-sql-7'],
+  ],
+  ['8. O que está errado?', ['cq-sql-8']],
+]);
+
+const withChallenges = (content: CareerQuestContent): CareerQuestContent => ({
+  ...content,
+  promptContent: {
+    ...content.promptContent,
+    sections: content.promptContent.sections?.map((section) => {
+      const challenges = (CHALLENGES_BY_SECTION.get(section.title) ?? [])
+        .map((id) => CAREER_CHALLENGE_BY_ID.get(id))
+        .filter((challenge) => !!challenge);
+      if (!challenges.length) return section;
+      return {
+        ...section,
+        blocks: [
+          ...section.blocks,
+          { type: 'heading', text: 'Resolver aqui no app' },
+          ...challenges.map(
+            (challenge): CareerContentBlock => ({ type: 'challenge', challenge }),
+          ),
+        ],
+      };
+    }),
+  },
+});
+
 export const CAREER_QUEST_CONTENT = new Map<string, CareerQuestContent>([
-  ['q-w1-python-entry', { ...PYTHON_ENTRY, grading: PYTHON_GRADING }],
-  ['q-w1-sql-entry', { ...SQL_ENTRY, grading: SQL_GRADING }],
+  ['q-w1-python-entry', { ...withChallenges(PYTHON_ENTRY), grading: PYTHON_GRADING }],
+  ['q-w1-sql-entry', { ...withChallenges(SQL_ENTRY), grading: SQL_GRADING }],
   ['q-w1-git-linux-entry', { ...GIT_LINUX_ENTRY, grading: GIT_LINUX_GRADING }],
 ]);

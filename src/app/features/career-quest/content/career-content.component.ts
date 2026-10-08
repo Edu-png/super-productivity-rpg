@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { MatIcon } from '@angular/material/icon';
 import { CareerContent, CareerContentBlock } from '../career-quest.model';
 import { CareerCodeBlockComponent } from './career-code-block.component';
+import { CodeLabChallengeComponent } from '../../code-lab/code-lab-challenge.component';
 
 /**
  * Renders quest content. Structured content → blocks (sections become
@@ -13,7 +14,12 @@ import { CareerCodeBlockComponent } from './career-code-block.component';
 @Component({
   selector: 'career-content',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, MatIcon, CareerCodeBlockComponent],
+  imports: [
+    NgTemplateOutlet,
+    MatIcon,
+    CareerCodeBlockComponent,
+    CodeLabChallengeComponent,
+  ],
   template: `
     @if (legacyText(); as text) {
       <p class="legacy">{{ text }}</p>
@@ -94,6 +100,12 @@ import { CareerCodeBlockComponent } from './career-code-block.component';
           @case ('quote') {
             <blockquote>{{ block.text }}</blockquote>
           }
+          @case ('challenge') {
+            <code-lab-challenge
+              class="challenge"
+              [challenge]="block.challenge"
+            />
+          }
         }
       }
     </ng-template>
@@ -104,6 +116,9 @@ import { CareerCodeBlockComponent } from './career-code-block.component';
       color: #f1edf9;
       font-size: 14px;
       line-height: 1.55;
+    }
+    .challenge {
+      margin: 10px 0;
     }
     .legacy {
       margin: 0;

@@ -22,6 +22,7 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { delay, first, switchMap } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
+import { selectTaskRepeatCfgByIdAllowUndefined } from '../../task-repeat-cfg/store/task-repeat-cfg.selectors';
 import { selectProjectById } from '../../project/store/project.selectors';
 import { getClockStringFromHours } from '../../../util/get-clock-string-from-hours';
 import {
@@ -464,13 +465,20 @@ export class ScheduleEventComponent implements AfterViewInit, OnDestroy {
       evt.type === SVEType.RepeatProjectionSplit ||
       evt.type === SVEType.ScheduledRepeatProjection
     ) {
-      const repeatCfg: TaskRepeatCfg = evt.data as TaskRepeatCfg;
-      this._matDialog.open(DialogEditTaskRepeatCfgComponent, {
-        data: {
-          repeatCfg,
-          targetDate: (evt.id.includes('_') && evt.id.split('_')[1]) || undefined,
-        },
-      });
+      // A past day's projection carries the routine as it was back then (see
+      // repeatCfgAsOfDay) - always edit the current cfg, never that snapshot.
+      const projected = evt.data as TaskRepeatCfg;
+      this._store
+        .select(selectTaskRepeatCfgByIdAllowUndefined, { id: projected.id })
+        .pipe(first())
+        .subscribe((current) => {
+          this._matDialog.open(DialogEditTaskRepeatCfgComponent, {
+            data: {
+              repeatCfg: current ?? projected,
+              targetDate: (evt.id.includes('_') && evt.id.split('_')[1]) || undefined,
+            },
+          });
+        });
     } else if (evt.type === SVEType.CalendarEvent) {
       if (this._calMenuItems().length) {
         this.calMenuTrigger()?.openMenu();

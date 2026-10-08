@@ -229,6 +229,8 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfigState = {
     isLunchBreakEnabled: false,
     lunchBreakStart: '13:00',
     lunchBreakEnd: '14:00',
+    sleepStart: '22:00',
+    sleepEnd: '05:50',
   },
 
   sync: {

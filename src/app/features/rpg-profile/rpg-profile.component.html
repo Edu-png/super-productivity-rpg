@@ -173,7 +173,7 @@
         <strong>Nível {{ profile.level() }}</strong>
         <span class="hero-title">✦ {{ profile.selectedTitle() }}</span>
         <span>{{ profile.totalXp() }} XP</span>
-        <span>🪙 {{ profile.coins() }}</span>
+        <span [class.negative-coins]="profile.coins() < 0">🪙 {{ profile.coins() }}</span>
       </div>
       <div
         class="progress"
@@ -1365,6 +1365,7 @@
                 <button
                   type="button"
                   class="apply-btn redeem-btn"
+                  [disabled]="profile.coins() < reward.cost"
                   (click)="buyReward(reward.id)"
                 >
                   Resgatar
@@ -1461,6 +1462,12 @@
           />
         </label>
       </div>
+      <p class="escalation-rule">
+        <mat-icon>trending_up</mat-icon>
+        Reincidência: cada vez que a mesma punição foi aplicada nos últimos 30 dias
+        multiplica a próxima por 1,3. Se foi nas últimas 72h, conta 1,5 vez; nas últimas
+        24h, conta 2 vezes. Máximo ×5.
+      </p>
       <div class="penalty-card-grid">
         @for (penalty of manualPenalties(); track penalty.id) {
           <article class="penalty-card">
@@ -1579,7 +1586,9 @@
                   <small>Registrada {{ penalty.timesApplied }}x</small>
                 }
                 @if (mult > 1) {
-                  <small class="escalation-note"
+                  <small
+                    class="escalation-note"
+                    title="Cada vez nos últimos 30 dias multiplica por 1,3; repetições nas últimas 72h ou 24h pesam mais. Máximo ×5."
                     ><mat-icon>trending_up</mat-icon> Reincidência: próxima vale ×{{
                       mult
                     }}</small
@@ -1588,10 +1597,14 @@
               </div>
               <div class="stat-row">
                 <span class="stat-pill xp-pill">
-                  <span class="pill-badge xp-badge">XP</span> -{{ penalty.xpLoss * mult }}
+                  <span class="pill-badge xp-badge">XP</span> -{{
+                    scaledLoss(penalty.xpLoss, mult)
+                  }}
                 </span>
                 <span class="stat-pill gold-pill"
-                  ><mat-icon>paid</mat-icon> -{{ penalty.coinsLoss * mult }}</span
+                  ><mat-icon>paid</mat-icon> -{{
+                    scaledLoss(penalty.coinsLoss, mult)
+                  }}</span
                 >
                 <span
                   class="stat-pill money-pill"
@@ -1618,6 +1631,436 @@
           </article>
         } @empty {
           <p class="empty">O calabouço está vazio.</p>
+        }
+      </div>
+    </section>
+
+    <section class="card quest-card missions-card">
+      <h2><span>🗺️</span> Missões</h2>
+      <p class="hint">
+        Linhas evolutivas: cada marco alcançado libera o próximo, que paga mais que o
+        anterior. Missões especiais podem ser concluídas quantas vezes você conseguir. As
+        que mostram ↻ contam sozinhas pelos seus hábitos, penalidades ou horas - edite uma
+        missão para ligar ou mudar a contagem automática.
+      </p>
+      <button
+        type="button"
+        class="ghost-btn mission-new"
+        (click)="toggleMissionForm()"
+      >
+        {{ showMissionForm() ? 'Fechar' : '+ Nova missão' }}
+      </button>
+
+      @if (showMissionForm()) {
+        <form
+          #missionForm
+          class="mission-form"
+          (ngSubmit)="saveMission()"
+        >
+          <input
+            name="title"
+            class="wide"
+            [(ngModel)]="missionDraft.title"
+            placeholder="Nome da missão (ex.: Madrugador)"
+          />
+          <input
+            name="description"
+            class="wide"
+            [(ngModel)]="missionDraft.description"
+            placeholder="O que precisa fazer (ex.: acordar antes das 6h)"
+          />
+          <label
+            >Marcos (vazio = repetível)
+            <input
+              name="stages"
+              [(ngModel)]="missionDraft.stages"
+              placeholder="3, 7, 14, 30"
+            />
+          </label>
+          <label
+            >Unidade
+            <input
+              name="unit"
+              [(ngModel)]="missionDraft.unit"
+              placeholder="dias"
+            />
+          </label>
+          <label
+            >XP base
+            <input
+              name="xpReward"
+              type="number"
+              min="0"
+              [(ngModel)]="missionDraft.xpReward"
+            />
+          </label>
+          <label
+            >Moedas base
+            <input
+              name="coinsReward"
+              type="number"
+              min="0"
+              [(ngModel)]="missionDraft.coinsReward"
+            />
+          </label>
+          <div class="mission-icon-picker wide">
+            @for (icon of MISSION_ICONS; track icon.id) {
+              <button
+                type="button"
+                [class.selected]="missionDraft.icon === icon.id"
+                [title]="icon.label"
+                [attr.aria-label]="icon.label"
+                (click)="missionDraft.icon = icon.id"
+              >
+                <img
+                  [src]="missionIconUrl(icon.id)"
+                  alt=""
+                />
+              </button>
+            }
+          </div>
+          <fieldset class="mission-auto wide">
+            <legend>Contagem automática</legend>
+            <label
+              >Contar por
+              <select
+                name="autoSource"
+                [(ngModel)]="missionDraft.autoSource"
+                (ngModelChange)="missionDraft.autoIds = []"
+              >
+                <option value="manual">Manual (eu marco)</option>
+                <option value="habits">Hábitos marcados</option>
+                <option value="noPenalty">Dias sem penalidade</option>
+                <option value="hours">Horas registradas</option>
+                <option value="work">Trabalho (Agenda)</option>
+              </select>
+            </label>
+            @if (missionDraft.autoSource === 'work') {
+              <label
+                >O que conta
+                <select
+                  name="autoWorkMetric"
+                  [ngModel]="missionDraft.autoWorkMetric"
+                  (ngModelChange)="onWorkMetricChange($event)"
+                >
+                  <option value="dailyGoal">
+                    Dia com 6h de cards estimados concluídos
+                  </option>
+                  <option value="reviewCleared">Dia em que zerou a coluna Revisão</option>
+                  <option value="urgentWeek">
+                    Semana com todos os urgentes fechados
+                  </option>
+                </select>
+              </label>
+            }
+            @if (missionDraft.autoSource !== 'manual') {
+              @if (missionDraft.autoSource === 'hours') {
+                <label
+                  >Horas de
+                  <select
+                    name="autoScope"
+                    [(ngModel)]="missionDraft.autoScope"
+                  >
+                    <option value="all">Todas as tarefas</option>
+                    @for (project of projects(); track project.id) {
+                      <option [value]="'project:' + project.id">
+                        Projeto: {{ project.title }}
+                      </option>
+                    }
+                    @for (tag of contractTags(); track tag.id) {
+                      <option [value]="'tag:' + tag.id">Tag: {{ tag.title }}</option>
+                    }
+                  </select>
+                </label>
+              } @else {
+                <label
+                  >Período
+                  <select
+                    name="autoPeriod"
+                    [(ngModel)]="missionDraft.autoPeriod"
+                  >
+                    <option value="day">Dia</option>
+                    <option value="week">Semana (seg-dom)</option>
+                    <option value="month">Mês</option>
+                  </select>
+                </label>
+                <label
+                  >Conta
+                  <select
+                    name="autoCount"
+                    [(ngModel)]="missionDraft.autoCount"
+                  >
+                    <option value="streak">Em sequência (falhou, zera)</option>
+                    <option value="total">No total</option>
+                  </select>
+                </label>
+                @if (missionDraft.autoSource === 'habits') {
+                  <label
+                    >Exigir % feito (0 = pelo menos 1)
+                    <input
+                      name="autoThreshold"
+                      type="number"
+                      min="0"
+                      max="100"
+                      [(ngModel)]="missionDraft.autoThreshold"
+                    />
+                  </label>
+                }
+              }
+              <label
+                >Contar a partir de
+                <input
+                  name="autoSince"
+                  type="date"
+                  [max]="today"
+                  [(ngModel)]="missionDraft.autoSince"
+                />
+              </label>
+              @if (!missionDraft.stages.trim()) {
+                <label
+                  >Repetível: ganha a cada
+                  <input
+                    name="autoEvery"
+                    type="number"
+                    min="1"
+                    [(ngModel)]="missionDraft.autoEvery"
+                  />
+                </label>
+              }
+              @if (
+                missionDraft.autoSource === 'habits' ||
+                missionDraft.autoSource === 'noPenalty'
+              ) {
+                <div class="mission-links">
+                  <small>{{
+                    missionDraft.autoSource === 'habits'
+                      ? 'Hábitos (nenhum marcado = todos os hábitos do dia)'
+                      : 'Penalidades que quebram (nenhuma marcada = qualquer uma)'
+                  }}</small>
+                  @for (option of missionLinkOptions(); track option.id) {
+                    <label class="mission-link">
+                      <input
+                        type="checkbox"
+                        [checked]="missionDraft.autoIds.includes(option.id)"
+                        (change)="toggleMissionLink(option.id)"
+                      />
+                      {{ option.title }}
+                    </label>
+                  }
+                </div>
+              }
+            }
+          </fieldset>
+          <small class="edit-note wide"
+            >Em linhas evolutivas, o 1º marco paga a recompensa base, o 2º paga 2×, o 3º
+            3× e assim por diante.</small
+          >
+          <div class="edit-actions wide">
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="toggleMissionForm()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="apply-btn"
+            >
+              {{ editingMissionId() ? 'Salvar' : 'Criar missão' }}
+            </button>
+          </div>
+        </form>
+      }
+
+      <h3 class="mission-group-title">Linhas evolutivas</h3>
+      <div class="mission-grid">
+        @for (mission of missionLines(); track mission.id) {
+          @let done = isMissionComplete(mission);
+          @let reward = missionNextReward(mission);
+          <article
+            class="mission"
+            [class.is-complete]="done"
+          >
+            <img
+              class="mission-icon"
+              [src]="missionIconUrl(mission.icon)"
+              alt=""
+            />
+            <div class="mission-body">
+              <header>
+                <strong>{{ mission.title }}</strong>
+                <span class="mission-tools">
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Editar missão"
+                    title="Editar"
+                    (click)="startEditMission(mission)"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Remover missão"
+                    title="Remover"
+                    (click)="removeMission(mission)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </span>
+              </header>
+              <small class="mission-desc">{{ mission.description }}</small>
+              <ol class="mission-track">
+                @for (stage of mission.stages; track $index) {
+                  <li
+                    [class.reached]="$index < mission.claims.length"
+                    [class.next]="$index === mission.claims.length"
+                    [title]="
+                      $index < mission.claims.length
+                        ? 'Marcado em ' + formatClaimDate(mission.claims[$index].at)
+                        : ''
+                    "
+                  >
+                    {{ missionStageLabel(mission, stage) }}
+                  </li>
+                }
+              </ol>
+              <div class="mission-actions">
+                @if (done) {
+                  <span class="mission-done">✦ Linha completa</span>
+                } @else if (mission.auto) {
+                  <span class="mission-auto-hint"
+                    ><mat-icon>autorenew</mat-icon> {{ missionAutoHint(mission) }} ·
+                    próximo:
+                    {{
+                      missionStageLabel(mission, mission.stages[mission.claims.length])
+                    }}</span
+                  >
+                  <span class="stat-pill xp-pill"
+                    ><span class="pill-badge xp-badge">XP</span> +{{ reward.xp }}</span
+                  >
+                  <span class="stat-pill gold-pill"
+                    ><mat-icon>paid</mat-icon> +{{ reward.coins }}</span
+                  >
+                } @else {
+                  <button
+                    type="button"
+                    class="apply-btn mission-claim"
+                    (click)="profile.claimMission(mission.id)"
+                  >
+                    Cheguei a
+                    {{
+                      missionStageLabel(mission, mission.stages[mission.claims.length])
+                    }}
+                  </button>
+                  <span class="stat-pill xp-pill"
+                    ><span class="pill-badge xp-badge">XP</span> +{{ reward.xp }}</span
+                  >
+                  <span class="stat-pill gold-pill"
+                    ><mat-icon>paid</mat-icon> +{{ reward.coins }}</span
+                  >
+                }
+                @if (mission.claims.length && !mission.auto) {
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="mission-undo"
+                    aria-label="Desfazer última marcação"
+                    title="Desfazer última marcação"
+                    (click)="undoMissionClaim(mission)"
+                  >
+                    <mat-icon>undo</mat-icon>
+                  </button>
+                }
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">Nenhuma linha evolutiva.</p>
+        }
+      </div>
+
+      <h3 class="mission-group-title">Missões especiais</h3>
+      <div class="mission-grid">
+        @for (mission of specialMissions(); track mission.id) {
+          <article class="mission">
+            <img
+              class="mission-icon"
+              [src]="missionIconUrl(mission.icon)"
+              alt=""
+            />
+            <div class="mission-body">
+              <header>
+                <strong>{{ mission.title }}</strong>
+                <span class="mission-tools">
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Editar missão"
+                    title="Editar"
+                    (click)="startEditMission(mission)"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button
+                    type="button"
+                    mat-icon-button
+                    aria-label="Remover missão"
+                    title="Remover"
+                    (click)="removeMission(mission)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </span>
+              </header>
+              <small class="mission-desc">{{ mission.description }}</small>
+              @if (mission.claims.length) {
+                <small class="mission-count"
+                  >Concluída {{ mission.claims.length }}x · última em
+                  {{ formatClaimDate(mission.claims.at(-1)!.at) }}</small
+                >
+              }
+              <div class="mission-actions">
+                @if (mission.auto) {
+                  <span class="mission-auto-hint"
+                    ><mat-icon>autorenew</mat-icon> {{ missionAutoHint(mission) }}</span
+                  >
+                } @else {
+                  <button
+                    type="button"
+                    class="apply-btn mission-claim"
+                    (click)="profile.claimMission(mission.id)"
+                  >
+                    Concluí
+                  </button>
+                }
+                <span class="stat-pill xp-pill"
+                  ><span class="pill-badge xp-badge">XP</span> +{{
+                    mission.xpReward
+                  }}</span
+                >
+                <span class="stat-pill gold-pill"
+                  ><mat-icon>paid</mat-icon> +{{ mission.coinsReward }}</span
+                >
+                @if (mission.claims.length && !mission.auto) {
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="mission-undo"
+                    aria-label="Desfazer última conclusão"
+                    title="Desfazer última conclusão"
+                    (click)="undoMissionClaim(mission)"
+                  >
+                    <mat-icon>undo</mat-icon>
+                  </button>
+                }
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">Nenhuma missão especial.</p>
         }
       </div>
     </section>

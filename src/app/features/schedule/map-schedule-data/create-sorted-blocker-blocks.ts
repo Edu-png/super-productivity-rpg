@@ -14,6 +14,7 @@ import {
 } from '../schedule.model';
 import { selectTaskRepeatCfgsForExactDay } from '../../task-repeat-cfg/store/task-repeat-cfg.selectors';
 import { wouldRepeatCfgOccurOnDay } from '../../task-repeat-cfg/store/would-repeat-cfg-occur-on-day.util';
+import { repeatCfgAsOfDay } from '../../task-repeat-cfg/repeat-cfg-schedule-history.util';
 import { getDbDateStr } from '../../../util/get-db-date-str';
 const PROJECTION_DAYS: number = 30;
 
@@ -96,12 +97,12 @@ const createBlockerBlocksForScheduledRepeatProjections = (
 
     // Days already behind the real "today" fall back to a pattern-only check
     // instead of the processing-gated selector - see wouldRepeatCfgOccurOnDay
-    // (#past-days-vanish).
+    // (#past-days-vanish) - using the routine as it was on that day.
     const allRepeatableTasksForDay =
       currentDayTimestamp < todayStartTime
-        ? scheduledTaskRepeatCfgs.filter((cfg) =>
-            wouldRepeatCfgOccurOnDay(cfg, currentDayTimestamp),
-          )
+        ? scheduledTaskRepeatCfgs
+            .map((cfg) => repeatCfgAsOfDay(cfg, currentDayStr))
+            .filter((cfg) => wouldRepeatCfgOccurOnDay(cfg, currentDayTimestamp))
         : selectTaskRepeatCfgsForExactDay.projector(scheduledTaskRepeatCfgs, {
             dayDate: currentDayTimestamp,
           });

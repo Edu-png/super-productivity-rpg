@@ -70,6 +70,7 @@ const pickModel = async (key: string): Promise<string> => {
 export const generate = async (
   parts: GeminiPart[],
   json: boolean,
+  search = false,
 ): Promise<{ text: string; model: string }> => {
   const key = readEnvValue('GEMINI_API_KEY');
   if (!key) throw new Error('GEMINI_API_KEY não encontrada no .env.');
@@ -79,7 +80,12 @@ export const generate = async (
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts }],
-      ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
+      // Google Search grounding can't be combined with JSON mode, so a
+      // searched answer comes back as text (the caller extracts the JSON).
+      ...(search ? { tools: [{ google_search: {} }] } : {}),
+      ...(json && !search
+        ? { generationConfig: { responseMimeType: 'application/json' } }
+        : {}),
     }),
   });
   if (response.status === 429) {
@@ -108,9 +114,9 @@ export const initGeminiIpc = (): void => {
   });
   ipcMain.handle(
     IPC.GEMINI_GENERATE,
-    async (_ev, args: { parts: GeminiPart[]; json?: boolean }) => {
+    async (_ev, args: { parts: GeminiPart[]; json?: boolean; search?: boolean }) => {
       try {
-        return { ok: true, ...(await generate(args.parts, !!args.json)) };
+        return { ok: true, ...(await generate(args.parts, !!args.json, !!args.search)) };
       } catch (e) {
         log('GEMINI_GENERATE failed');
         error(e);

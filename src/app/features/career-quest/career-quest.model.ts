@@ -1,3 +1,5 @@
+import { CodeLabChallenge } from '../code-lab/code-lab.model';
+
 export type CareerAttribute = 'technical' | 'english' | 'evidence' | 'interview';
 export type CareerSkillClass = 'core' | 'important' | 'supporting' | 'awareness';
 export type CareerAiPolicy = 'no-ai' | 'ai-limited' | 'ai-allowed';
@@ -26,7 +28,9 @@ export type CareerContentBlock =
   | { type: 'code'; language: CareerCodeLanguage; code: string; title?: string }
   | { type: 'callout'; tone: 'info' | 'warning' | 'tip'; text: string }
   | { type: 'divider' }
-  | { type: 'quote'; text: string };
+  | { type: 'quote'; text: string }
+  /** Runnable exercise: editor + tests (see code-lab). */
+  | { type: 'challenge'; challenge: CodeLabChallenge };
 
 /** A titled part of long content; rendered as a collapsible section. */
 export interface CareerContentSection {

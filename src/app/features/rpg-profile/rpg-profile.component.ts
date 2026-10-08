@@ -3,19 +3,23 @@ import {
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   inject,
   OnInit,
   signal,
+  viewChild,
 } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { selectAllProjectsExceptInbox } from '../project/store/project.selectors';
-import { RpgProfileService } from './rpg-profile.service';
+import { REVIEW_DELAY_PENALTY_ID, RpgProfileService } from './rpg-profile.service';
 import {
   RpgAppearance,
   RpgAttributeDefinition,
   RpgClassId,
   RpgItemSlot,
   RpgContract,
+  RpgMission,
+  RpgMissionAuto,
   RpgMedalTier,
   RpgPenalty,
   RpgPetType,
@@ -39,7 +43,14 @@ import { RpgRealmMapComponent } from './rpg-realm-map.component';
 import { RPG_REALMS } from './rpg-realms.data';
 import { RpgMusicService } from './rpg-music.service';
 import { RpgCharacterBackupService } from './rpg-character-backup.service';
-import { MEDAL_TIER_THRESHOLD, penaltyWeekCount } from './rpg-contracts.util';
+import { MEDAL_TIER_THRESHOLD, penaltyMultiplier } from './rpg-contracts.util';
+import {
+  isMissionComplete,
+  isMissionRepeatable,
+  missionNextReward,
+  RPG_MISSION_ICON_PATH,
+  RPG_MISSION_ICONS,
+} from './rpg-missions.data';
 import { TagService } from '../tag/tag.service';
 import { getDbDateStr } from '../../util/get-db-date-str';
 import { readFileAsShrunkDataUrl } from '../../util/shrink-image-data-url';
@@ -146,6 +157,7 @@ export class RpgProfileComponent implements OnInit {
         (p) =>
           !p.sourceTaskId &&
           !p.sourceContractId &&
+          p.id !== REVIEW_DELAY_PENALTY_ID &&
           !p.title.startsWith('Não concluída: '),
       )
       .sort(
@@ -781,7 +793,11 @@ export class RpgProfileComponent implements OnInit {
 
   /** The nth application of a penalty within the same week costs n times its base values. */
   penaltyNextMultiplier(penalty: RpgPenalty): number {
-    return penaltyWeekCount(penalty, Date.now()) + 1;
+    return penaltyMultiplier(penalty, this.profile.state().penaltyLog ?? [], Date.now());
+  }
+
+  scaledLoss(value: number, multiplier: number): number {
+    return Math.round(value * multiplier);
   }
 
   // ---- medal rarity ----
@@ -807,6 +823,224 @@ export class RpgProfileComponent implements OnInit {
         ? `${needed} dias`
         : this.formatMedalValue(needed, medal.unit);
     return `${next === 'gold' ? 'Ouro' : 'Prata'} com ${amount}`;
+  }
+
+  // ---- missions ----
+  readonly MISSION_ICONS = RPG_MISSION_ICONS;
+  readonly isMissionComplete = isMissionComplete;
+  readonly missionNextReward = missionNextReward;
+  showMissionForm = signal(false);
+  editingMissionId = signal<string | null>(null);
+  missionDraft = RpgProfileComponent._emptyMissionDraft();
+  private readonly _missionForm = viewChild<ElementRef<HTMLElement>>('missionForm');
+  // Evolution lines first (unfinished before finished), then the repeatable specials.
+  readonly missionLines = computed(() =>
+    (this.profile.state().missions ?? [])
+      .filter((mission) => !isMissionRepeatable(mission))
+      .sort((a, b) => Number(isMissionComplete(a)) - Number(isMissionComplete(b))),
+  );
+  readonly specialMissions = computed(() =>
+    (this.profile.state().missions ?? []).filter(isMissionRepeatable),
+  );
+
+  missionIconUrl(icon: string): string {
+    return `${RPG_MISSION_ICON_PATH}/${icon}.svg`;
+  }
+
+  formatClaimDate(at: number): string {
+    return new Date(at).toLocaleDateString('pt-BR');
+  }
+
+  missionStageLabel(mission: RpgMission, stage: number): string {
+    return mission.unit === 'h' || mission.unit === 'min'
+      ? `${stage}${mission.unit}`
+      : `${stage} ${mission.unit}`;
+  }
+
+  // Habits of the active character and dungeon penalties a mission can be linked to.
+  readonly missionHabitOptions = computed(() =>
+    this.habitTracker
+      .habitsForCharacters([this.profile.activeCharacterId()])
+      .map((habit) => ({ id: habit.id, title: habit.title }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+  );
+
+  missionLinkOptions(): Array<{ id: string; title: string }> {
+    return this.missionDraft.autoSource === 'habits'
+      ? this.missionHabitOptions()
+      : this.manualPenalties().map((p) => ({ id: p.id, title: p.title }));
+  }
+
+  toggleMissionLink(id: string): void {
+    const ids = this.missionDraft.autoIds;
+    this.missionDraft.autoIds = ids.includes(id)
+      ? ids.filter((item) => item !== id)
+      : [...ids, id];
+  }
+
+  /** e.g. "Ofensiva atual: 5 dias" / "4/7 dias seguidos" - null for manual missions. */
+  missionAutoHint(mission: RpgMission): string | null {
+    const auto = mission.auto;
+    const progress = this.profile.missionAutoProgress().get(mission.id);
+    if (!auto || !progress) return null;
+    if (auto.source === 'hours') {
+      return isMissionRepeatable(mission)
+        ? `${progress.value}h registradas · a cada ${auto.every}h`
+        : `${progress.value}h registradas`;
+    }
+    const periods = { day: 'dias', week: 'semanas', month: 'meses' }[auto.period];
+    if (isMissionRepeatable(mission)) {
+      if (auto.every <= 1)
+        return `Conta sozinha - ${progress.repeats}x desde ${this.formatDay(auto.since)}`;
+      const inRow = auto.count === 'streak' ? ' seguidos' : '';
+      return `${progress.value % auto.every}/${auto.every} ${periods}${inRow}`;
+    }
+    return auto.count === 'streak'
+      ? `Ofensiva atual: ${progress.value} ${periods}`
+      : `Total: ${progress.value} ${periods} desde ${this.formatDay(auto.since)}`;
+  }
+
+  toggleMissionForm(): void {
+    this.editingMissionId.set(null);
+    this.missionDraft = RpgProfileComponent._emptyMissionDraft();
+    this.showMissionForm.update((open) => !open);
+  }
+
+  startEditMission(mission: RpgMission): void {
+    const auto = mission.auto;
+    this.missionDraft = {
+      title: mission.title,
+      description: mission.description,
+      icon: mission.icon,
+      stages: mission.stages.join(', '),
+      unit: mission.unit,
+      xpReward: mission.xpReward,
+      coinsReward: mission.coinsReward,
+      autoSource: auto?.source ?? 'manual',
+      autoIds: [...(auto?.ids ?? [])],
+      autoScope: auto?.scope ?? 'all',
+      autoPeriod: auto?.period ?? 'day',
+      autoThreshold: Math.round((auto?.threshold ?? 1) * 100),
+      autoCount: auto?.count ?? 'streak',
+      autoEvery: auto?.every ?? 1,
+      autoSince: auto?.since ?? getDbDateStr(new Date()),
+      autoWorkMetric: auto?.workMetric ?? 'dailyGoal',
+    };
+    this.editingMissionId.set(mission.id);
+    this.showMissionForm.set(true);
+    // The form renders above the cards - wait for it, then bring it into view.
+    setTimeout(() =>
+      this._missionForm()?.nativeElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      }),
+    );
+  }
+
+  saveMission(): void {
+    const draft = this.missionDraft;
+    if (!draft.title.trim()) {
+      return;
+    }
+    this.profile.saveMission(
+      {
+        title: draft.title,
+        description: draft.description,
+        icon: draft.icon,
+        unit: draft.unit,
+        stages: draft.stages
+          .split(/[,;→\s]+/)
+          .map(Number)
+          .filter((stage) => Number.isFinite(stage)),
+        xpReward: Number(draft.xpReward),
+        coinsReward: Number(draft.coinsReward),
+        auto:
+          draft.autoSource === 'manual'
+            ? undefined
+            : {
+                source: draft.autoSource,
+                ids:
+                  draft.autoSource === 'hours' || draft.autoSource === 'work'
+                    ? []
+                    : draft.autoIds,
+                scope: draft.autoSource === 'hours' ? draft.autoScope : undefined,
+                workMetric:
+                  draft.autoSource === 'work' ? draft.autoWorkMetric : undefined,
+                period: draft.autoPeriod,
+                threshold: Math.min(100, Math.max(0, Number(draft.autoThreshold))) / 100,
+                count: draft.autoCount,
+                every: Math.max(1, Math.round(Number(draft.autoEvery))),
+                since: draft.autoSince || getDbDateStr(new Date()),
+              },
+      },
+      this.editingMissionId() ?? undefined,
+    );
+    this.editingMissionId.set(null);
+    this.missionDraft = RpgProfileComponent._emptyMissionDraft();
+    this.showMissionForm.set(false);
+  }
+
+  removeMission(mission: RpgMission): void {
+    if (confirm(`Remover a missão "${mission.title}"? As recompensas já ganhas ficam.`)) {
+      this.profile.removeMission(mission.id);
+    }
+  }
+
+  undoMissionClaim(mission: RpgMission): void {
+    const last = mission.claims.at(-1);
+    if (
+      last &&
+      confirm(`Desfazer a última marcação? Devolve ${last.xp} XP e ${last.coins} moedas.`)
+    ) {
+      this.profile.undoMissionClaim(mission.id);
+    }
+  }
+
+  private static _emptyMissionDraft(): {
+    title: string;
+    description: string;
+    icon: string;
+    stages: string;
+    unit: string;
+    xpReward: number;
+    coinsReward: number;
+    autoSource: RpgMissionAuto['source'] | 'manual';
+    autoIds: string[];
+    autoScope: string;
+    autoPeriod: RpgMissionAuto['period'];
+    /** Percent; 0 = at least one. */
+    autoThreshold: number;
+    autoCount: RpgMissionAuto['count'];
+    autoEvery: number;
+    autoSince: string;
+    autoWorkMetric: NonNullable<RpgMissionAuto['workMetric']>;
+  } {
+    return {
+      title: '',
+      description: '',
+      icon: 'stars',
+      stages: '3, 7, 14, 30',
+      unit: 'dias',
+      xpReward: 50,
+      coinsReward: 20,
+      autoSource: 'manual',
+      autoIds: [],
+      autoScope: 'all',
+      autoPeriod: 'day',
+      autoThreshold: 100,
+      autoCount: 'streak',
+      autoEvery: 1,
+      autoSince: getDbDateStr(new Date()),
+      autoWorkMetric: 'dailyGoal',
+    };
+  }
+
+  /** Each work metric reads naturally with one period/count - preset them. */
+  onWorkMetricChange(metric: NonNullable<RpgMissionAuto['workMetric']>): void {
+    this.missionDraft.autoWorkMetric = metric;
+    this.missionDraft.autoPeriod = metric === 'urgentWeek' ? 'week' : 'day';
+    this.missionDraft.autoCount = metric === 'dailyGoal' ? 'streak' : 'total';
+    this.missionDraft.autoThreshold = 100;
   }
 
   // ---- contracts ----

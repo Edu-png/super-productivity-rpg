@@ -40,6 +40,10 @@ import {
   selectTaskRepeatCfgsForExactDay,
 } from './store/task-repeat-cfg.selectors';
 import { getRepeatableTaskId } from './get-repeatable-task-id.util';
+import {
+  REPEAT_CFG_SCHEDULE_FIELDS,
+  withScheduleHistory,
+} from './repeat-cfg-schedule-history.util';
 import { getDeadlineAutoPlanFields } from '../tasks/util/get-deadline-auto-plan-fields';
 
 @Injectable({
@@ -118,14 +122,46 @@ export class TaskRepeatCfgService {
   ): void {
     this._store$.dispatch(
       updateTaskRepeatCfg({
-        taskRepeatCfg: { id, changes },
+        taskRepeatCfg: { id, changes: this._withScheduleHistory(id, changes) },
         isAskToUpdateAllTaskInstances: isUpdateAllTaskInstances,
       }),
     );
   }
 
   updateTaskRepeatCfgs(ids: string[], changes: Partial<TaskRepeatCfg>): void {
-    this._store$.dispatch(updateTaskRepeatCfgs({ ids, changes }));
+    const isScheduleChange = REPEAT_CFG_SCHEDULE_FIELDS.some((field) => field in changes);
+    if (!isScheduleChange) {
+      this._store$.dispatch(updateTaskRepeatCfgs({ ids, changes }));
+      return;
+    }
+    // Each cfg keeps its own history, so schedule edits go out one cfg at a time.
+    ids.forEach((id) =>
+      this._store$.dispatch(
+        updateTaskRepeatCfgs({
+          ids: [id],
+          changes: this._withScheduleHistory(id, changes),
+        }),
+      ),
+    );
+  }
+
+  /** See withScheduleHistory: schedule edits only apply from today on. */
+  private _withScheduleHistory(
+    id: string,
+    changes: Partial<TaskRepeatCfg>,
+  ): Partial<TaskRepeatCfg> {
+    let cfg: TaskRepeatCfg | undefined;
+    this._store$
+      .select(selectTaskRepeatCfgByIdAllowUndefined, { id })
+      .pipe(take(1))
+      .subscribe((value) => (cfg = value));
+    if (!cfg) {
+      return changes;
+    }
+    const todayStr = this._dateService.todayStr();
+    const yesterday = new Date(`${todayStr}T12:00:00`);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return withScheduleHistory(cfg, changes, todayStr, getDbDateStr(yesterday));
   }
 
   upsertTaskRepeatCfg(taskRepeatCfg: TaskRepeatCfg): void {

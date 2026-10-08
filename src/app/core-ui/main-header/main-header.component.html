@@ -99,6 +99,15 @@
           <mat-icon>explore</mat-icon>
         </button>
         <button
+          (click)="openWorkAgenda()"
+          aria-label="Abrir Agenda de Trabalho"
+          matTooltip="Agenda de Trabalho"
+          mat-icon-button
+          type="button"
+        >
+          <mat-icon>work</mat-icon>
+        </button>
+        <button
           (click)="openReports()"
           aria-label="Abrir Relatórios"
           matTooltip="Relatórios"

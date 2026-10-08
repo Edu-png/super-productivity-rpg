@@ -1,17 +1,21 @@
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   OnInit,
   signal,
   viewChild,
+  untracked,
+  WritableSignal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIcon } from '@angular/material/icon';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { AcademyBackupService } from '../application/academy-backup.service';
 import {
   buildDailyDistractionStats,
@@ -43,8 +47,11 @@ import {
 import {
   CdkDrag,
   CdkDragDrop,
+  CdkDragHandle,
   CdkDropList,
   CdkDropListGroup,
+  moveItemInArray,
+  transferArrayItem,
 } from '@angular/cdk/drag-drop';
 import { AcademyIdbRepository } from '../persistence/academy-idb.repository';
 import { RpgProfileService } from '../../rpg-profile/rpg-profile.service';
@@ -61,10 +68,56 @@ import {
   AiQuizQuestion,
   AiWeekPlan,
 } from '../application/academy-ai.service';
+import { CAREER_SKILLS } from '../../career-quest/career-quest.catalog';
+import { getDbDateStr } from '../../../util/get-db-date-str';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import {
+  MatMenu,
+  MatMenuContent,
+  MatMenuItem,
+  MatMenuTrigger,
+} from '@angular/material/menu';
+import { selectAllTasks } from '../../tasks/store/task.selectors';
+import { TaskService } from '../../tasks/task.service';
+import { Task } from '../../tasks/task.model';
+import { SnackService } from '../../../core/snack/snack.service';
+import { todayBlockTasks } from '../../work-agenda/work-agenda.util';
+import { reviewDelayCharges, reviewDelayStatus } from '../domain/review-delay-penalty';
+import {
+  CodeLabChallengeComponent,
+  CodeLabGrade,
+} from '../../code-lab/code-lab-challenge.component';
+import { CareerQuest } from '../../career-quest/career-quest.model';
+import { buildTodayPlan } from '../../career-quest/career-quest-today.util';
 import {
   readFileAsShrunkDataUrl,
   rotateImageDataUrl,
 } from '../../../util/shrink-image-data-url';
+
+type StoredWeekPlan = AiWeekPlan & {
+  generatedAt: number;
+  /** Local date key (yyyy-mm-dd) of each day, for the planned x done balance. */
+  dates?: string[];
+  goalsDone?: boolean[];
+  /** Past days whose missing minutes were already handled. */
+  settled?: Record<string, 'redistribute' | 'review' | 'discard'>;
+};
+
+interface PlanBalance {
+  target: number;
+  planned: number;
+  done: number;
+  left: number;
+  days: {
+    index: number;
+    label: string;
+    date: string;
+    planned: number;
+    done: number;
+    deficit: number;
+  }[];
+}
 
 interface StudyChartDay {
   date: string;
@@ -134,12 +187,19 @@ const DISTRACTION_PALETTE = [
     MatIcon,
     DatePipe,
     DecimalPipe,
+    NgTemplateOutlet,
     MarkdownComponent,
     AcademyExcalidrawComponent,
     CharacterRendererComponent,
     CdkDropListGroup,
     CdkDropList,
     CdkDrag,
+    CdkDragHandle,
+    CodeLabChallengeComponent,
+    MatMenu,
+    MatMenuContent,
+    MatMenuItem,
+    MatMenuTrigger,
   ],
   templateUrl: './academy-arcana-page.component.html',
   styleUrl: './academy-arcana-page.component.scss',
@@ -156,6 +216,8 @@ export class AcademyArcanaPageComponent implements OnInit {
   readonly backup = inject(AcademyBackupService);
   readonly profile = inject(RpgProfileService);
   readonly selectedCharacterId = signal(this.profile.activeCharacterId());
+  private readonly _route = inject(ActivatedRoute);
+  private readonly _router = inject(Router);
   readonly focusMode = inject(FocusModeService);
   readonly tab = signal<'dashboard' | 'library' | 'review' | 'history'>('dashboard');
   readonly selectedAreaId = signal('');
@@ -664,6 +726,71 @@ export class AcademyArcanaPageComponent implements OnInit {
   });
   readonly currentCard = computed(() => this.academy.dueCards()[0] ?? null);
 
+  private readonly _taskService = inject(TaskService);
+  private readonly _snackService = inject(SnackService);
+  private readonly _allTasks = toSignal(inject(Store).select(selectAllTasks), {
+    initialValue: [] as Task[],
+  });
+
+  /** Today's unfinished top-level tasks a library card can join as a subtask, study blocks first. */
+  readonly todayTaskBlocks = computed(() => {
+    const isStudy = (task: Task): boolean => /estud/i.test(task.title);
+    return todayBlockTasks(this._allTasks(), getDbDateStr(), (ms) =>
+      getDbDateStr(ms),
+    ).sort((a, b) => Number(isStudy(b)) - Number(isStudy(a)));
+  });
+
+  addNodeAsSubtask(node: StudyNode, block: Task): void {
+    const subTaskTitles = new Set(
+      this._allTasks()
+        .filter((task) => task.parentId === block.id)
+        .map((task) => task.title),
+    );
+    if (subTaskTitles.has(node.title)) {
+      this._snackService.open(`"${node.title}" já é subtarefa de "${block.title}".`);
+      return;
+    }
+    this._taskService.addSubTaskTo(block.id, { title: node.title });
+    this._snackService.open({
+      ico: 'playlist_add',
+      msg: `"${node.title}" virou subtarefa de "${block.title}".`,
+    });
+  }
+
+  /**
+   * Overdue topic reviews cost the character XP every late day (see
+   * reviewDelayCharges). Re-runs whenever the reviews change; already
+   * charged days are skipped, so it's safe to run repeatedly.
+   */
+  /** XP each due topic already lost to delay, and what tomorrow would cost. */
+  readonly reviewDelayByNode = computed(() => {
+    const streaks = this.profile.reviewDelayStreaks(this.academy.profileId());
+    const today = getDbDateStr();
+    return new Map(
+      this.todayReviewList().map((row) => [
+        row.node.id,
+        reviewDelayStatus(streaks[row.node.id], today),
+      ]),
+    );
+  });
+
+  private readonly _chargeReviewDelays = effect(() => {
+    const characterId = this.academy.profileId();
+    const reviews = this.academy.topicReviews();
+    const nodes = this.academy.nodes();
+    if (this.academy.loading() || !characterId || !nodes.length) return;
+    untracked(() => {
+      const liveIds = new Set(nodes.map((node) => node.id));
+      const { streaks, charges } = reviewDelayCharges(
+        reviews.filter((review) => liveIds.has(review.nodeId)),
+        this.profile.reviewDelayStreaks(characterId),
+        getDbDateStr(),
+        (ms) => getDbDateStr(ms),
+      );
+      if (charges.length) this.profile.chargeReviewDelays(characterId, streaks, charges);
+    });
+  });
+
   readonly todayReviewList = computed(() => {
     const now = Date.now();
     return this.academy
@@ -781,6 +908,28 @@ export class AcademyArcanaPageComponent implements OnInit {
     this.restoreWeekPlan();
     await this.academy.load(this.selectedCharacterId());
     this.selectedAreaId.set(this.academy.areas()[0]?.id ?? '');
+    await this._openLinkedTopicReview();
+  }
+
+  /**
+   * ?reviewTopic=<nodeId> (from the Agenda de Trabalho): opens that topic's
+   * review, adding it to the review list first when it isn't there yet.
+   */
+  private async _openLinkedTopicReview(): Promise<void> {
+    const nodeId = this._route.snapshot.queryParamMap.get('reviewTopic');
+    if (!nodeId) return;
+    void this._router.navigate([], {
+      relativeTo: this._route,
+      queryParams: { reviewTopic: null },
+      replaceUrl: true,
+    });
+    const node = this.academy.nodes().find((item) => item.id === nodeId);
+    if (!node) return;
+    this.selectedAreaId.set(node.areaId);
+    if (!this.academy.isNodeInReview(nodeId)) {
+      await this.academy.addNodeToReview(nodeId, node.areaId);
+    }
+    if (this.academy.isNodeInReview(nodeId)) this.openTopicReview(nodeId);
   }
 
   async selectCharacter(characterId: string): Promise<void> {
@@ -872,11 +1021,18 @@ export class AcademyArcanaPageComponent implements OnInit {
     // Also on same-column drops, so re-dropping a completed folder completes
     // anything inside it that was left behind.
     const wasCompleted = studyNodeStatus(node) === 'completed';
+    const previous = new Map(
+      this.academy.nodes().map((item) => [item.id, studyNodeStatus(item)]),
+    );
     const changed = await this.academy.setNodeStatus(node.id, column.id);
     if (column.id === 'completed' && !wasCompleted && this.gemini.configured()) {
+      // Closing the quiz before grading it undoes the move (see closeQuiz),
+      // so the folder XP only pays out once the quiz is submitted.
+      this.quizCompletion = { nodeId: node.id, previous, changed };
       void this.startQuiz(node);
+    } else {
+      this.rewardCompletedFolders(changed);
     }
-    this.rewardCompletedFolders(changed);
     // Dropping into "Revisando" enrols it in spaced repetition.
     if (column.id === 'reviewing') {
       await this.academy.addNodeToReview(node.id, node.areaId);
@@ -965,7 +1121,13 @@ export class AcademyArcanaPageComponent implements OnInit {
   /** The column a node shows in: "Revisando" while its review is due. */
   nodeBoardStatus(node: StudyNode): (typeof STUDY_NODE_STATUSES)[number] {
     const review = this.academy.topicReviewFor(node.id);
-    const id = review && review.dueAt <= Date.now() ? 'reviewing' : studyNodeStatus(node);
+    const status = studyNodeStatus(node);
+    // A due review pulls a card into "Revisando" - but never over an explicit
+    // "Completo"/"Parado": moving a card there must stick (the overdue review
+    // still shows as a badge and in the Revisar tab).
+    const surfacesReview = status !== 'completed' && status !== 'paused';
+    const id =
+      review && review.dueAt <= Date.now() && surfacesReview ? 'reviewing' : status;
     return STUDY_NODE_STATUSES.find((item) => item.id === id) ?? STUDY_NODE_STATUSES[0];
   }
 
@@ -1283,8 +1445,40 @@ export class AcademyArcanaPageComponent implements OnInit {
     correct: number;
     /** Question being shown (one at a time). */
     step: number;
+    /** Coding exercises dropped because the AI's own solution failed its tests. */
+    droppedCode: number;
   } | null>(null);
   readonly quizLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
+  /** Set while the quiz comes from dropping a card into "Completo". */
+  private quizCompletion: {
+    nodeId: string;
+    previous: Map<string, StudyNodeStatus>;
+    changed: StudyNode[];
+  } | null = null;
+
+  /** Quiz from the editor's button: no card move to undo. */
+  startManualQuiz(node: StudyNode): void {
+    this.quizCompletion = null;
+    void this.startQuiz(node);
+  }
+
+  /**
+   * Closing before grading sends the card back to "Estudando" and restores
+   * whatever the drop completed along with it (a folder's children).
+   */
+  async closeQuiz(): Promise<void> {
+    const state = this.quiz();
+    const completion = this.quizCompletion;
+    this.quiz.set(null);
+    this.quizCompletion = null;
+    if (!completion || state?.submitted) return;
+    await this.academy.setNodeStatus(completion.nodeId, 'studying');
+    for (const item of completion.changed) {
+      const before = completion.previous.get(item.id);
+      if (item.id === completion.nodeId || !before || before === 'completed') continue;
+      await this.academy.setNodeStatus(item.id, before);
+    }
+  }
 
   // ---- tutor do assunto (chat no editor) ----
   readonly tutorOpen = signal(false);
@@ -1612,18 +1806,28 @@ export class AcademyArcanaPageComponent implements OnInit {
       submitted: false,
       correct: 0,
       step: 0,
+      droppedCode: 0,
     });
     try {
       const material = this.nodeStudyMaterial(node);
-      const questions = await this.academyAi.quiz(
+      const { questions, droppedCode } = await this.academyAi.quiz(
         node.title,
         material.content,
         material.images,
       );
       if (this.quiz()?.node.id !== node.id) return;
+      if (!questions.length) {
+        throw new Error('A IA não gerou perguntas válidas. Tente de novo.');
+      }
       this.quiz.update((state) =>
         state
-          ? { ...state, loading: false, questions, answers: questions.map(() => null) }
+          ? {
+              ...state,
+              loading: false,
+              questions,
+              droppedCode,
+              answers: questions.map(() => null),
+            }
           : state,
       );
     } catch (e) {
@@ -1646,6 +1850,15 @@ export class AcademyArcanaPageComponent implements OnInit {
     );
   }
 
+  /** A coding question counts as answered once tested: 1 = all tests passed, 0 = not. */
+  answerCodeQuiz(questionIndex: number, grade: CodeLabGrade): void {
+    this.answerQuiz(questionIndex, grade.passed ? 1 : 0);
+  }
+
+  quizRight(question: AiQuizQuestion, answer: number | null): boolean {
+    return question.kind === 'code' ? answer === 1 : answer === question.correctIndex;
+  }
+
   quizGo(step: number): void {
     this.quiz.update((state) =>
       state
@@ -1657,192 +1870,702 @@ export class AcademyArcanaPageComponent implements OnInit {
   async submitQuiz(): Promise<void> {
     const state = this.quiz();
     if (!state || state.submitted) return;
-    const correct = state.questions.filter(
-      (question, index) => state.answers[index] === question.correctIndex,
+    const correct = state.questions.filter((question, index) =>
+      this.quizRight(question, state.answers[index]),
     ).length;
     this.quiz.set({ ...state, submitted: true, correct });
+    if (this.quizCompletion) {
+      this.rewardCompletedFolders(this.quizCompletion.changed);
+      this.quizCompletion = null;
+    }
     await this.academy.patchNode(state.node.id, () => ({
       quizScore: { score: correct, max: state.questions.length, at: Date.now() },
     }));
   }
 
   // ---- plano de estudo da semana ----
-  readonly weekPlan = signal<(AiWeekPlan & { generatedAt: number }) | null>(null);
+  readonly weekPlan = signal<StoredWeekPlan | null>(null);
   readonly weekPlanBusy = signal(false);
   readonly weekPlanMessage = signal('');
   /** Study time available per day for the plan (hard limit), per character. */
   readonly weekPlanMinutes = signal(100);
+  /** Extra minutes per day for Career Quest, on top of weekPlanMinutes. */
+  readonly careerPlanMinutes = signal(30);
+
+  // Second plan, for the areas outside Data Science the user picks.
+  readonly otherPlan = signal<StoredWeekPlan | null>(null);
+  readonly otherPlanBusy = signal(false);
+  readonly otherPlanMessage = signal('');
+  readonly otherPlanMinutes = signal(65);
+  /** null = never chosen, which means every area outside Data Science. */
+  readonly otherPlanAreaIds = signal<string[] | null>(null);
+  /** Free text on what to focus on / what kind of suggestions to give. */
+  readonly otherPlanFocus = signal('');
+  readonly otherPlanAreas = computed(() =>
+    [...this.academy.areas()]
+      .filter((area) => !this.isDataScience([area.title]))
+      .sort((a, b) => a.position - b.position),
+  );
+  readonly otherPlanSelected = computed(
+    () =>
+      new Set(this.otherPlanAreaIds() ?? this.otherPlanAreas().map((area) => area.id)),
+  );
+  private readonly dataScienceAreaIds = computed(
+    () =>
+      new Set(
+        this.academy
+          .areas()
+          .filter((area) => this.isDataScience([area.title]))
+          .map((area) => area.id),
+      ),
+  );
+  readonly weekPlanBalance = computed(() =>
+    this.planBalance(this.weekPlan(), this.dataScienceAreaIds(), this.weekPlanMinutes()),
+  );
+  readonly otherPlanBalance = computed(() =>
+    this.planBalance(this.otherPlan(), this.otherPlanSelected(), this.otherPlanMinutes()),
+  );
+
+  private isDataScience(values: string[]): boolean {
+    return values.some((value) =>
+      /data\s*science|ciencia de dados/i.test(
+        (value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, ''),
+      ),
+    );
+  }
+
+  /** CSS class for a plan block (class names without accents). */
+  planBlockClass(kind: string): string {
+    return `plan-block kind-${kind.normalize('NFD').replace(/\p{Diacritic}/gu, '')}`;
+  }
+
+  /**
+   * Planned vs. done minutes for each plan day, from the study sessions of the
+   * plan's areas. Career blocks stay out: they are extra time.
+   */
+  private planBalance(
+    plan: StoredWeekPlan | null,
+    areaIds: Set<string>,
+    dailyMinutes: number,
+  ): PlanBalance | null {
+    if (!plan?.dates?.length) return null;
+    const done = new Map<string, number>();
+    for (const session of this.academy.distractionSessions()) {
+      if (session.status === 'cancelled' || !areaIds.has(session.areaId)) continue;
+      const key = this.localDateKey(new Date(session.startedAt));
+      done.set(key, (done.get(key) ?? 0) + (session.actualMinutes || 0));
+    }
+    const todayKey = this.localDateKey(new Date());
+    const days = plan.days.map((day, index) => {
+      const date = plan.dates?.[index] ?? '';
+      const planned = (day.blocks ?? [])
+        .filter((block) => block.kind !== 'carreira')
+        .reduce((sum, block) => sum + (Number(block.minutes) || 0), 0);
+      const doneMinutes = Math.round(done.get(date) ?? 0);
+      const past = !!date && date < todayKey;
+      return {
+        index,
+        label: day.day,
+        date,
+        planned,
+        done: doneMinutes,
+        deficit: past && !plan.settled?.[date] ? Math.max(0, planned - doneMinutes) : 0,
+      };
+    });
+    const planned = days.reduce((sum, day) => sum + day.planned, 0);
+    const executed = days.reduce((sum, day) => sum + day.done, 0);
+    return {
+      target: dailyMinutes * days.length,
+      planned,
+      done: executed,
+      left: Math.max(0, planned - executed),
+      days,
+    };
+  }
+
+  private planTarget(kind: 'week' | 'other'): {
+    plan: WritableSignal<StoredWeekPlan | null>;
+    key: string;
+  } {
+    return kind === 'week'
+      ? { plan: this.weekPlan, key: 'sp-ai-week-plan' }
+      : { plan: this.otherPlan, key: 'sp-ai-other-plan' };
+  }
+
+  private savePlan(kind: 'week' | 'other', plan: StoredWeekPlan): void {
+    const target = this.planTarget(kind);
+    target.plan.set(plan);
+    this.storePlanSetting(target.key, JSON.stringify(plan));
+  }
+
+  toggleWeekGoal(kind: 'week' | 'other', index: number): void {
+    const plan = this.planTarget(kind).plan();
+    if (!plan) return;
+    const goalsDone = [...(plan.goalsDone ?? [])];
+    goalsDone[index] = !goalsDone[index];
+    this.savePlan(kind, { ...plan, goalsDone });
+  }
+
+  /** Drop-list ids of a plan's days, so blocks can move between any of them. */
+  planDayListIds(kind: 'week' | 'other', count: number): string[] {
+    return Array.from({ length: count }, (_, index) => `plan-${kind}-day-${index}`);
+  }
+
+  /** Moves a block inside a day or to another day. */
+  movePlanBlock(kind: 'week' | 'other', event: CdkDragDrop<number>): void {
+    const plan = this.planTarget(kind).plan();
+    if (!plan) return;
+    const days = plan.days.map((day) => ({ ...day, blocks: [...(day.blocks ?? [])] }));
+    const from = days[event.previousContainer.data];
+    const to = days[event.container.data];
+    if (!from || !to) return;
+    if (from === to) moveItemInArray(to.blocks, event.previousIndex, event.currentIndex);
+    else
+      transferArrayItem(from.blocks, to.blocks, event.previousIndex, event.currentIndex);
+    this.savePlan(kind, { ...plan, days });
+  }
+
+  /** Reorders whole days: the content moves, the day labels/dates stay in place. */
+  movePlanDay(kind: 'week' | 'other', event: CdkDragDrop<unknown>): void {
+    const plan = this.planTarget(kind).plan();
+    if (!plan || event.previousIndex === event.currentIndex) return;
+    const contents = plan.days.map((day) => ({ blocks: day.blocks, note: day.note }));
+    moveItemInArray(contents, event.previousIndex, event.currentIndex);
+    const days = plan.days.map((day, index) => ({ ...day, ...contents[index] }));
+    this.savePlan(kind, { ...plan, days });
+  }
+
+  togglePlanBlock(kind: 'week' | 'other', dayIndex: number, blockIndex: number): void {
+    const plan = this.planTarget(kind).plan();
+    if (!plan) return;
+    const days = plan.days.map((day, index) =>
+      index === dayIndex
+        ? {
+            ...day,
+            blocks: day.blocks.map((block, position) =>
+              position === blockIndex ? { ...block, done: !block.done } : block,
+            ),
+          }
+        : day,
+    );
+    this.savePlan(kind, { ...plan, days });
+  }
+
+  goalsPercent(plan: StoredWeekPlan): number {
+    const total = plan.goals?.length ?? 0;
+    return total
+      ? Math.round(((plan.goalsDone ?? []).filter(Boolean).length / total) * 100)
+      : 0;
+  }
+
+  /**
+   * What to do with the minutes a past day missed: spread them over the
+   * remaining days as catch-up, turn them into a review tomorrow, or drop them.
+   */
+  settleDeficit(
+    kind: 'week' | 'other',
+    dayIndex: number,
+    action: 'redistribute' | 'review' | 'discard',
+  ): void {
+    const plan = this.planTarget(kind).plan();
+    const balance = kind === 'week' ? this.weekPlanBalance() : this.otherPlanBalance();
+    const day = balance?.days[dayIndex];
+    if (!plan?.dates || !day?.deficit) return;
+    const todayKey = this.localDateKey(new Date());
+    const remaining = plan.dates
+      .map((date, index) => ({ date, index }))
+      .filter((item) => item.date >= todayKey)
+      .map((item) => item.index);
+    const missed = (plan.days[dayIndex].blocks ?? [])
+      .filter((block) => block.kind === 'estudo' || block.kind === 'sugestão')
+      .map((block) => block.title)
+      .join(' + ');
+    const days = plan.days.map((item) => ({ ...item, blocks: [...(item.blocks ?? [])] }));
+    if (action !== 'discard' && remaining.length) {
+      if (action === 'redistribute') {
+        const share = Math.max(5, Math.round(day.deficit / remaining.length / 5) * 5);
+        for (const index of remaining) {
+          days[index].blocks.push({
+            title: `Compensação de ${day.label}: ${missed || 'estudo'}`,
+            minutes: share,
+            kind: 'estudo',
+          });
+        }
+      } else {
+        days[remaining[0]].blocks.push({
+          title: `Revisar o que faltou em ${day.label}: ${missed || 'estudo do dia'}`,
+          minutes: Math.min(25, day.deficit),
+          kind: 'revisão',
+        });
+      }
+    }
+    this.savePlan(kind, {
+      ...plan,
+      days,
+      settled: { ...plan.settled, [day.date]: action },
+    });
+  }
 
   setWeekPlanMinutes(value: number): void {
     const minutes = Math.max(25, Math.min(600, Math.round(Number(value) || 100)));
     this.weekPlanMinutes.set(minutes);
+    this.storePlanSetting('sp-ai-week-plan-minutes', String(minutes));
+  }
+
+  setCareerPlanMinutes(value: number): void {
+    const minutes = Math.max(0, Math.min(300, Math.round(Number(value) || 0)));
+    this.careerPlanMinutes.set(minutes);
+    this.storePlanSetting('sp-ai-career-plan-minutes', String(minutes));
+  }
+
+  setOtherPlanMinutes(value: number): void {
+    const minutes = Math.max(25, Math.min(600, Math.round(Number(value) || 65)));
+    this.otherPlanMinutes.set(minutes);
+    this.storePlanSetting('sp-ai-other-plan-minutes', String(minutes));
+  }
+
+  toggleOtherPlanArea(areaId: string): void {
+    const selected = new Set(this.otherPlanSelected());
+    if (selected.has(areaId)) selected.delete(areaId);
+    else selected.add(areaId);
+    this.otherPlanAreaIds.set([...selected]);
+    this.storePlanSetting('sp-ai-other-plan-areas', JSON.stringify([...selected]));
+  }
+
+  setOtherPlanFocus(value: string): void {
+    this.otherPlanFocus.set(value);
+    this.storePlanSetting('sp-ai-other-plan-focus', value);
+  }
+
+  private storePlanSetting(key: string, value: string): void {
     try {
-      localStorage.setItem(
-        `sp-ai-week-plan-minutes:${this.selectedCharacterId()}`,
-        String(minutes),
-      );
+      localStorage.setItem(`${key}:${this.selectedCharacterId()}`, value);
     } catch {}
   }
 
-  private weekPlanKey(): string {
-    return `sp-ai-week-plan:${this.selectedCharacterId()}`;
+  private readPlanSetting(key: string): string | null {
+    try {
+      return localStorage.getItem(`${key}:${this.selectedCharacterId()}`);
+    } catch {
+      return null;
+    }
   }
 
   restoreWeekPlan(): void {
-    try {
-      this.weekPlanMinutes.set(
-        Number(
-          localStorage.getItem(`sp-ai-week-plan-minutes:${this.selectedCharacterId()}`),
-        ) || 100,
-      );
-    } catch {}
-    try {
-      const stored = localStorage.getItem(this.weekPlanKey());
-      this.weekPlan.set(stored ? JSON.parse(stored) : null);
-    } catch {
-      this.weekPlan.set(null);
+    this.weekPlanMinutes.set(
+      Number(this.readPlanSetting('sp-ai-week-plan-minutes')) || 100,
+    );
+    const career = this.readPlanSetting('sp-ai-career-plan-minutes');
+    this.careerPlanMinutes.set(career === null ? 30 : Number(career) || 0);
+    this.otherPlanMinutes.set(
+      Number(this.readPlanSetting('sp-ai-other-plan-minutes')) || 65,
+    );
+    this.otherPlanFocus.set(this.readPlanSetting('sp-ai-other-plan-focus') ?? '');
+    for (const kind of ['week', 'other'] as const) {
+      const target = this.planTarget(kind);
+      try {
+        const stored = this.readPlanSetting(target.key);
+        target.plan.set(stored ? JSON.parse(stored) : null);
+      } catch {
+        target.plan.set(null);
+      }
     }
+    try {
+      const areas = this.readPlanSetting('sp-ai-other-plan-areas');
+      this.otherPlanAreaIds.set(areas ? JSON.parse(areas) : null);
+    } catch {
+      this.otherPlanAreaIds.set(null);
+    }
+  }
+
+  /**
+   * What the AI needs to plan the given areas: the concrete study queue, the
+   * reviews (overdue + due in the plan days) and the low quiz grades. The plan
+   * covers the next 5 weekdays - weekends stay free.
+   */
+  private planContext(areaIds: Set<string>): {
+    weekDays: string[];
+    dates: string[];
+    studying: string[];
+    reviews: string[];
+    low: string[];
+    idleAreas: { title: string; backlog: string[] }[];
+  } {
+    const live = this.academy.nodes().filter((node) => !node.deletedAt);
+    const nodes = new Map(live.map((node) => [node.id, node]));
+    const areas = [...this.academy.areas()]
+      .filter((area) => areaIds.has(area.id))
+      .sort((a, b) => a.position - b.position);
+    const areaTitle = new Map(areas.map((area) => [area.id, area.title]));
+    // "Área › Curso › Módulo › Tópico", as the Kanban shows it.
+    const path = (node: StudyNode | undefined): string => {
+      const parts: string[] = [];
+      let current = node;
+      const seen = new Set<string>();
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id);
+        parts.unshift(current.title);
+        current = current.parentId ? nodes.get(current.parentId) : undefined;
+      }
+      return node ? [areaTitle.get(node.areaId) ?? '', ...parts].join(' › ') : '';
+    };
+    const childrenOf = (parentId: string | null, areaId: string): StudyNode[] =>
+      live
+        .filter((node) => node.parentId === parentId && node.areaId === areaId)
+        .sort(
+          (a, b) =>
+            studyNodePriorityRank(a) - studyNodePriorityRank(b) ||
+            a.position - b.position,
+        );
+    // Same rule as nodeProgress: leaf = 1 when completed, parent = average.
+    const progressOf = (node: StudyNode, seen: Set<string>): number | undefined => {
+      const kids = live.filter((item) => item.parentId === node.id);
+      if (!kids.length || seen.has(node.id)) return undefined;
+      seen.add(node.id);
+      return (
+        kids.reduce(
+          (sum, kid) =>
+            sum +
+            (progressOf(kid, seen) ?? (studyNodeStatus(kid) === 'completed' ? 1 : 0)),
+          0,
+        ) / kids.length
+      );
+    };
+    // Last time each node (or anything inside it) got a study session.
+    const lastStudied = new Map<string, number>();
+    for (const session of [
+      ...this.academy.recentSessions(),
+      ...this.academy.distractionSessions(),
+    ]) {
+      if (session.status === 'cancelled') continue;
+      const seen = new Set<string>();
+      let current = session.nodeId ? nodes.get(session.nodeId) : undefined;
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id);
+        lastStudied.set(
+          current.id,
+          Math.max(lastStudied.get(current.id) ?? 0, session.startedAt),
+        );
+        current = current.parentId ? nodes.get(current.parentId) : undefined;
+      }
+    }
+    const unfinished = (node: StudyNode): boolean =>
+      ['backlog', 'studying'].includes(studyNodeStatus(node));
+    // Concrete next content inside a branch: follow the unfinished child
+    // studied most recently (else the first in order) down to a leaf.
+    const nextContent = (node: StudyNode): StudyNode => {
+      let current = node;
+      for (let depth = 0; depth < 6; depth++) {
+        const kids = childrenOf(current.id, current.areaId).filter(unfinished);
+        if (!kids.length) break;
+        const studied = kids
+          .filter((kid) => lastStudied.has(kid.id))
+          .sort((a, b) => (lastStudied.get(b.id) ?? 0) - (lastStudied.get(a.id) ?? 0));
+        current = studied[0] ?? kids[0];
+      }
+      return current;
+    };
+    // Study queue in Kanban order (area, then priority/position, depth-first),
+    // keeping only the deepest "Estudando" item of each branch.
+    const branches: StudyNode[] = [];
+    const walk = (parentId: string | null, areaId: string, depth: number): void => {
+      if (depth > 6) return;
+      for (const node of childrenOf(parentId, areaId)) {
+        const before = branches.length;
+        walk(node.id, areaId, depth + 1);
+        if (studyNodeStatus(node) === 'studying' && branches.length === before) {
+          branches.push(node);
+        }
+      }
+    };
+    for (const area of areas) walk(null, area.id, 0);
+    // Content studied in the last 14 days and still unfinished jumps ahead,
+    // even outside the "Estudando" column, so the plan continues it.
+    const recentCutoff = Date.now() - 14 * 86_400_000;
+    const recent = live
+      .filter(
+        (node) =>
+          areaTitle.has(node.areaId) &&
+          unfinished(node) &&
+          (lastStudied.get(node.id) ?? 0) >= recentCutoff &&
+          !childrenOf(node.id, node.areaId).some(
+            (kid) => unfinished(kid) && lastStudied.has(kid.id),
+          ),
+      )
+      .sort((a, b) => (lastStudied.get(b.id) ?? 0) - (lastStudied.get(a.id) ?? 0))
+      .map(nextContent);
+    const queue: StudyNode[] = [];
+    for (const node of [...recent, ...branches.map(nextContent)]) {
+      if (!queue.some((item) => item.id === node.id)) queue.push(node);
+    }
+    const shortDate = (at: number): string =>
+      new Date(at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const studying = queue.slice(0, 25).map((node) => {
+      const progress = progressOf(node, new Set());
+      const last = lastStudied.get(node.id);
+      return `${path(node)}${
+        progress !== undefined ? ` (${Math.round(progress * 100)}% feito)` : ''
+      }${last ? ` - estudado por último em ${shortDate(last)}, CONTINUAR` : ''}`;
+    });
+    const dayLabel = (date: Date): string => {
+      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' });
+      return `${weekday[0].toUpperCase()}${weekday.slice(1, 3)} ${shortDate(date.getTime())}`;
+    };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const planDays: Date[] = [];
+    for (let offset = 0; planDays.length < 5; offset++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + offset);
+      if (date.getDay() !== 0 && date.getDay() !== 6) planDays.push(date);
+    }
+    // Overdue + due up to the last plan day, with the day each one is due.
+    const planEnd = planDays[planDays.length - 1].getTime() + 86_400_000;
+    const reviews = this.academy
+      .topicReviews()
+      .filter((state) => state.dueAt < planEnd)
+      .sort((a, b) => a.dueAt - b.dueAt)
+      .map((state) => {
+        const node = nodes.get(state.nodeId);
+        if (!node || !areaTitle.has(node.areaId)) return '';
+        const overdue = Math.floor((today.getTime() - state.dueAt) / 86_400_000);
+        return `${path(node)} - ${
+          state.dueAt < today.getTime()
+            ? `ATRASADA${overdue > 0 ? ` há ${overdue} dia(s)` : ''}`
+            : `vence ${dayLabel(new Date(state.dueAt))}`
+        }`;
+      })
+      .filter(Boolean)
+      .slice(0, 40);
+    const low = this.quizChart()
+      .low.filter((row) => areaTitle.has(row.node.areaId))
+      .map((row) => `${path(row.node)} - ${row.percent}%`);
+    const idleAreas = areas
+      .filter((area) => !queue.some((node) => node.areaId === area.id))
+      .map((area) => ({
+        title: area.title,
+        backlog: live
+          .filter(
+            (node) =>
+              node.areaId === area.id &&
+              studyNodeStatus(node) === 'backlog' &&
+              !childrenOf(node.id, area.id).length,
+          )
+          .slice(0, 6)
+          .map((node) => path(node)),
+      }));
+    return {
+      weekDays: planDays.map(dayLabel),
+      dates: planDays.map((date) => this.localDateKey(date)),
+      studying,
+      reviews,
+      low,
+      idleAreas,
+    };
+  }
+
+  /** Career Quest next actions, most important first (same order as its "hoje" card). */
+  private careerActions(): string[] {
+    const state = this.profile.state().careerQuest;
+    if (!state) return [];
+    const renamed = state.skillNameOverrides ?? {};
+    const skills = [
+      ...CAREER_SKILLS.map((skill) =>
+        renamed[skill.id] ? { ...skill, name: renamed[skill.id] } : skill,
+      ),
+      ...(state.customSkills ?? []),
+    ];
+    const today = buildTodayPlan(state, skills);
+    const byWeek = (a: CareerQuest, b: CareerQuest): number =>
+      (a.week ?? 99) - (b.week ?? 99);
+    const describe = (quest: CareerQuest): string =>
+      `${quest.title} (~${quest.estimatedHours}h${quest.status === 'doing' ? ', em andamento' : ''})`;
+    const lines: string[] = [];
+    const add = (line: string): void => {
+      if (!lines.includes(line)) lines.push(line);
+    };
+    if (today.primary.quest) add(describe(today.primary.quest));
+    else if (today.primary.kind !== 'none') add(today.primary.text);
+    for (const quest of state.quests
+      .filter((item) => item.id.includes('-entry') && !item.gradedAt)
+      .sort(byWeek)) {
+      add(`Teste de nivelamento: ${describe(quest)}`);
+    }
+    for (const step of today.focus) {
+      if (step.readyToPromote) {
+        add(`Promover ${step.skill.name} para L${step.nextLevel}`);
+      } else if (step.quest) {
+        add(
+          `${step.skill.name} (L${step.current}→L${step.nextLevel}): ${describe(step.quest)}${
+            step.missing.length ? ` - falta ${step.missing.join(', ')}` : ''
+          }`,
+        );
+      }
+    }
+    for (const quest of state.quests
+      .filter((item) => item.status !== 'done' && item.type !== 'boss')
+      .sort(byWeek)
+      .slice(0, 5)) {
+      add(describe(quest));
+    }
+    return lines.slice(0, 10);
+  }
+
+  /**
+   * Daily limit enforced even if the model overshoots (reading is cut first,
+   * reviews last). Career blocks have their own extra allowance.
+   */
+  private trimPlan(
+    generated: AiWeekPlan,
+    budget: number,
+    careerBudget: number,
+    dates: string[],
+  ): StoredWeekPlan {
+    const keepOrder: Record<string, number> = { revisão: 0, estudo: 1, sugestão: 1 };
+    const days = (generated.days ?? []).slice(0, dates.length).map((day) => {
+      let used = 0;
+      let career = 0;
+      const kept = [...(day.blocks ?? [])]
+        .sort((a, b) => (keepOrder[a.kind] ?? 2) - (keepOrder[b.kind] ?? 2))
+        .filter((block) => {
+          const minutes = Math.max(0, Number(block.minutes) || 0);
+          if (block.kind === 'carreira') {
+            if (career + minutes > careerBudget) return false;
+            career += minutes;
+            return true;
+          }
+          if (used + minutes > budget) return false;
+          used += minutes;
+          return true;
+        });
+      return {
+        ...day,
+        blocks: (day.blocks ?? []).filter((block) => kept.includes(block)),
+      };
+    });
+    return {
+      ...generated,
+      goals: (generated.goals ?? []).filter(Boolean).slice(0, 4),
+      days,
+      dates,
+      goalsDone: [],
+      settled: {},
+      generatedAt: Date.now(),
+    };
   }
 
   async generateWeekPlan(): Promise<void> {
     this.weekPlanBusy.set(true);
     this.weekPlanMessage.set('Montando o plano da semana com IA...');
     try {
-      const live = this.academy.nodes().filter((node) => !node.deletedAt);
-      const nodes = new Map(live.map((node) => [node.id, node]));
-      const areas = [...this.academy.areas()].sort((a, b) => a.position - b.position);
-      const areaTitle = new Map(areas.map((area) => [area.id, area.title]));
-      // "Área › Curso › Módulo › Tópico", as the Kanban shows it.
-      const path = (node: StudyNode | undefined): string => {
-        const parts: string[] = [];
-        let current = node;
-        const seen = new Set<string>();
-        while (current && !seen.has(current.id)) {
-          seen.add(current.id);
-          parts.unshift(current.title);
-          current = current.parentId ? nodes.get(current.parentId) : undefined;
-        }
-        return node ? [areaTitle.get(node.areaId) ?? '', ...parts].join(' › ') : '';
-      };
-      const childrenOf = (parentId: string | null, areaId: string): StudyNode[] =>
-        live
-          .filter((node) => node.parentId === parentId && node.areaId === areaId)
-          .sort(
-            (a, b) =>
-              studyNodePriorityRank(a) - studyNodePriorityRank(b) ||
-              a.position - b.position,
-          );
-      // Same rule as nodeProgress: leaf = 1 when completed, parent = average.
-      const progressOf = (node: StudyNode, seen: Set<string>): number | undefined => {
-        const kids = live.filter((item) => item.parentId === node.id);
-        if (!kids.length || seen.has(node.id)) return undefined;
-        seen.add(node.id);
-        return (
-          kids.reduce(
-            (sum, kid) =>
-              sum +
-              (progressOf(kid, seen) ?? (studyNodeStatus(kid) === 'completed' ? 1 : 0)),
-            0,
-          ) / kids.length
-        );
-      };
-      // Study queue in Kanban order (area, then priority/position, depth-first),
-      // keeping only the deepest "Estudando" item of each branch.
-      const queue: string[] = [];
-      const walk = (parentId: string | null, areaId: string, depth: number): void => {
-        if (depth > 6) return;
-        for (const node of childrenOf(parentId, areaId)) {
-          const before = queue.length;
-          walk(node.id, areaId, depth + 1);
-          if (studyNodeStatus(node) === 'studying' && queue.length === before) {
-            const progress = progressOf(node, new Set());
-            queue.push(
-              `${path(node)}${progress !== undefined ? ` (${Math.round(progress * 100)}% feito)` : ''}`,
-            );
-          }
-        }
-      };
-      for (const area of areas) walk(null, area.id, 0);
+      // The plan only covers Data Science - other areas (chess...) stay out.
+      const ctx = this.planContext(this.dataScienceAreaIds());
       const dashboard = this.academy.dashboard();
-      const reviews = this.academy
-        .dueTopicReviews()
-        .slice(0, 30)
-        .map((review) => path(nodes.get(review.nodeId)))
-        .filter(Boolean);
-      const studying = queue.slice(0, 25);
-      const low = this.quizChart().low.map(
-        (row) => `${path(row.node)} - ${row.percent}%`,
-      );
       const library = await this.libraryRepo.exportProfile(this.selectedCharacterId());
       const pages = library.aggregates.reduce((sum, row) => sum + row.pages, 0);
       const minutes = library.aggregates.reduce((sum, row) => sum + row.minutes, 0);
       const speed = minutes ? pages / minutes : 0;
-      const isDataScience = (book: {
-        genre: string;
-        subgenres: string[];
-        tags: string[];
-      }) =>
-        [book.genre, ...book.subgenres, ...book.tags].some((value) =>
-          /data\s*science|ciencia de dados/i.test(
-            (value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, ''),
-          ),
-        );
       const reading = library.books
         .filter(
           (book) =>
             book.status === 'reading' &&
-            book.pages > book.currentPage &&
-            isDataScience(book),
+            // No page count yet (0) still counts as being read.
+            (!book.pages || book.pages > book.currentPage) &&
+            this.isDataScience([book.genre, ...book.subgenres, ...book.tags]),
         )
         .map((book) => {
+          if (!book.pages) return book.title;
           const left = book.pages - book.currentPage;
           return `${book.title}: faltam ${left} páginas${
             speed ? ` (~${Math.ceil(left / speed / 50)} blocos de 50 min)` : ''
           }`;
         });
-      const today = new Date();
+      const careerBudget = this.careerPlanMinutes();
+      const career = careerBudget ? this.careerActions() : [];
       const context = [
-        `Hoje: ${today.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })}`,
+        `DIAS DO PLANO (use estes rótulos, nesta ordem): ${ctx.weekDays.join(', ')}`,
         `TEMPO DISPONÍVEL: ${this.weekPlanMinutes()} min por dia (limite rígido - nenhum dia pode passar disso)`,
         `Estudo real recente: ~${Math.round(dashboard.weekMinutes / 7)} min/dia`,
-        `FILA DE ESTUDO - coluna "Estudando" do Kanban, já na ordem certa (siga esta ordem):\n${
-          studying.map((item, index) => `${index + 1}. ${item}`).join('\n') || 'nada'
+        `FILA DE ESTUDO - conteúdos concretos em andamento, já na ordem certa (siga esta ordem):\n${
+          ctx.studying.map((item, index) => `${index + 1}. ${item}`).join('\n') || 'nada'
         }`,
-        `REVISÕES PENDENTES - coluna "Revisando" (${reviews.length}):\n${
-          reviews.map((item) => `- ${item}`).join('\n') || 'nenhuma'
+        `REVISÕES - atrasadas e as que vencem nos dias do plano (${ctx.reviews.length}):\n${
+          ctx.reviews.map((item) => `- ${item}`).join('\n') || 'nenhuma'
         }`,
-        `Notas de quiz/prova abaixo de 70%: ${low.join('; ') || 'nenhuma'}`,
+        `Notas de quiz/prova abaixo de 70%: ${ctx.low.join('; ') || 'nenhuma'}`,
         `LIVROS DE DATA SCIENCE em andamento (só estes entram como leitura): ${
           reading.join('; ') || 'nenhum'
         }`,
+        `PLANO DE CARREIRA - tempo EXTRA de ${careerBudget} min por dia, fora do limite acima; próximas ações por prioridade:\n${
+          career.map((item, index) => `${index + 1}. ${item}`).join('\n') || 'nada'
+        }`,
       ].join('\n');
       const budget = this.weekPlanMinutes();
-      const generated = await this.academyAi.weekPlan(context, budget);
-      // Enforce the daily limit even if the model overshoots.
-      const days = (generated.days ?? []).map((day) => {
-        let used = 0;
-        const blocks = (day.blocks ?? []).filter((block) => {
-          const minutes = Math.max(0, Number(block.minutes) || 0);
-          if (used + minutes > budget) return false;
-          used += minutes;
-          return true;
-        });
-        return { ...day, blocks };
-      });
-      const plan = {
-        ...generated,
-        days,
-        generatedAt: Date.now(),
-      };
-      this.weekPlan.set(plan);
-      try {
-        localStorage.setItem(this.weekPlanKey(), JSON.stringify(plan));
-      } catch {}
+      const plan = this.trimPlan(
+        await this.academyAi.weekPlan(context, budget, careerBudget),
+        budget,
+        careerBudget,
+        ctx.dates,
+      );
+      this.savePlan('week', plan);
       this.weekPlanMessage.set('');
     } catch (e) {
       this.weekPlanMessage.set((e as Error).message);
     } finally {
       this.weekPlanBusy.set(false);
+    }
+  }
+
+  async generateOtherPlan(): Promise<void> {
+    const selected = this.otherPlanAreas().filter((area) =>
+      this.otherPlanSelected().has(area.id),
+    );
+    if (!selected.length) {
+      this.otherPlanMessage.set('Escolha pelo menos uma área para o plano.');
+      return;
+    }
+    this.otherPlanBusy.set(true);
+    this.otherPlanMessage.set('Montando o plano das outras áreas com IA...');
+    try {
+      const ctx = this.planContext(new Set(selected.map((area) => area.id)));
+      const context = [
+        `DIAS DO PLANO (use estes rótulos, nesta ordem): ${ctx.weekDays.join(', ')}`,
+        `TEMPO DISPONÍVEL: ${this.otherPlanMinutes()} min por dia (limite rígido - nenhum dia pode passar disso)`,
+        `ÁREAS DO PLANO: ${selected.map((area) => area.title).join(', ')}`,
+        `FILA DE ESTUDO - conteúdos concretos em andamento, já na ordem certa:\n${
+          ctx.studying.map((item, index) => `${index + 1}. ${item}`).join('\n') || 'nada'
+        }`,
+        `ÁREAS SEM NADA EM ANDAMENTO (sugira o que estudar):\n${
+          ctx.idleAreas
+            .map(
+              (area) =>
+                `- ${area.title}${
+                  area.backlog.length
+                    ? ` (já cadastrado no backlog: ${area.backlog.join('; ')})`
+                    : ''
+                }`,
+            )
+            .join('\n') || 'nenhuma'
+        }`,
+        `REVISÕES - atrasadas e as que vencem nos dias do plano (${ctx.reviews.length}):\n${
+          ctx.reviews.map((item) => `- ${item}`).join('\n') || 'nenhuma'
+        }`,
+        `Notas de quiz/prova abaixo de 70%: ${ctx.low.join('; ') || 'nenhuma'}`,
+        `FOCO E PREFERÊNCIAS DO ALUNO: ${this.otherPlanFocus().trim() || 'nenhuma'}`,
+      ].join('\n');
+      const budget = this.otherPlanMinutes();
+      const plan = this.trimPlan(
+        await this.academyAi.otherAreasWeekPlan(context, budget),
+        budget,
+        0,
+        ctx.dates,
+      );
+      this.savePlan('other', plan);
+      this.otherPlanMessage.set('');
+    } catch (e) {
+      this.otherPlanMessage.set((e as Error).message);
+    } finally {
+      this.otherPlanBusy.set(false);
     }
   }
 

@@ -52,7 +52,7 @@ const ACADEMY_RESET_KEY = 'academy-data-reset-2026-07-30-v2';
 export class AcademyStudyService {
   private readonly cloud = inject(CloudDomainSyncService);
   private cloudSaveTimer?: ReturnType<typeof setTimeout>;
-  private readonly profileId = signal('');
+  readonly profileId = signal('');
   readonly areas = signal<StudyArea[]>([]);
   readonly nodes = signal<StudyNode[]>([]);
   readonly dashboard = signal<AcademyDashboardSnapshot>(EMPTY_DASHBOARD);
@@ -441,6 +441,13 @@ export class AcademyStudyService {
       ),
     );
     this.nodes.update((nodes) => nodes.filter((node) => !idsToRemove.has(node.id)));
+    await Promise.all(
+      [...idsToRemove].map((id) => this.repository.deleteTopicReview(id)),
+    );
+    this.topicReviews.update((rows) =>
+      rows.filter((row) => !idsToRemove.has(row.nodeId)),
+    );
+    await this.refreshDashboard();
     this.queueCloudSave();
   }
 

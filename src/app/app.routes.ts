@@ -143,6 +143,15 @@ export const APP_ROUTES: Routes = [
     canActivate: [FocusOverlayOpenGuard],
   },
   {
+    path: 'work',
+    loadComponent: () =>
+      import('./features/work-agenda/work-agenda-page.component').then(
+        (m) => m.WorkAgendaPageComponent,
+      ),
+    data: { page: 'work' },
+    canActivate: [FocusOverlayOpenGuard],
+  },
+  {
     path: 'reports',
     loadComponent: () =>
       import('./features/rpg-reports/rpg-reports-page.component').then(

@@ -258,6 +258,11 @@
   strong {
     color: var(--rpg-gold);
   }
+
+  .negative-coins {
+    color: #ff6b6b;
+    font-weight: 700;
+  }
 }
 
 .hero-title {
@@ -1295,6 +1300,298 @@ input {
   grid-column: 1 / -1;
 }
 
+.missions-card {
+  grid-column: 1 / -1;
+
+  .mission-new {
+    margin-bottom: 12px;
+  }
+}
+
+.mission-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #68627e;
+  border-radius: 6px;
+  background: #191826;
+
+  .wide {
+    grid-column: 1 / -1;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: #aaa3c2;
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  input {
+    min-width: 0;
+  }
+
+  .edit-note {
+    color: #aaa3c2;
+    font-size: 10px;
+  }
+
+  .edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+}
+
+.mission-auto {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #464158;
+  border-radius: 6px;
+
+  legend {
+    padding: 0 4px;
+    color: var(--rpg-gold);
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  select,
+  input {
+    min-width: 0;
+  }
+
+  .mission-links {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+
+    small {
+      flex-basis: 100%;
+      color: #aaa3c2;
+      font-size: 10px;
+    }
+  }
+
+  .mission-link {
+    flex-direction: row;
+    gap: 5px;
+    align-items: center;
+    color: #f1edf9;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+}
+
+.mission-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    padding: 2px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+
+    &.selected {
+      border-color: var(--rpg-gold);
+    }
+  }
+
+  img {
+    display: block;
+    width: 32px;
+    height: 32px;
+    image-rendering: pixelated;
+  }
+}
+
+.mission-group-title {
+  margin: 14px 0 8px;
+  color: var(--rpg-gold);
+  font-family: monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.mission {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #68627e;
+  border-left: 4px solid var(--rpg-gold);
+  border-radius: 6px;
+  background: #191826;
+
+  &.is-complete {
+    border-color: var(--rpg-gold-dark);
+    border-left-color: #6cc35f;
+    opacity: 0.75;
+  }
+
+  .mission-icon {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    image-rendering: pixelated;
+  }
+
+  .mission-body {
+    display: grid;
+    flex: 1;
+    gap: 6px;
+    align-content: start;
+    min-width: 0;
+  }
+
+  header {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    justify-content: space-between;
+
+    strong {
+      color: #f1edf9;
+    }
+  }
+
+  .mission-tools {
+    display: flex;
+    flex: none;
+    margin: -6px -6px 0 0;
+  }
+
+  .mission-tools button,
+  .mission-undo {
+    width: 28px;
+    height: 28px;
+    padding: 2px;
+    color: #aaa3c2;
+
+    mat-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+    }
+  }
+
+  .mission-desc,
+  .mission-count {
+    color: #aaa3c2;
+    font-size: 11px;
+  }
+
+  .mission-count {
+    color: #9be59b;
+  }
+
+  .mission-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .mission-claim {
+    width: auto;
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  .stat-pill {
+    flex: none;
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+
+  .xp-pill {
+    border-color: rgba(108, 195, 95, 0.45);
+    color: #9be59b;
+  }
+
+  .xp-badge {
+    background: #1f5a2a;
+    color: #d3ffd3;
+  }
+
+  .mission-auto-hint {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    color: #a8d0ff;
+    font-family: monospace;
+    font-size: 11px;
+
+    mat-icon {
+      width: 14px;
+      height: 14px;
+      font-size: 14px;
+    }
+  }
+
+  .mission-done {
+    color: #9be59b;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+  }
+}
+
+.mission-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 2px 7px;
+    border: 1px solid #464158;
+    border-radius: 10px;
+    color: #6f6987;
+    font-family: monospace;
+    font-size: 10px;
+
+    &.reached {
+      border-color: var(--rpg-gold-dark);
+      background: rgba(246, 196, 83, 0.16);
+      color: var(--rpg-gold);
+      cursor: help;
+
+      &::before {
+        content: '✓ ';
+      }
+    }
+
+    &.next {
+      border-color: var(--rpg-gold);
+      color: #f1edf9;
+      font-weight: 700;
+    }
+  }
+}
+
 .contract-form {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1609,9 +1906,14 @@ input {
   text-transform: uppercase;
   cursor: pointer;
 
-  &:hover {
+  &:hover:not(:disabled) {
     border-color: var(--rpg-gold);
     filter: brightness(1.15);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 }
 
@@ -3638,5 +3940,22 @@ input {
 
   &.earned {
     color: #f6c453;
+  }
+}
+
+.escalation-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 12px;
+  color: #ffb3b3;
+  font-size: 12px;
+  line-height: 1.4;
+
+  mat-icon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
   }
 }

@@ -241,6 +241,10 @@ export class MainHeaderComponent implements OnDestroy {
     void this._router.navigate(['/career']);
   }
 
+  openWorkAgenda(): void {
+    void this._router.navigate(['/work']);
+  }
+
   openReports(): void {
     void this._router.navigate(['/reports']);
   }

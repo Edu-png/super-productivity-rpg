@@ -21,6 +21,7 @@ import { getTasksWithinAndBeyondBudget } from './get-tasks-within-and-beyond-bud
 import { dateStrToUtcDate } from '../../../util/date-str-to-utc-date';
 import { selectTaskRepeatCfgsForExactDay } from '../../task-repeat-cfg/store/task-repeat-cfg.selectors';
 import { wouldRepeatCfgOccurOnDay } from '../../task-repeat-cfg/store/would-repeat-cfg-occur-on-day.util';
+import { repeatCfgAsOfDay } from '../../task-repeat-cfg/repeat-cfg-schedule-history.util';
 import { Log } from '../../../core/log';
 
 type ScheduleFlowTask = TaskWithoutReminder | TaskWithPlannedForDayIndication;
@@ -110,12 +111,13 @@ export const createScheduleDays = (
     // "nothing due" once processing (e.g. skipOverdue) has advanced the cfg past
     // that day without ever creating an instance for it. The schedule view needs
     // to show what the routine's pattern actually called for regardless, so past
-    // days check the pattern directly instead (#past-days-vanish).
+    // days check the pattern directly instead (#past-days-vanish), using the
+    // routine as it was on that day.
     const nonScheduledRepeatCfgsDueOnDay =
       dayStartTime < todayStart
-        ? unScheduledTaskRepeatCfgs.filter((cfg) =>
-            wouldRepeatCfgOccurOnDay(cfg, startTime),
-          )
+        ? unScheduledTaskRepeatCfgs
+            .map((cfg) => repeatCfgAsOfDay(cfg, dayDate))
+            .filter((cfg) => wouldRepeatCfgOccurOnDay(cfg, startTime))
         : selectTaskRepeatCfgsForExactDay.projector(unScheduledTaskRepeatCfgs, {
             dayDate: startTime,
           });
@@ -165,7 +167,10 @@ export const createScheduleDays = (
       }
     }
     const fullyBeyondTasks = isSomeTimeLeftForLastOverBudget ? beyond.slice(1) : beyond;
-    const dayAssignedBeyondBudgetTasks = fullyBeyondTasks.filter(isDayAssignedTask);
+    // A done task needs no more time, so it never counts as "not fitting".
+    const dayAssignedBeyondBudgetTasks = fullyBeyondTasks.filter(
+      (task) => isDayAssignedTask(task) && !task.isDone,
+    );
     const nonSplitBeyondTasks = fullyBeyondTasks.filter(
       (task) => !isDayAssignedTask(task),
     );

@@ -258,6 +258,8 @@ export interface ElectronAPI {
   geminiGenerate(args: {
     parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>;
     json?: boolean;
+    /** Ground the answer on a Google Search (disables JSON mode). */
+    search?: boolean;
   }): Promise<{ ok: boolean; text: string; model?: string; error?: string }>;
   coverLookup(args: {
     kind: 'book' | 'game';

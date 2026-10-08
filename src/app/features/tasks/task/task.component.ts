@@ -203,6 +203,14 @@ export class TaskComponent implements OnDestroy, AfterViewInit {
 
   // Use shared signals from services to avoid creating 600+ subscriptions on initial render
   isCurrent = computed(() => this._taskService.currentTaskId() === this.task().id);
+  // A parent starts its first undone subtask, so it shows as running while one does.
+  isCurrentOrSubTaskCurrent = computed(() => {
+    const currentId = this._taskService.currentTaskId();
+    return (
+      currentId === this.task().id ||
+      (!!currentId && this.task().subTaskIds.includes(currentId))
+    );
+  });
   isSelected = computed(() => this._taskService.selectedTaskId() === this.task().id);
   isShowCloseButton = computed(() => {
     // Only show close button when task is selected AND not on mobile (bottom panel)

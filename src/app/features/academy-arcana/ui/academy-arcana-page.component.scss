@@ -1629,6 +1629,22 @@ textarea {
   gap: 6px;
 }
 
+.review-delay-rule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: #ff9b9b;
+  font-size: 12px;
+
+  mat-icon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
+}
+
 .review-area-title {
   margin: 8px 0 2px;
   padding-left: 8px;
@@ -1668,6 +1684,11 @@ textarea {
     &.overdue {
       color: #ef6a6a;
       font-weight: 700;
+    }
+
+    &.delay-xp {
+      color: #ff9b9b;
+      white-space: nowrap;
     }
   }
 }
@@ -2814,7 +2835,7 @@ textarea {
 
 .week-plan-days {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 
   section {
@@ -2849,13 +2870,218 @@ textarea {
     font-size: 10px;
   }
 
-  &.kind-revis�o {
+  &.kind-revisao {
     border-left-color: #e9b743;
   }
 
   &.kind-leitura {
     border-left-color: #3fbf8f;
   }
+
+  &.kind-sugestao {
+    border-left-color: #4fa3e0;
+  }
+
+  &.kind-carreira {
+    border-left-color: #d55181;
+    border-left-style: dashed;
+  }
+
+  .plan-hint {
+    color: #7fb6e6;
+    font-style: italic;
+  }
+}
+
+.week-goals {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #4a3f22;
+  background: rgba(246, 196, 83, 0.06);
+
+  > b {
+    color: #f6c453;
+    font-size: 15px;
+  }
+
+  label {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: #e4dff0;
+    cursor: pointer;
+  }
+
+  .done {
+    color: #8f88a8;
+    text-decoration: line-through;
+  }
+}
+
+.week-goals-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  progress {
+    flex: 1;
+    height: 10px;
+    accent-color: #f6c453;
+  }
+
+  small {
+    color: #f6c453;
+    font-weight: 700;
+  }
+}
+
+.week-balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 8px;
+  color: #a39cba;
+  font-size: 12px;
+
+  b {
+    color: #e4dff0;
+  }
+}
+
+.week-deficit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-left: 3px solid #e66767;
+  background: rgba(230, 103, 103, 0.08);
+  color: #e4dff0;
+  font-size: 12px;
+
+  span {
+    flex: 1 1 260px;
+  }
+
+  button {
+    padding: 3px 8px;
+    border: 1px solid #4a4560;
+    background: #1b1a29;
+    color: #e4dff0;
+    font-size: 11px;
+    cursor: pointer;
+  }
+}
+
+.plan-day-handle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  cursor: grab;
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    color: #6f6890;
+  }
+}
+
+.plan-day-blocks {
+  display: grid;
+  gap: 5px;
+  min-height: 40px;
+}
+
+.plan-block {
+  cursor: grab;
+
+  &.done {
+    opacity: 0.45;
+
+    .plan-block-title span {
+      text-decoration: line-through;
+    }
+  }
+}
+
+.plan-block-title {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+
+  input {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    margin: 2px 0 0;
+    cursor: pointer;
+  }
+}
+
+.week-plan-days .cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+.cdk-drag-preview.plan-block,
+.week-plan-days section.cdk-drag-preview {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.week-plan-days .cdk-drag-animating,
+.plan-day-blocks.cdk-drop-list-dragging .plan-block:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.day-balance {
+  color: #9d97b3;
+  font-size: 10px;
+}
+
+.other-plan-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  button {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding: 3px 9px 3px 5px;
+    border: 1px solid #3a3650;
+    background: #15141f;
+    color: #8f88a8;
+    font-size: 12px;
+    cursor: pointer;
+
+    &.selected {
+      border-color: #9670e7;
+      color: #e4dff0;
+    }
+
+    mat-icon {
+      width: 16px;
+      height: 16px;
+      font-size: 16px;
+    }
+  }
+}
+
+.other-plan-focus {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border: 1px solid #3a3650;
+  background: #11111c;
+  color: #e4dff0;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
 }
 
 .quiz-backdrop {
@@ -2883,10 +3109,54 @@ textarea {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   color: #e6e0f2;
 
+  &.wide {
+    width: min(960px, 100%);
+  }
+
   mat-icon {
     width: 18px;
     height: 18px;
     font-size: 18px;
+  }
+}
+
+.quiz-dropped {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #9d98ae;
+  font-size: 12px;
+}
+
+.quiz-code-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b99cff;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.quiz-solution {
+  margin-top: 4px;
+
+  summary {
+    color: #b99cff;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  pre {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    overflow-x: auto;
+    border-radius: 4px;
+    background: #0d0c15;
+    font:
+      12px/1.5 Consolas,
+      monospace;
   }
 }
 
@@ -3388,4 +3658,52 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+// Due flashcards counter next to the Grimório title.
+.due-count {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 10px;
+  border: 1px solid #b07cf0;
+  border-radius: 999px;
+  background: rgba(124, 77, 255, 0.18);
+  color: #e6dcff;
+  font:
+    700 13px/1.4 system-ui,
+    sans-serif;
+  font-style: normal;
+  vertical-align: middle;
+
+  &.clear {
+    border-color: #52df9d;
+    background: rgba(82, 223, 157, 0.12);
+    color: #52df9d;
+  }
+}
+
+.node-subtask {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  opacity: 0.75;
+  cursor: pointer;
+
+  mat-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
 }

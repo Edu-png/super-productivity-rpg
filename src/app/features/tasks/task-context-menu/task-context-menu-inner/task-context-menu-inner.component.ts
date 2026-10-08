@@ -512,8 +512,11 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
    * from the computer (e.g. reading before turning the PC on). It lands on the
    * task's own day (scheduled day, else the day it was done, else today) so
    * worklog and reports count it where it belongs.
+   * A parent's time spent is the sum of its subtasks', so for a parent the
+   * missing time goes to the subtasks: each one up to its own estimate, the
+   * rest onto the last subtask.
    */
-  completeEstimatedTime(): void {
+  async completeEstimatedTime(): Promise<void> {
     const missing = this.task.timeEstimate - this.task.timeSpent;
     if (missing <= 0) {
       return;
@@ -524,17 +527,36 @@ export class TaskContextMenuInnerComponent implements AfterViewInit, OnDestroy {
         (this.task.doneOn
           ? getDbDateStr(new Date(this.task.doneOn))
           : this._dateService.todayStr());
-    const timeSpentOnDay = this.task.timeSpentOnDay ?? {};
-    // Past days in the schedule mostly show archived tasks ("Finalizar o dia"),
-    // which a plain update can't reach - updateEverywhere handles both.
-    void this._taskService
-      .updateEverywhere(this.task.id, {
+    const addOnDay = (task: Task, ms: number): Promise<void> => {
+      const timeSpentOnDay = task.timeSpentOnDay ?? {};
+      // Past days in the schedule mostly show archived tasks ("Finalizar o dia"),
+      // which a plain update can't reach - updateEverywhere handles both.
+      return this._taskService.updateEverywhere(task.id, {
         timeSpentOnDay: {
           ...timeSpentOnDay,
-          [day]: (timeSpentOnDay[day] ?? 0) + missing,
+          [day]: (timeSpentOnDay[day] ?? 0) + ms,
         },
-      })
-      .then(() => this._worklogService.refreshWorklog());
+      });
+    };
+
+    if (this.task.subTaskIds.length) {
+      const subTasks = await Promise.all(
+        this.task.subTaskIds.map((id) => this._taskService.getByIdFromEverywhere(id)),
+      );
+      let rest = missing;
+      for (const [i, subTask] of subTasks.entries()) {
+        const isLast = i === subTasks.length - 1;
+        const share = isLast
+          ? rest
+          : Math.min(rest, Math.max(0, subTask.timeEstimate - subTask.timeSpent));
+        if (share > 0) {
+          await addOnDay(subTask, share);
+          rest -= share;
+        }
+      }
+    }
+    await addOnDay(this.task, missing);
+    this._worklogService.refreshWorklog();
   }
 
   setEstimate(ms: number): void {

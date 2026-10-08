@@ -1,3 +1,4 @@
+import { ReviewDelayStreak } from '../academy-arcana/domain/review-delay-penalty';
 import { CareerQuestState } from '../career-quest/career-quest.model';
 
 export type RpgAttributeId =
@@ -305,6 +306,68 @@ export interface RpgContract {
   finalProgress?: number;
 }
 
+export interface RpgMissionClaim {
+  at: number;
+  xp: number;
+  coins: number;
+}
+
+/**
+ * Self-reported mission that pays XP/coins when marked. With milestones it is
+ * an evolution line (3 → 7 → 14 dias...): each claim unlocks the next
+ * milestone and pays more. Without milestones it can be claimed any number of times.
+ */
+export interface RpgMission {
+  id: string;
+  title: string;
+  description: string;
+  /** File name (no extension) in assets/rpg/missions. */
+  icon: string;
+  /** Ascending milestones; empty = repeatable mission. */
+  stages: number[];
+  unit: string;
+  xpReward: number;
+  coinsReward: number;
+  /** One entry per milestone reached (or per completion, if repeatable). */
+  claims: RpgMissionClaim[];
+  createdAt: number;
+  /** When set, progress is computed from the app's own data and milestones are claimed automatically. */
+  auto?: RpgMissionAuto;
+}
+
+/**
+ * Where an automatic mission reads its progress from. Each day gets a score
+ * (done/total), summed per period; a period counts when it reaches the threshold.
+ */
+export interface RpgMissionAuto {
+  /**
+   * habits: the listed habits marked as done (every habit of the day when empty) ·
+   * noPenalty: none of the listed penalties applied (any dungeon penalty when empty) ·
+   * hours: time tracked on tasks in `scope` ·
+   * work: Agenda de Trabalho facts, see `workMetric`.
+   */
+  source: 'habits' | 'noPenalty' | 'hours' | 'work';
+  /**
+   * work only - dailyGoal: day with 6h of estimated cards finished ·
+   * reviewCleared: day the "Revisão" column was emptied ·
+   * urgentWeek: week that closed its urgent cards and ended with none open.
+   */
+  workMetric?: 'dailyGoal' | 'reviewCleared' | 'urgentWeek';
+  /** Habit or penalty ids, depending on source. */
+  ids: string[];
+  /** hours only: 'all' | 'project:<id>' | 'tag:<id>'. */
+  scope?: string;
+  period: 'day' | 'week' | 'month';
+  /** Share of the period that must be done (1 = all of it); 0 = at least one. */
+  threshold: number;
+  /** streak: periods in a row (a miss resets) · total: every period since `since`. */
+  count: 'streak' | 'total';
+  /** Repeatable missions only: earned once every this many periods. */
+  every: number;
+  /** YYYY-MM-DD - nothing before this day counts. */
+  since: string;
+}
+
 export interface RpgMonthlyMedalConfig {
   habitIds: string[];
   targetDays: number;
@@ -378,11 +441,14 @@ export interface RpgProfileState {
   /** Real money (R$) already moved into the punishment savings box. Pending = owed - transferred. */
   penaltyMoneyTransferred?: number;
   contracts?: RpgContract[];
+  missions?: RpgMission[];
   weeklyReviews?: Record<string, RpgWeeklyReview>;
   /** Career Quest progress (levels, evidence, quests) for this character. */
   careerQuest?: CareerQuestState;
   /** Dated record of every manual penalty application (for the reports tab). Starts empty on older states. */
   penaltyLog?: RpgPenaltyLogEntry[];
+  /** Open late streaks of Academia topic reviews, by node id - see reviewDelayCharges. */
+  reviewDelayStreaks?: Record<string, ReviewDelayStreak>;
   /** Dated record of every "Marquei como separado" transfer into the punishment savings box. */
   penaltyMoneyTransfers?: { at: number; amount: number }[];
   inventory: RpgItem[];
@@ -535,7 +601,7 @@ export interface RpgPenalty {
   // `xpLoss * timesApplied`. Missing on older entries - see penaltyAppliedTotals().
   xpLossApplied?: number;
   coinsLossApplied?: number;
-  /** Timestamps of this week's applications - each repeat in the same week costs one more multiple (1x, 2x, 3x...). */
+  /** Legacy: escalation now reads the dated penaltyLog (see penaltyMultiplier). */
   weekAppliedAt?: number[];
   /** Set for the hidden penalty created when a contract is lost. */
   sourceContractId?: string;

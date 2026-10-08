@@ -1,7 +1,13 @@
 import { Task } from '../tasks/task.model';
-import { RpgContract, RpgMedalTier, RpgPenalty } from './rpg-profile.model';
+import {
+  RpgContract,
+  RpgMedalTier,
+  RpgPenalty,
+  RpgPenaltyLogEntry,
+} from './rpg-profile.model';
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 /** Local Monday 00:00 of the week containing `now`. */
 export const startOfWeekMs = (now: number): number => {
@@ -12,10 +18,40 @@ export const startOfWeekMs = (now: number): number => {
   return date.getTime();
 };
 
-/** How many times a penalty was already applied in the current week. */
-export const penaltyWeekCount = (penalty: RpgPenalty, now: number): number => {
-  const weekStart = startOfWeekMs(now);
-  return (penalty.weekAppliedAt ?? []).filter((at) => at >= weekStart).length;
+/** Recidivism escalation of a penalty - see penaltyMultiplier. */
+export const PENALTY_ESCALATION = {
+  base: 1.3,
+  windowDays: 30,
+  maxMultiplier: 5,
+};
+
+/**
+ * How much heavier the next application is, from the previous ones in the
+ * last 30 days. Each one compounds ×1.3; one from the last 3 days counts
+ * 1.5 steps and one from the last 24h counts 2, so repeating often and close
+ * together escalates much faster than an isolated slip. Capped at ×5.
+ */
+export const penaltyMultiplier = (
+  penalty: RpgPenalty,
+  log: RpgPenaltyLogEntry[],
+  now: number,
+): number => {
+  let steps = 0;
+  for (const entry of log) {
+    if (entry.penaltyId !== penalty.id) continue;
+    const ageDays = (now - entry.at) / DAY_MS;
+    if (ageDays < 0 || ageDays > PENALTY_ESCALATION.windowDays) continue;
+    steps += 1 + proximityBonus(ageDays);
+  }
+  const raw = PENALTY_ESCALATION.base ** steps;
+  const multiplier = Math.round(raw * 100) / 100;
+  return Math.min(PENALTY_ESCALATION.maxMultiplier, multiplier);
+};
+
+const proximityBonus = (ageDays: number): number => {
+  if (ageDays <= 1) return 1;
+  if (ageDays <= 3) return 0.5;
+  return 0;
 };
 
 /**

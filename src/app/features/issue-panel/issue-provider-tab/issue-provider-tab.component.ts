@@ -108,7 +108,20 @@ export class IssueProviderTabComponent implements OnDestroy, AfterViewInit {
   issueProvider$ = toObservable(this.issueProvider);
 
   searchText = signal('');
-  searchTxt$ = toObservable(this.searchText);
+
+  // GitHub: with an empty box, list every open issue; "Só as minhas" narrows
+  // it to the ones assigned to the token's user (remembered per provider).
+  isGitHub = computed(() => /github/i.test(this.issueProvider().issueProviderKey));
+  onlyMine = signal(false);
+  private _effectiveSearch = computed(() => {
+    const text = this.searchText().trim();
+    if (!this.isGitHub()) return this.searchText();
+    const hasState = /(is|state):(open|closed|all)/i.test(text);
+    return [text, hasState ? '' : 'is:open', this.onlyMine() ? 'assignee:@me' : '']
+      .filter(Boolean)
+      .join(' ');
+  });
+  searchTxt$ = toObservable(this._effectiveSearch);
 
   useAgendaView = computed(
     () =>
@@ -222,6 +235,16 @@ export class IssueProviderTabComponent implements OnDestroy, AfterViewInit {
       }, 500);
     }
     this.searchText.set(this.issueProvider().pinnedSearch || '');
+    this.onlyMine.set(localStorage.getItem(this._onlyMineKey()) === '1');
+  }
+
+  setOnlyMine(value: boolean): void {
+    this.onlyMine.set(value);
+    localStorage.setItem(this._onlyMineKey(), value ? '1' : '0');
+  }
+
+  private _onlyMineKey(): string {
+    return `sp-issue-only-mine:${this.issueProvider().id}`;
   }
 
   ngOnDestroy(): void {

@@ -19,6 +19,9 @@ export const adjustToLiveFormlyForm = (
       item.type === 'input' ||
       item.type === 'textarea' ||
       item.type === 'duration' ||
+      // Saving a native time input on every keystroke re-renders it mid-typing
+      // and garbles the value (typing "21:30" ended up as "01:03").
+      item.type === 'time' ||
       item.type === 'icon' ||
       item.type === 'color'
     ) {

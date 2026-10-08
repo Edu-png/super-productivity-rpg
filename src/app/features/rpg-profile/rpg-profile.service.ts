@@ -1,5 +1,7 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { TaskService } from '../tasks/task.service';
+import { ReviewDelayStreak } from '../academy-arcana/domain/review-delay-penalty';
+import type { WorkDayStats } from '../work-agenda/work-agenda.util';
 import { LS } from '../../core/persistence/storage-keys.const';
 import {
   DisciplineDay,
@@ -16,6 +18,8 @@ import {
   RpgPet,
   RpgPetStage,
   RpgContract,
+  RpgMission,
+  RpgMissionAuto,
   RpgPenalty,
   RpgPetType,
   RpgWeeklyReview,
@@ -66,8 +70,24 @@ import {
   contractProgress,
   MEDAL_TIER_EXTRA,
   medalTierFor,
-  startOfWeekMs,
+  penaltyMultiplier,
 } from './rpg-contracts.util';
+import {
+  isMissionComplete,
+  isMissionRepeatable,
+  missionAutoFromTemplate,
+  missionNextReward,
+  RPG_MISSION_SEEDS,
+  RPG_WORK_MISSION_SEEDS,
+} from './rpg-missions.data';
+import {
+  DayScore,
+  missionAutoRepeats,
+  missionAutoValue,
+  missionRuns,
+  trackedHoursSince,
+  workDayScore,
+} from './rpg-mission-progress';
 
 const RPG_REALM_BY_ID = new Map(RPG_REALMS.map((realm) => [realm.id, realm]));
 
@@ -307,6 +327,8 @@ const STARTER_RING: RpgItem = {
 };
 
 const PET_COMPANION_ID = 'active-pet-companion';
+/** Hidden penalty that accumulates the XP lost to overdue Academia reviews. */
+export const REVIEW_DELAY_PENALTY_ID = 'academy-review-delay';
 /** XP/coins actually deducted by a penalty so far; older entries predate the running totals. */
 const penaltyAppliedTotals = (penalty: RpgPenalty): { xp: number; coins: number } => ({
   xp: penalty.xpLossApplied ?? penalty.xpLoss * (penalty.timesApplied ?? 0),
@@ -441,6 +463,10 @@ export class RpgProfileService {
   private _tasksLoaded = false;
 
   readonly state = this._state;
+  /** Per-day facts from the Agenda de Trabalho (pushed by WorkAgendaService), by character. */
+  private readonly _workDayStats = signal<Record<string, Record<string, WorkDayStats>>>(
+    {},
+  );
   readonly characters = computed(() => Object.values(this._roster().characters));
   readonly activeCharacterId = computed(() => this._roster().activeCharacterId);
   /** Task id -> id of the character it was credited to (done or failed). */
@@ -728,14 +754,14 @@ export class RpgProfileService {
     const range = this.nextLevelXp() - this.levelStartXp();
     return range ? ((this.totalXp() - this.levelStartXp()) / range) * 100 : 0;
   });
-  readonly coins = computed(() =>
-    Math.max(
-      0,
+  // Can go negative: a penalty bigger than the balance leaves a debt that new
+  // earnings pay off first.
+  readonly coins = computed(
+    () =>
       Math.floor(this._weightedTaskTotals().gold * 0.1) +
-        this._state().questBonusCoins -
-        this._state().coinsSpent -
-        this._penaltyCoins(),
-    ),
+      this._state().questBonusCoins -
+      this._state().coinsSpent -
+      this._penaltyCoins(),
   );
   readonly availableSkillPoints = computed(() =>
     Math.max(0, this.level() - 1 - this._state().skillPointsSpent),
@@ -1239,9 +1265,13 @@ export class RpgProfileService {
     effect(() => {
       this._habitTracker.state();
       this._state();
+      this._tasks();
       if (!this._hydrated()) return;
       queueMicrotask(() =>
         untracked(() => {
+          this._linkMissionAutoOnce();
+          this._addWorkMissionsOnce();
+          this._autoClaimMissions();
           this._seedMonthlyMedalHistory();
           this.claimAvailableTrophies();
           this._resolveContracts();
@@ -1663,14 +1693,11 @@ export class RpgProfileService {
       return;
     }
     const applied = penaltyAppliedTotals(penalty);
-    // Repeating the same penalty within a week escalates it: the nth
-    // application this week costs n times the base values.
+    // Repeating the same penalty escalates it - see penaltyMultiplier.
     const now = Date.now();
-    const weekStart = startOfWeekMs(now);
-    const thisWeek = (penalty.weekAppliedAt ?? []).filter((at) => at >= weekStart);
-    const multiplier = thisWeek.length + 1;
-    const addedXp = penalty.xpLoss * multiplier;
-    const addedCoins = penalty.coinsLoss * multiplier;
+    const multiplier = penaltyMultiplier(penalty, state.penaltyLog ?? [], now);
+    const addedXp = Math.round(penalty.xpLoss * multiplier);
+    const addedCoins = Math.round(penalty.coinsLoss * multiplier);
     const addedMoney = (penalty.moneyLoss ?? 0) * multiplier;
     this._save({
       ...state,
@@ -1693,10 +1720,72 @@ export class RpgProfileService {
               timesApplied: (item.timesApplied ?? 0) + 1,
               xpLossApplied: applied.xp + addedXp,
               coinsLossApplied: applied.coins + addedCoins,
-              weekAppliedAt: [...thisWeek, now],
             }
           : item,
       ),
+    });
+  }
+
+  /** Pushed rather than injected: WorkAgendaService already depends on this service. */
+  setWorkDayStats(characterId: string, stats: Record<string, WorkDayStats>): void {
+    this._workDayStats.update((all) => ({ ...all, [characterId]: stats }));
+  }
+
+  reviewDelayStreaks(characterId: string): Record<string, ReviewDelayStreak> {
+    return this._roster().characters[characterId]?.reviewDelayStreaks ?? {};
+  }
+
+  /**
+   * Deducts the XP of overdue Academia reviews from a character (see
+   * reviewDelayCharges), plus the same amount in coins, through one hidden
+   * penalty, logging each charge so it shows up in the reports.
+   */
+  chargeReviewDelays(
+    characterId: string,
+    streaks: Record<string, ReviewDelayStreak>,
+    charges: { days: number; xp: number }[],
+  ): void {
+    const state = this._roster().characters[characterId];
+    if (!state) return;
+    const xp = charges.reduce((sum, charge) => sum + charge.xp, 0);
+    const days = charges.reduce((sum, charge) => sum + charge.days, 0);
+    const now = Date.now();
+    const existing = state.penalties.find((item) => item.id === REVIEW_DELAY_PENALTY_ID);
+    const penalty: RpgPenalty = existing ?? {
+      id: REVIEW_DELAY_PENALTY_ID,
+      title: 'Revisões atrasadas na Academia',
+      xpLoss: 0,
+      coinsLoss: 0,
+      createdAt: now,
+      timesApplied: 0,
+      xpLossApplied: 0,
+      coinsLossApplied: 0,
+    };
+    const charged: RpgPenalty = {
+      ...penalty,
+      timesApplied: (penalty.timesApplied ?? 0) + days,
+      xpLossApplied: penaltyAppliedTotals(penalty).xp + xp,
+      coinsLossApplied: penaltyAppliedTotals(penalty).coins + xp,
+    };
+    this._save({
+      ...state,
+      reviewDelayStreaks: streaks,
+      penalties: existing
+        ? state.penalties.map((item) => (item.id === charged.id ? charged : item))
+        : [...state.penalties, charged],
+      penaltyLog: xp
+        ? [
+            ...(state.penaltyLog ?? []),
+            {
+              penaltyId: REVIEW_DELAY_PENALTY_ID,
+              title: `Revisões atrasadas (${days} dia${days === 1 ? '' : 's'}-tópico)`,
+              at: now,
+              xp,
+              coins: xp,
+              money: 0,
+            },
+          ]
+        : state.penaltyLog,
     });
   }
 
@@ -1798,6 +1887,253 @@ export class RpgProfileService {
         item.id === contractId && item.status === 'active' && item.metric === 'manual'
           ? { ...item, manualProgress: Math.max(0, item.manualProgress + delta) }
           : item,
+      ),
+    });
+  }
+
+  saveMission(
+    input: Pick<
+      RpgMission,
+      | 'title'
+      | 'description'
+      | 'icon'
+      | 'stages'
+      | 'unit'
+      | 'xpReward'
+      | 'coinsReward'
+      | 'auto'
+    >,
+    missionId?: string,
+  ): void {
+    if (!input.title.trim()) {
+      return;
+    }
+    const state = this._state();
+    const fields = {
+      ...input,
+      title: input.title.trim(),
+      description: input.description.trim(),
+      unit: input.unit.trim(),
+      stages: [...new Set(input.stages.filter((stage) => stage > 0))].sort(
+        (a, b) => a - b,
+      ),
+      xpReward: Math.max(0, Math.round(input.xpReward)),
+      coinsReward: Math.max(0, Math.round(input.coinsReward)),
+    };
+    const missions = state.missions ?? [];
+    this._save({
+      ...state,
+      missions: missionId
+        ? missions.map((item) => (item.id === missionId ? { ...item, ...fields } : item))
+        : [
+            ...missions,
+            { ...fields, id: crypto.randomUUID(), claims: [], createdAt: Date.now() },
+          ],
+    });
+  }
+
+  removeMission(missionId: string): void {
+    const state = this._state();
+    this._save({
+      ...state,
+      missions: (state.missions ?? []).filter((item) => item.id !== missionId),
+    });
+  }
+
+  /** Marks the next milestone (or one more completion) and pays its reward. */
+  claimMission(missionId: string): void {
+    const state = this._state();
+    const mission = (state.missions ?? []).find((item) => item.id === missionId);
+    if (!mission || isMissionComplete(mission)) {
+      return;
+    }
+    const reward = missionNextReward(mission);
+    const inventoryBeforeRewards = new Set(state.inventory.map((item) => item.id));
+    this._save({
+      ...state,
+      questBonusXp: state.questBonusXp + reward.xp,
+      questBonusCoins: state.questBonusCoins + reward.coins,
+      missions: (state.missions ?? []).map((item) =>
+        item.id === missionId
+          ? { ...item, claims: [...item.claims, { at: Date.now(), ...reward }] }
+          : item,
+      ),
+    });
+    this._grantLevelRewards(inventoryBeforeRewards);
+  }
+
+  /**
+   * Live progress of every automatic mission: `value` is the current streak or
+   * total (hours for the hours source), `repeats` how many times a repeatable
+   * mission has been earned so far.
+   */
+  readonly missionAutoProgress = computed(() => {
+    const state = this._state();
+    const progress = new Map<string, { value: number; repeats: number }>();
+    const autoMissions = (state.missions ?? []).filter((mission) => mission.auto);
+    if (!autoMissions.length) return progress;
+    this._habitTracker.state();
+    const tasks = this._tasks();
+    const today = getDbDateStr();
+    const dungeonPenaltyIds = new Set(this._missionPenalties(state).map((p) => p.id));
+    const penaltyDays = new Map<string, Set<string>>();
+    for (const entry of state.penaltyLog ?? []) {
+      const day = getDbDateStr(entry.at);
+      penaltyDays.set(day, (penaltyDays.get(day) ?? new Set()).add(entry.penaltyId));
+    }
+    for (const mission of autoMissions) {
+      const auto = mission.auto as RpgMissionAuto;
+      if (auto.source === 'hours') {
+        const hours = trackedHoursSince(tasks, auto.scope, auto.since);
+        progress.set(mission.id, {
+          value: Math.floor(hours * 10) / 10,
+          repeats: Math.floor(hours / Math.max(1, auto.every)),
+        });
+        continue;
+      }
+      const runs = missionRuns(auto, today, (day) =>
+        this._missionDayScore(auto, day, today, state.id, penaltyDays, dungeonPenaltyIds),
+      );
+      progress.set(mission.id, {
+        value: missionAutoValue(auto, runs),
+        repeats: missionAutoRepeats(auto, runs, auto.every),
+      });
+    }
+    return progress;
+  });
+
+  private _missionDayScore(
+    auto: RpgMissionAuto,
+    day: string,
+    today: string,
+    characterId: string,
+    penaltyDays: Map<string, Set<string>>,
+    dungeonPenaltyIds: Set<string>,
+  ): DayScore {
+    if (auto.source === 'work') {
+      return workDayScore(auto.workMetric, this._workDayStats()[characterId]?.[day], day);
+    }
+    if (auto.source === 'noPenalty') {
+      // A day only counts as clean once it is over.
+      if (day >= today) return { done: 0, total: 0 };
+      const applied = [...(penaltyDays.get(day) ?? [])];
+      const broken = applied.some((id) =>
+        auto.ids.length ? auto.ids.includes(id) : dungeonPenaltyIds.has(id),
+      );
+      return { done: broken ? 0 : 1, total: 1 };
+    }
+    const habits = this._habitTracker
+      .habitsForDate(day, [characterId])
+      .filter((habit) => !auto.ids.length || auto.ids.includes(habit.id));
+    return {
+      done: habits.filter((habit) => this._habitTracker.isComplete(habit.id, day)).length,
+      total: habits.length,
+    };
+  }
+
+  /** Penalties the player defined in the dungeon (not the automatic ones). */
+  private _missionPenalties(state: RpgProfileState): RpgPenalty[] {
+    return state.penalties.filter(
+      (p) =>
+        !p.sourceTaskId &&
+        !p.sourceContractId &&
+        p.id !== REVIEW_DELAY_PENALTY_ID &&
+        !p.title.startsWith('Não concluída: '),
+    );
+  }
+
+  /** Pays every milestone / repetition an automatic mission has reached but not received yet. */
+  private _autoClaimMissions(): void {
+    const state = this._state();
+    const progress = this.missionAutoProgress();
+    if (!progress.size) return;
+    const now = Date.now();
+    let xp = 0;
+    let coins = 0;
+    const missions = (state.missions ?? []).map((mission) => {
+      const current = progress.get(mission.id);
+      if (!current) return mission;
+      const target = isMissionRepeatable(mission)
+        ? current.repeats
+        : mission.stages.filter((stage) => stage <= current.value).length;
+      let next = mission;
+      while (next.claims.length < target) {
+        const reward = missionNextReward(next);
+        xp += reward.xp;
+        coins += reward.coins;
+        next = { ...next, claims: [...next.claims, { at: now, ...reward }] };
+      }
+      return next;
+    });
+    if (!xp && !coins && missions.every((m, i) => m === state.missions?.[i])) return;
+    const inventoryBeforeRewards = new Set(state.inventory.map((item) => item.id));
+    this._save({
+      ...state,
+      missions,
+      questBonusXp: state.questBonusXp + xp,
+      questBonusCoins: state.questBonusCoins + coins,
+    });
+    this._grantLevelRewards(inventoryBeforeRewards);
+  }
+
+  // Adds the Agenda de Trabalho missions once per character (skipping titles it
+  // already has), counting from the day they are added.
+  private _addWorkMissionsOnce(): void {
+    const state = this._state();
+    const flag = `rpg-work-missions-v1:${state.id}`;
+    if (!state.missions || localStorage.getItem(flag)) return;
+    localStorage.setItem(flag, String(Date.now()));
+    const titles = new Set(state.missions.map((mission) => mission.title));
+    const since = getDbDateStr();
+    const added = RPG_WORK_MISSION_SEEDS.filter((seed) => !titles.has(seed.title)).map(
+      (seed) => ({
+        ...seed,
+        auto: { ...seed.auto, since },
+        id: crypto.randomUUID(),
+        claims: [],
+        createdAt: Date.now(),
+      }),
+    );
+    if (added.length) this._save({ ...state, missions: [...state.missions, ...added] });
+  }
+
+  // Links the example missions to this character's habits/penalties once,
+  // counting from today. Waits until the habits have loaded, since most links
+  // need them; missions the player already set up are left alone.
+  private _linkMissionAutoOnce(): void {
+    const state = this._state();
+    const flag = `rpg-missions-auto-link-v1:${state.id}`;
+    if (!state.missions?.length || localStorage.getItem(flag)) return;
+    const habits = this._habitTracker.habitsForCharacters([state.id]);
+    if (!habits.length) return;
+    localStorage.setItem(flag, String(Date.now()));
+    const penalties = this._missionPenalties(state);
+    const since = getDbDateStr();
+    let changed = false;
+    const missions = state.missions.map((mission) => {
+      if (mission.auto) return mission;
+      const auto = missionAutoFromTemplate(mission.title, habits, penalties, since);
+      if (!auto) return mission;
+      changed = true;
+      return { ...mission, auto };
+    });
+    if (changed) this._save({ ...state, missions });
+  }
+
+  /** Takes back the last claim of a mission (marked by mistake). */
+  undoMissionClaim(missionId: string): void {
+    const state = this._state();
+    const mission = (state.missions ?? []).find((item) => item.id === missionId);
+    const last = mission?.claims.at(-1);
+    if (!mission || !last) {
+      return;
+    }
+    this._save({
+      ...state,
+      questBonusXp: state.questBonusXp - last.xp,
+      questBonusCoins: state.questBonusCoins - last.coins,
+      missions: (state.missions ?? []).map((item) =>
+        item.id === missionId ? { ...item, claims: item.claims.slice(0, -1) } : item,
       ),
     });
   }
@@ -4263,6 +4599,7 @@ export class RpgProfileService {
     this._healPhantomDefaultCharacter();
     this._runEmergencyRecoveryOnce();
     this._seedRewardsAndPenaltiesOnce();
+    this._seedMissionsOnce();
     this._healLeakedMonthlyMedalHistory();
     this._creditAugustCodificadorOnce();
     this._hydrated.set(true);
@@ -4329,6 +4666,23 @@ export class RpgProfileService {
       ...state,
       rewards: [...state.rewards, ...newRewards],
       penalties: [...state.penalties, ...newPenalties],
+    });
+  }
+
+  // Example missions for a character that has never had the missions board
+  // (missions undefined); deleting them all later leaves [] and never re-seeds.
+  private _seedMissionsOnce(): void {
+    const state = this._state();
+    if (!state || state.missions) return;
+    const createdAt = Date.now();
+    this._save({
+      ...state,
+      missions: RPG_MISSION_SEEDS.map((seed) => ({
+        ...seed,
+        id: crypto.randomUUID(),
+        claims: [],
+        createdAt,
+      })),
     });
   }
 

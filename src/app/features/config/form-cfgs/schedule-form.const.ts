@@ -81,5 +81,35 @@ export const SCHEDULE_FORM_CFG: ConfigFormSection<ScheduleConfig> = {
         },
       },
     },
+    {
+      key: 'sleepStart',
+      type: 'time',
+      templateOptions: {
+        required: true,
+        label: 'Início do sono',
+        description:
+          'Período de sono sombreado na agenda semanal (pode passar da meia-noite).',
+      },
+      validators: {
+        validTimeString: (c: { value: string | undefined }) => {
+          return isValidSplitTime(c.value);
+        },
+      },
+    },
+    {
+      key: 'sleepEnd',
+      type: 'time',
+      templateOptions: {
+        required: true,
+        label: 'Fim do sono',
+        description:
+          'Período de sono sombreado na agenda semanal (pode passar da meia-noite).',
+      },
+      validators: {
+        validTimeString: (c: { value: string | undefined }) => {
+          return isValidSplitTime(c.value);
+        },
+      },
+    },
   ],
 };

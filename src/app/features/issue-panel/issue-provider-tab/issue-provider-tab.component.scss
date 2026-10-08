@@ -81,3 +81,27 @@ header {
     opacity: 1;
   }
 }
+
+.mine-filter {
+  display: flex;
+  gap: 6px;
+  margin: -4px 0 8px;
+
+  button {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--separator-color, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+
+    &.active {
+      border-color: var(--c-primary, #6495ed);
+      color: var(--c-primary, #6495ed);
+      font-weight: 600;
+    }
+  }
+}

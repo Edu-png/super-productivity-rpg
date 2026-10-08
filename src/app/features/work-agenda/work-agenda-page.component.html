@@ -1,0 +1,1969 @@
+<div class="page">
+  <header class="banner">
+    <h1><mat-icon>work</mat-icon> Agenda de Trabalho</h1>
+    <p>
+      Cards do GitHub/GitLab e criados aqui. Arraste entre as colunas, clique para abrir e
+      anotar, e use o botão direito para colocar um card num bloco de trabalho de hoje.
+    </p>
+  </header>
+
+  <section class="hero-bar">
+    <div>
+      <small>HERÓI DO TRABALHO</small>
+      <strong
+        >Quadro, anotações e o XP dos cards concluídos ficam neste personagem</strong
+      >
+    </div>
+    <div
+      class="character-cards"
+      role="radiogroup"
+      aria-label="Herói do trabalho"
+    >
+      @for (character of profile.characters(); track character.id) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="character.id === profile.activeCharacterId()"
+          [class.active]="character.id === profile.activeCharacterId()"
+          (click)="selectCharacter(character.id)"
+        >
+          <character-renderer
+            [appearance]="character.appearance"
+            [species]="character.speciesId"
+            [characterClass]="character.classId"
+            [compact]="true"
+            [portrait]="true"
+            [headerIcon]="true"
+          />
+          <span
+            ><b>{{ character.displayName }}</b
+            ><small>{{ character.speciesId }} · {{ character.classId }}</small></span
+          >
+          <mat-icon>{{
+            character.id === profile.activeCharacterId()
+              ? 'check_circle'
+              : 'radio_button_unchecked'
+          }}</mat-icon>
+        </button>
+      }
+    </div>
+  </section>
+
+  <nav class="view-tabs">
+    <button
+      type="button"
+      [class.active]="view() === 'board'"
+      (click)="view.set('board')"
+    >
+      <mat-icon>view_kanban</mat-icon> Quadro
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'day'"
+      (click)="view.set('day')"
+    >
+      <mat-icon>today</mat-icon> Dia
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'projects'"
+      (click)="view.set('projects')"
+    >
+      <mat-icon>folder_special</mat-icon> Projetos
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'hours'"
+      (click)="view.set('hours')"
+    >
+      <mat-icon>timer</mat-icon> Horas
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'suggestions'"
+      (click)="view.set('suggestions')"
+    >
+      <mat-icon>auto_awesome</mat-icon> Sugestões IA
+    </button>
+  </nav>
+
+  @if (view() === 'day') {
+    @let list = dayList();
+    <section class="day-view">
+      <article class="panel">
+        <header class="panel-head">
+          <h2>{{ listMode() === 'day' ? listDayLabel() : listMonthLabel() }}</h2>
+          <div class="list-mode">
+            <button
+              type="button"
+              [class.active]="listMode() === 'day'"
+              (click)="listMode.set('day')"
+            >
+              Dia
+            </button>
+            <button
+              type="button"
+              [class.active]="listMode() === 'month'"
+              (click)="listMode.set('month')"
+            >
+              Mês
+            </button>
+          </div>
+          @if (listMode() === 'month') {
+            <div class="day-nav">
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Mês anterior"
+                (click)="shiftListMonth(-1)"
+              >
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Próximo mês"
+                (click)="shiftListMonth(1)"
+              >
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <div class="day-nav">
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Dia anterior"
+                (click)="shiftListDay(-1)"
+              >
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <input
+                type="date"
+                [ngModel]="listDay()"
+                (ngModelChange)="$event && listDay.set($event)"
+                aria-label="Dia da lista"
+              />
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Próximo dia"
+                (click)="shiftListDay(1)"
+              >
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+              @if (listDay() !== today) {
+                <button
+                  type="button"
+                  (click)="listDay.set(today)"
+                >
+                  Hoje
+                </button>
+              }
+            </div>
+          }
+        </header>
+
+        <div class="company-filter day-filter">
+          <button
+            type="button"
+            [class.active]="companyFilter() === 'all'"
+            (click)="setCompanyFilter('all')"
+          >
+            Todas
+          </button>
+          @for (company of agenda.companies(); track company.id) {
+            <button
+              type="button"
+              [class.active]="companyFilter() === company.id"
+              [style.--company-color]="company.color"
+              class="company-btn"
+              (click)="setCompanyFilter(company.id)"
+            >
+              {{ company.name }}
+            </button>
+          }
+          <button
+            type="button"
+            [class.active]="companyFilter() === 'none'"
+            (click)="setCompanyFilter('none')"
+          >
+            Sem categoria
+          </button>
+        </div>
+
+        @if (listMode() === 'month') {
+          @let month = monthList();
+          <div class="day-meta month-meta">
+            <span
+              ><b>{{ month.total }}</b> tarefas</span
+            >
+            <span
+              ><b>{{ month.done }}</b> concluídas</span
+            >
+          </div>
+          @for (group of month.days; track group.day) {
+            <button
+              type="button"
+              class="month-day"
+              [class.today]="group.day === today"
+              (click)="openListDay(group.day)"
+            >
+              {{ weekdayLabel(group.day) }}
+            </button>
+            @for (card of group.cards; track card.task.id) {
+              <div
+                class="day-row"
+                [class.done]="card.task.isDone"
+                [style.--company-color]="card.company?.color ?? '#464660'"
+              >
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="day-check"
+                  [attr.aria-label]="card.task.isDone ? 'Reabrir' : 'Concluir'"
+                  (click)="toggleDone(card)"
+                >
+                  <mat-icon>{{
+                    card.task.isDone ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  class="day-title"
+                  (click)="open(card)"
+                >
+                  {{ card.task.title }}
+                </button>
+                <span class="chips">
+                  @if (card.company) {
+                    <span class="chip company">{{ card.company.name }}</span>
+                  }
+                  @if (card.project) {
+                    <span class="chip">{{ card.project.name }}</span>
+                  }
+                  @if (priorityOf(card); as priority) {
+                    <span
+                      class="chip priority"
+                      [style.--priority-color]="priority.color"
+                      >{{ priority.label }}</span
+                    >
+                  }
+                  <span
+                    class="chip day-dates"
+                    [class.overdue]="isOverdue(card.task)"
+                    >{{ cardDates(card) }}</span
+                  >
+                </span>
+              </div>
+            }
+            @for (entry of group.archived; track entry.taskId) {
+              <div class="day-row done archived">
+                <mat-icon class="day-archived-icon">check_circle</mat-icon>
+                <span class="day-title">{{ entry.title }}</span>
+                <span class="chips">
+                  @if (companyName(entry.companyId); as company) {
+                    <span class="chip company">{{ company }}</span>
+                  }
+                  <span class="chip day-dates">concluída {{ formatDay(entry.day) }}</span>
+                </span>
+              </div>
+            }
+          } @empty {
+            <p class="empty">
+              Nenhuma tarefa planejada, com prazo ou concluída neste mês.
+            </p>
+          }
+        } @else {
+          <div class="day-summary">
+            <div class="hero-number">
+              <strong>{{ minutesLabel(list.doneMin) }}</strong>
+              <span>de {{ minutesLabel(GOAL_MIN) }} concluídas</span>
+            </div>
+            <div class="day-meta">
+              <span
+                ><b>{{
+                  list.planned.length + list.overdue.length + list.deadline.length
+                }}</b>
+                abertas</span
+              >
+              <span
+                ><b>{{ minutesLabel(list.plannedMin) }}</b> planejadas</span
+              >
+              <span
+                ><b>{{ list.done.length + list.archivedDone.length }}</b> feitas</span
+              >
+            </div>
+          </div>
+          <div class="goal-bar">
+            <span [style.width.%]="list.donePct"></span>
+          </div>
+
+          <form
+            class="day-add"
+            (ngSubmit)="addDayTask()"
+          >
+            <input
+              name="dayTaskTitle"
+              [(ngModel)]="dayTaskTitle"
+              placeholder="Nova tarefa para este dia (ex.: comprar remédios)"
+            />
+            <select
+              name="dayTaskCategoryId"
+              [(ngModel)]="dayTaskCategoryId"
+              aria-label="Categoria"
+            >
+              <option value="">Sem categoria</option>
+              @for (company of agenda.companies(); track company.id) {
+                <option [value]="company.id">{{ company.name }}</option>
+              }
+            </select>
+            <input
+              name="dayTaskEstimate"
+              type="number"
+              min="0"
+              step="5"
+              class="day-estimate"
+              [(ngModel)]="dayTaskEstimate"
+              placeholder="min"
+              aria-label="Estimativa em minutos"
+            />
+            <button
+              type="submit"
+              class="primary"
+            >
+              <mat-icon>add</mat-icon> Adicionar
+            </button>
+          </form>
+          @if (list.plannable.length) {
+            <form
+              class="day-plan"
+              (ngSubmit)="planIntoDay()"
+            >
+              <select
+                name="dayPlanTaskId"
+                [(ngModel)]="dayPlanTaskId"
+                aria-label="Card para planejar neste dia"
+              >
+                <option value="">Puxar um card do quadro para este dia...</option>
+                @for (card of list.plannable; track card.task.id) {
+                  <option [value]="card.task.id">
+                    {{ card.task.title
+                    }}{{ card.company ? ' · ' + card.company.name : '' }}
+                  </option>
+                }
+              </select>
+              <button
+                type="submit"
+                [disabled]="!dayPlanTaskId"
+              >
+                <mat-icon>event_available</mat-icon> Planejar
+              </button>
+            </form>
+          }
+
+          @if (list.overdue.length) {
+            <h3 class="day-group overdue">Atrasadas</h3>
+            @for (card of list.overdue; track card.task.id) {
+              <div
+                class="day-row"
+                [class.done]="card.task.isDone"
+                [style.--company-color]="card.company?.color ?? '#464660'"
+              >
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="day-check"
+                  [attr.aria-label]="card.task.isDone ? 'Reabrir' : 'Concluir'"
+                  (click)="toggleDone(card)"
+                >
+                  <mat-icon>{{
+                    card.task.isDone ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon>
+                </button>
+                @if (scheduledTime(card); as time) {
+                  <span class="day-time">{{ time }}</span>
+                }
+                <button
+                  type="button"
+                  class="day-title"
+                  (click)="open(card)"
+                >
+                  {{ card.task.title }}
+                </button>
+                <span class="chips">
+                  @if (card.company) {
+                    <span class="chip company">{{ card.company.name }}</span>
+                  }
+                  @if (card.project) {
+                    <span class="chip">{{ card.project.name }}</span>
+                  }
+                  @if (priorityOf(card); as priority) {
+                    <span
+                      class="chip priority"
+                      [style.--priority-color]="priority.color"
+                      >{{ priority.label }}</span
+                    >
+                  }
+                  @if (estimateLabel(card.task); as estimate) {
+                    <span class="chip"><mat-icon>schedule</mat-icon> {{ estimate }}</span>
+                  }
+                  <span
+                    class="chip day-dates"
+                    [class.overdue]="isOverdue(card.task)"
+                    [matTooltip]="'Criada em → concluída / prazo'"
+                    >{{ cardDates(card) }}</span
+                  >
+                </span>
+                @if (!card.task.isDone) {
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="day-postpone"
+                    matTooltip="Passar para o dia seguinte"
+                    aria-label="Passar para o dia seguinte"
+                    (click)="postpone(card)"
+                  >
+                    <mat-icon>redo</mat-icon>
+                  </button>
+                }
+              </div>
+            }
+          }
+          <h3 class="day-group">Planejadas</h3>
+          @for (card of list.planned; track card.task.id) {
+            <div
+              class="day-row"
+              [class.done]="card.task.isDone"
+              [style.--company-color]="card.company?.color ?? '#464660'"
+            >
+              <button
+                type="button"
+                mat-icon-button
+                class="day-check"
+                [attr.aria-label]="card.task.isDone ? 'Reabrir' : 'Concluir'"
+                (click)="toggleDone(card)"
+              >
+                <mat-icon>{{
+                  card.task.isDone ? 'check_circle' : 'radio_button_unchecked'
+                }}</mat-icon>
+              </button>
+              @if (scheduledTime(card); as time) {
+                <span class="day-time">{{ time }}</span>
+              }
+              <button
+                type="button"
+                class="day-title"
+                (click)="open(card)"
+              >
+                {{ card.task.title }}
+              </button>
+              <span class="chips">
+                @if (card.company) {
+                  <span class="chip company">{{ card.company.name }}</span>
+                }
+                @if (card.project) {
+                  <span class="chip">{{ card.project.name }}</span>
+                }
+                @if (priorityOf(card); as priority) {
+                  <span
+                    class="chip priority"
+                    [style.--priority-color]="priority.color"
+                    >{{ priority.label }}</span
+                  >
+                }
+                @if (estimateLabel(card.task); as estimate) {
+                  <span class="chip"><mat-icon>schedule</mat-icon> {{ estimate }}</span>
+                }
+                <span
+                  class="chip day-dates"
+                  [class.overdue]="isOverdue(card.task)"
+                  [matTooltip]="'Criada em → concluída / prazo'"
+                  >{{ cardDates(card) }}</span
+                >
+              </span>
+              @if (!card.task.isDone) {
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="day-postpone"
+                  matTooltip="Passar para o dia seguinte"
+                  aria-label="Passar para o dia seguinte"
+                  (click)="postpone(card)"
+                >
+                  <mat-icon>redo</mat-icon>
+                </button>
+              }
+            </div>
+          } @empty {
+            <p class="empty">
+              Nada planejado. Adicione uma tarefa ou puxe um card do quadro.
+            </p>
+          }
+          @if (list.deadline.length) {
+            <h3 class="day-group">Com prazo neste dia</h3>
+            @for (card of list.deadline; track card.task.id) {
+              <div
+                class="day-row"
+                [class.done]="card.task.isDone"
+                [style.--company-color]="card.company?.color ?? '#464660'"
+              >
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="day-check"
+                  [attr.aria-label]="card.task.isDone ? 'Reabrir' : 'Concluir'"
+                  (click)="toggleDone(card)"
+                >
+                  <mat-icon>{{
+                    card.task.isDone ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon>
+                </button>
+                @if (scheduledTime(card); as time) {
+                  <span class="day-time">{{ time }}</span>
+                }
+                <button
+                  type="button"
+                  class="day-title"
+                  (click)="open(card)"
+                >
+                  {{ card.task.title }}
+                </button>
+                <span class="chips">
+                  @if (card.company) {
+                    <span class="chip company">{{ card.company.name }}</span>
+                  }
+                  @if (card.project) {
+                    <span class="chip">{{ card.project.name }}</span>
+                  }
+                  @if (priorityOf(card); as priority) {
+                    <span
+                      class="chip priority"
+                      [style.--priority-color]="priority.color"
+                      >{{ priority.label }}</span
+                    >
+                  }
+                  @if (estimateLabel(card.task); as estimate) {
+                    <span class="chip"><mat-icon>schedule</mat-icon> {{ estimate }}</span>
+                  }
+                  <span
+                    class="chip day-dates"
+                    [class.overdue]="isOverdue(card.task)"
+                    [matTooltip]="'Criada em → concluída / prazo'"
+                    >{{ cardDates(card) }}</span
+                  >
+                </span>
+                @if (!card.task.isDone) {
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="day-postpone"
+                    matTooltip="Passar para o dia seguinte"
+                    aria-label="Passar para o dia seguinte"
+                    (click)="postpone(card)"
+                  >
+                    <mat-icon>redo</mat-icon>
+                  </button>
+                }
+              </div>
+            }
+          }
+          @if (list.done.length || list.archivedDone.length) {
+            <h3 class="day-group">Concluídas</h3>
+            @for (card of list.done; track card.task.id) {
+              <div
+                class="day-row"
+                [class.done]="card.task.isDone"
+                [style.--company-color]="card.company?.color ?? '#464660'"
+              >
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="day-check"
+                  [attr.aria-label]="card.task.isDone ? 'Reabrir' : 'Concluir'"
+                  (click)="toggleDone(card)"
+                >
+                  <mat-icon>{{
+                    card.task.isDone ? 'check_circle' : 'radio_button_unchecked'
+                  }}</mat-icon>
+                </button>
+                @if (scheduledTime(card); as time) {
+                  <span class="day-time">{{ time }}</span>
+                }
+                <button
+                  type="button"
+                  class="day-title"
+                  (click)="open(card)"
+                >
+                  {{ card.task.title }}
+                </button>
+                <span class="chips">
+                  @if (card.company) {
+                    <span class="chip company">{{ card.company.name }}</span>
+                  }
+                  @if (card.project) {
+                    <span class="chip">{{ card.project.name }}</span>
+                  }
+                  @if (priorityOf(card); as priority) {
+                    <span
+                      class="chip priority"
+                      [style.--priority-color]="priority.color"
+                      >{{ priority.label }}</span
+                    >
+                  }
+                  @if (estimateLabel(card.task); as estimate) {
+                    <span class="chip"><mat-icon>schedule</mat-icon> {{ estimate }}</span>
+                  }
+                  <span
+                    class="chip day-dates"
+                    [class.overdue]="isOverdue(card.task)"
+                    [matTooltip]="'Criada em → concluída / prazo'"
+                    >{{ cardDates(card) }}</span
+                  >
+                </span>
+                @if (!card.task.isDone) {
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="day-postpone"
+                    matTooltip="Passar para o dia seguinte"
+                    aria-label="Passar para o dia seguinte"
+                    (click)="postpone(card)"
+                  >
+                    <mat-icon>redo</mat-icon>
+                  </button>
+                }
+              </div>
+            }
+            @for (entry of list.archivedDone; track entry.taskId) {
+              <div class="day-row done archived">
+                <mat-icon class="day-archived-icon">check_circle</mat-icon>
+                <span class="day-title">{{ entry.title }}</span>
+                <span class="chips">
+                  @if (companyName(entry.companyId); as company) {
+                    <span class="chip company">{{ company }}</span>
+                  }
+                  @if (entry.estimateMin) {
+                    <span class="chip"
+                      ><mat-icon>schedule</mat-icon>
+                      {{ minutesLabel(entry.estimateMin) }}</span
+                    >
+                  }
+                </span>
+              </div>
+            }
+          }
+        }
+      </article>
+    </section>
+  }
+
+  @if (view() === 'board') {
+    <section class="toolbar">
+      <label class="search">
+        <mat-icon>search</mat-icon>
+        <input
+          type="search"
+          placeholder="Buscar em títulos, anotações e texto das fotos..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+        />
+      </label>
+      <div class="company-filter">
+        <button
+          type="button"
+          [class.active]="companyFilter() === 'all'"
+          (click)="setCompanyFilter('all')"
+        >
+          Todas
+        </button>
+        @for (company of agenda.companies(); track company.id) {
+          <button
+            type="button"
+            [class.active]="companyFilter() === company.id"
+            [style.--company-color]="company.color"
+            class="company-btn"
+            (click)="setCompanyFilter(company.id)"
+          >
+            {{ company.name }}
+          </button>
+        }
+        <button
+          type="button"
+          [class.active]="companyFilter() === 'none'"
+          (click)="setCompanyFilter('none')"
+        >
+          Sem categoria
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          (click)="showCompanies.set(!showCompanies())"
+        >
+          <mat-icon>label</mat-icon> Categorias
+        </button>
+        <select
+          class="project-filter"
+          aria-label="Filtrar por projeto"
+          [ngModel]="projectFilter()"
+          (ngModelChange)="projectFilter.set($event)"
+        >
+          <option value="all">Todos os projetos</option>
+          @for (project of filterProjects(); track project.id) {
+            <option [value]="project.id">{{ project.name }}</option>
+          }
+          <option value="none">Sem projeto</option>
+        </select>
+      </div>
+      <form
+        class="new-card"
+        (ngSubmit)="addCard()"
+      >
+        <input
+          #newCardInput
+          name="newCardTitle"
+          [(ngModel)]="newCardTitle"
+          placeholder="Novo card..."
+        />
+        <select
+          name="newCardCompany"
+          [(ngModel)]="newCardCompanyId"
+          aria-label="Categoria do novo card"
+        >
+          <option value="">Sem categoria</option>
+          @for (company of agenda.companies(); track company.id) {
+            <option [value]="company.id">{{ company.name }}</option>
+          }
+        </select>
+        <select
+          name="newCardTemplate"
+          [(ngModel)]="newCardTemplate"
+          aria-label="Modelo do novo card"
+        >
+          <option value="">Sem modelo</option>
+          @for (template of TEMPLATES; track template.id) {
+            <option [value]="template.id">{{ template.label }}</option>
+          }
+        </select>
+        <button
+          type="submit"
+          class="primary"
+        >
+          <mat-icon>add</mat-icon> Card
+        </button>
+      </form>
+    </section>
+
+    @if (showCompanies() || !agenda.companies().length) {
+      <section class="companies">
+        <strong>Categorias</strong>
+        @if (!agenda.companies().length) {
+          <small
+            >Cadastre categorias (as empresas em que você trabalha, Pessoal, Casa...) para
+            organizar os cards.</small
+          >
+        }
+        @for (company of agenda.companies(); track company.id) {
+          <span class="company-row">
+            <input
+              type="color"
+              [value]="company.color"
+              (change)="
+                agenda.updateCompany(company.id, { color: $any($event.target).value })
+              "
+              [attr.aria-label]="'Cor de ' + company.name"
+            />
+            <input
+              [value]="company.name"
+              (change)="
+                agenda.updateCompany(company.id, { name: $any($event.target).value })
+              "
+              [attr.aria-label]="'Nome de ' + company.name"
+            />
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Remover categoria"
+              (click)="removeCompany(company.id, company.name)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </span>
+        }
+        <form
+          class="company-add"
+          (ngSubmit)="addCompany()"
+        >
+          <input
+            name="newCompanyName"
+            [(ngModel)]="newCompanyName"
+            placeholder="Nome da categoria"
+          />
+          <button type="submit">Adicionar</button>
+        </form>
+      </section>
+    }
+  }
+
+  @if (message()) {
+    <p class="message">{{ message() }}</p>
+  }
+
+  @if (view() === 'board') {
+    <div
+      class="board"
+      cdkDropListGroup
+    >
+      @for (column of columns(); track column.id) {
+        <section
+          class="column"
+          [class.done]="column.id === 'done'"
+        >
+          <h2>
+            {{ column.title }} <span class="count">{{ column.rows.length }}</span>
+          </h2>
+          <div
+            class="column-list"
+            cdkDropList
+            [cdkDropListData]="columnCards(column.rows)"
+            (cdkDropListDropped)="drop($event, column.id)"
+          >
+            @for (row of column.rows; track row.card.task.id) {
+              @let card = row.card;
+              @let priority = priorityOf(card);
+              <article
+                class="card"
+                cdkDrag
+                [cdkDragData]="card"
+                [class.selected]="selectedTaskId() === card.task.id"
+                [style.--company-color]="card.company?.color ?? '#464660'"
+                (click)="open(card)"
+                (contextmenu)="openMenu($event, card)"
+              >
+                <div class="card-top">
+                  <mat-icon
+                    class="source"
+                    [matTooltip]="
+                      card.source === 'manual'
+                        ? 'Criado aqui'
+                        : card.source === 'gitlab'
+                          ? 'GitLab'
+                          : 'GitHub'
+                    "
+                    >{{ card.source === 'manual' ? 'edit_note' : 'code' }}</mat-icon
+                  >
+                  <strong>{{ card.task.title }}</strong>
+                </div>
+                @if (row.match) {
+                  <small class="match">Encontrado em {{ row.match }}</small>
+                }
+                <div class="chips">
+                  @if (card.company) {
+                    <span class="chip company">{{ card.company.name }}</span>
+                  }
+                  @if (priority) {
+                    <span
+                      class="chip priority"
+                      [style.--priority-color]="priority.color"
+                      >{{ priority.label }}</span
+                    >
+                  }
+                  @if (estimateLabel(card.task); as estimate) {
+                    <span class="chip"><mat-icon>schedule</mat-icon> {{ estimate }}</span>
+                  }
+                  @if (card.task.deadlineDay) {
+                    <span
+                      class="chip"
+                      [class.overdue]="isOverdue(card.task)"
+                      ><mat-icon>event</mat-icon>
+                      {{ formatDay(card.task.deadlineDay) }}</span
+                    >
+                  }
+                  @if (card.notes.length) {
+                    <span class="chip"
+                      ><mat-icon>sticky_note_2</mat-icon> {{ card.notes.length }}</span
+                    >
+                  }
+                  @if (card.attachmentCount) {
+                    <span class="chip"
+                      ><mat-icon>attach_file</mat-icon> {{ card.attachmentCount }}</span
+                    >
+                  }
+                </div>
+                @if (card.parentTitle) {
+                  <small class="block"
+                    ><mat-icon>push_pin</mat-icon> {{ card.parentTitle }}</small
+                  >
+                }
+              </article>
+            } @empty {
+              <p class="empty">Arraste cards para cá.</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    <section class="stats">
+      <div class="panel day-panel">
+        <header class="panel-head">
+          <h2>
+            Resumo do dia
+            @if (filterLabel()) {
+              <span class="filter-tag">{{ filterLabel() }}</span>
+            }
+          </h2>
+          <div class="day-nav">
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Dia anterior"
+              (click)="shiftSelectedDay(-1)"
+            >
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <input
+              type="date"
+              [max]="today"
+              [ngModel]="selectedDay()"
+              (ngModelChange)="$event && selectedDay.set($event)"
+              aria-label="Dia selecionado"
+            />
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Próximo dia"
+              [disabled]="selectedDay() >= today"
+              (click)="shiftSelectedDay(1)"
+            >
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        </header>
+        @let stats = selectedDayStats();
+        <div class="day-summary">
+          <div class="hero-number">
+            <strong>{{ minutesLabel(stats.minutes) }}</strong>
+            <span>de {{ minutesLabel(GOAL_MIN) }} estimadas</span>
+          </div>
+          <div class="day-meta">
+            <span
+              ><b>{{ stats.entries.length }}</b>
+              {{ stats.entries.length === 1 ? 'card' : 'cards' }}</span
+            >
+            <span
+              ><b>{{ stats.pct }}%</b> da meta</span
+            >
+          </div>
+        </div>
+        <div
+          class="goal-bar"
+          role="progressbar"
+          [attr.aria-valuenow]="stats.pct"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span [style.width.%]="stats.pct"></span>
+        </div>
+        <ul class="done-list">
+          @for (entry of stats.entries; track $index) {
+            <li>
+              <mat-icon>check_circle</mat-icon>
+              <span class="done-title">{{ entry.title }}</span>
+              @if (companyName(entry.companyId); as company) {
+                <small class="done-company">{{ company }}</small>
+              }
+              <small>{{
+                entry.estimateMin ? minutesLabel(entry.estimateMin) : 'sem estimativa'
+              }}</small>
+            </li>
+          } @empty {
+            <li class="empty">Nenhum card concluído neste dia.</li>
+          }
+        </ul>
+      </div>
+
+      <div class="panel heat-panel">
+        <header class="panel-head">
+          <h2>
+            Cards concluídos por dia
+            @if (filterLabel()) {
+              <span class="filter-tag">{{ filterLabel() }}</span>
+            }
+          </h2>
+          <small class="panel-sub">último ano</small>
+        </header>
+        <div class="heatmap">
+          <span class="heat-corner"></span>
+          @for (label of WEEKDAY_LABELS; track $index) {
+            <span class="weekday-label">{{ label }}</span>
+          }
+          @for (week of heatmap().weeks; track $index; let w = $index) {
+            <span class="month-label">{{ heatmap().months[w] }}</span>
+            @for (cell of week; track $index) {
+              @if (cell.day) {
+                <button
+                  type="button"
+                  class="heat-cell"
+                  [class.selected]="cell.day === selectedDay()"
+                  [attr.data-level]="cell.level"
+                  [matTooltip]="
+                    cell.count +
+                    (cell.count === 1 ? ' card em ' : ' cards em ') +
+                    formatDay(cell.day)
+                  "
+                  [attr.aria-label]="cell.count + ' cards em ' + formatDay(cell.day)"
+                  (click)="selectedDay.set(cell.day)"
+                ></button>
+              } @else {
+                <span class="heat-cell future"></span>
+              }
+            }
+          }
+        </div>
+        <div class="heat-legend">
+          <span>Menos</span>
+          @for (level of [0, 1, 2, 3, 4]; track level) {
+            <span
+              class="heat-cell"
+              [attr.data-level]="level"
+            ></span>
+          }
+          <span>Mais</span>
+        </div>
+      </div>
+
+      <div class="panel minutes-panel">
+        <header class="panel-head">
+          <h2>
+            Minutos estimados concluídos
+            @if (filterLabel()) {
+              <span class="filter-tag">{{ filterLabel() }}</span>
+            }
+          </h2>
+          <small class="panel-sub"
+            >últimos 14 dias úteis · meta {{ minutesLabel(GOAL_MIN) }}/dia</small
+          >
+        </header>
+        @let bars = minuteBars();
+        <div class="minute-chart">
+          <div class="plot">
+            <div
+              class="goal-line"
+              [style.bottom.%]="bars.goalPct"
+            >
+              <span>meta {{ minutesLabel(GOAL_MIN) }}</span>
+            </div>
+            @for (bar of bars.rows; track bar.day) {
+              <button
+                type="button"
+                class="bar-slot"
+                [class.selected]="bar.day === selectedDay()"
+                [matTooltip]="
+                  formatDay(bar.day) +
+                  ': ' +
+                  minutesLabel(bar.minutes) +
+                  ' / ' +
+                  minutesLabel(GOAL_MIN)
+                "
+                [attr.aria-label]="formatDay(bar.day) + ': ' + bar.minutes + ' minutos'"
+                (click)="selectedDay.set(bar.day)"
+              >
+                <span
+                  class="bar"
+                  [class.met]="bar.minutes >= GOAL_MIN"
+                  [class.zero]="!bar.minutes"
+                  [style.height.%]="bar.pct"
+                ></span>
+              </button>
+            }
+          </div>
+          <div class="x-labels">
+            @for (bar of bars.rows; track bar.day) {
+              <span [class.selected]="bar.day === selectedDay()">{{
+                formatDay(bar.day)
+              }}</span>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (view() === 'projects') {
+    <section class="projects">
+      <p class="suggestions-intro">
+        Projetos de cada categoria. Ligue um projeto ao repositório do GitHub/GitLab e os
+        cards dele entram no projeto sozinhos; cards criados à mão você escolhe no painel
+        do card.
+      </p>
+      @for (company of agenda.companies(); track company.id) {
+        <article
+          class="panel company-projects"
+          [style.--company-color]="company.color"
+        >
+          <header class="panel-head">
+            <h2><span class="company-dot"></span>{{ company.name }}</h2>
+            <small class="panel-sub">{{ projectsOf(company.id).length }} projetos</small>
+          </header>
+          <div class="project-grid">
+            @for (project of projectsOf(company.id); track project.id) {
+              @let stats = projectStats(project.id);
+              <div class="project">
+                @if (editingProjectId() === project.id) {
+                  <input
+                    [(ngModel)]="projectEdit.name"
+                    aria-label="Nome do projeto"
+                  />
+                  <textarea
+                    rows="3"
+                    [(ngModel)]="projectEdit.description"
+                    placeholder="Descrição: objetivo, stack, o que falta..."
+                  ></textarea>
+                  @if (gitRepos().length) {
+                    <div class="repo-links">
+                      <small>Repositórios ligados</small>
+                      @for (repo of gitRepos(); track repo.id) {
+                        <label>
+                          <input
+                            type="checkbox"
+                            [checked]="projectEdit.repos.includes(repo.id)"
+                            (change)="
+                              projectEdit.repos = toggleRepo(projectEdit.repos, repo.id)
+                            "
+                          />
+                          {{ repo.label }}
+                        </label>
+                      }
+                    </div>
+                  }
+                  <div class="suggestion-actions">
+                    <button
+                      type="button"
+                      (click)="editingProjectId.set(null)"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      class="primary"
+                      (click)="saveProjectEdit(project)"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                } @else {
+                  <div class="suggestion-top">
+                    <strong>{{ project.name }}</strong>
+                    <span class="project-tools">
+                      <button
+                        type="button"
+                        mat-icon-button
+                        aria-label="Editar projeto"
+                        (click)="startEditProject(project)"
+                      >
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button
+                        type="button"
+                        mat-icon-button
+                        aria-label="Remover projeto"
+                        (click)="removeProject(project)"
+                      >
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    </span>
+                  </div>
+                  @if (project.description) {
+                    <p>{{ project.description }}</p>
+                  }
+                  <div class="chips">
+                    <span class="chip"
+                      ><b>{{ stats.open }}</b
+                      >&nbsp;abertos</span
+                    >
+                    <span class="chip"
+                      ><b>{{ stats.done }}</b
+                      >&nbsp;concluídos</span
+                    >
+                    @if (stats.openMin) {
+                      <span class="chip"
+                        ><mat-icon>schedule</mat-icon>
+                        {{ minutesLabel(stats.openMin) }} em aberto</span
+                      >
+                    }
+                    @for (repoId of project.issueProviderIds; track repoId) {
+                      <span class="chip"
+                        ><mat-icon>code</mat-icon> {{ repoLabel(repoId) }}</span
+                      >
+                    }
+                  </div>
+                  <div class="suggestion-actions">
+                    <button
+                      type="button"
+                      (click)="showProjectOnBoard(project)"
+                    >
+                      <mat-icon>view_kanban</mat-icon> Ver no quadro
+                    </button>
+                    <button
+                      type="button"
+                      (click)="view.set('suggestions')"
+                    >
+                      <mat-icon>auto_awesome</mat-icon> Sugestões
+                    </button>
+                    <button
+                      type="button"
+                      [class.active]="chatProjectId() === project.id"
+                      (click)="toggleChat(project.id)"
+                    >
+                      <mat-icon>forum</mat-icon> Perguntar
+                    </button>
+                  </div>
+                  @if (chatProjectId() === project.id) {
+                    @let chat = agenda.board()?.projectChats?.[project.id] ?? [];
+                    <div class="project-chat">
+                      @for (message of chat.slice(-6); track message.id) {
+                        <div class="chat-q">{{ message.question }}</div>
+                        <div class="chat-a">{{ message.answer }}</div>
+                      } @empty {
+                        <small class="panel-sub"
+                          >Pergunte sobre decisões, o que foi feito, quando algo
+                          mudou...</small
+                        >
+                      }
+                      <form
+                        class="chat-form"
+                        (ngSubmit)="askProject(project.id)"
+                      >
+                        <input
+                          name="chatQuestion"
+                          [(ngModel)]="chatQuestion"
+                          placeholder="Ex.: o que decidimos sobre o cache?"
+                        />
+                        <button
+                          type="submit"
+                          class="primary"
+                          [disabled]="
+                            !gemini.configured() || agenda.askRunning().has(project.id)
+                          "
+                        >
+                          {{ agenda.askRunning().has(project.id) ? '...' : 'Perguntar' }}
+                        </button>
+                      </form>
+                      @if (chat.length) {
+                        <button
+                          type="button"
+                          class="link-btn"
+                          (click)="agenda.clearProjectChat(project.id)"
+                        >
+                          Limpar conversa
+                        </button>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            }
+            @let draft = projectDraft(company.id);
+            <form
+              class="project project-new"
+              (ngSubmit)="addProject(company.id)"
+            >
+              <strong>Novo projeto</strong>
+              <input
+                name="name"
+                [(ngModel)]="draft.name"
+                placeholder="Nome do projeto"
+              />
+              <textarea
+                name="description"
+                rows="2"
+                [(ngModel)]="draft.description"
+                placeholder="Descrição (ajuda a IA a sugerir melhor)"
+              ></textarea>
+              @if (gitRepos().length) {
+                <div class="repo-links">
+                  <small>Ligar repositórios</small>
+                  @for (repo of gitRepos(); track repo.id) {
+                    <label>
+                      <input
+                        type="checkbox"
+                        [checked]="draft.repos.includes(repo.id)"
+                        (change)="draft.repos = toggleRepo(draft.repos, repo.id)"
+                      />
+                      {{ repo.label }}
+                    </label>
+                  }
+                </div>
+              }
+              <button
+                type="submit"
+                class="primary"
+                [disabled]="!draft.name.trim()"
+              >
+                <mat-icon>add</mat-icon> Criar projeto
+              </button>
+            </form>
+          </div>
+        </article>
+      } @empty {
+        <p class="empty">
+          Cadastre as categorias no Quadro (botão "Categorias") para criar projetos.
+        </p>
+      }
+    </section>
+  }
+
+  @if (view() === 'hours') {
+    <section class="hours">
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Horas trabalhadas</h2>
+          <div class="day-nav">
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Mês anterior"
+              (click)="shiftMonth(-1)"
+            >
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <strong class="month-name">{{ hoursMonthLabel() }}</strong>
+            <button
+              type="button"
+              mat-icon-button
+              aria-label="Próximo mês"
+              (click)="shiftMonth(1)"
+            >
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+            <button
+              type="button"
+              [disabled]="!timesheet().rows.length"
+              (click)="exportTimesheetCsv()"
+            >
+              <mat-icon>download</mat-icon> CSV
+            </button>
+          </div>
+        </header>
+        <p class="hero-number">
+          <strong>{{ minutesLabel(timesheet().total) }}</strong>
+          <span>registradas nos cards em {{ hoursMonthLabel() }}</span>
+        </p>
+        @for (group of timesheet().groups; track group.id) {
+          <div
+            class="ts-company"
+            [style.--company-color]="group.color"
+          >
+            <div class="ts-row ts-company-row">
+              <span><span class="company-dot"></span>{{ group.name }}</span>
+              <strong>{{ minutesLabel(group.minutes) }}</strong>
+            </div>
+            @for (project of group.projects; track project.id) {
+              <details class="ts-project">
+                <summary class="ts-row">
+                  <span>{{ project.name }}</span>
+                  <span>{{ minutesLabel(project.minutes) }}</span>
+                </summary>
+                @for (row of project.rows; track row.taskId) {
+                  <div class="ts-row ts-card">
+                    <span>{{ row.title }}</span>
+                    <span>{{ minutesLabel(row.minutes) }}</span>
+                  </div>
+                }
+              </details>
+            }
+          </div>
+        } @empty {
+          <p class="empty">
+            Nenhum tempo registrado em cards neste mês. O tempo vem do cronômetro das
+            tarefas (botão play) - comece a registrar num card e ele aparece aqui.
+          </p>
+        }
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Precisão das estimativas</h2>
+          <small class="panel-sub"
+            >{{ accuracy().measured }} cards concluídos com estimativa e tempo</small
+          >
+        </header>
+        @if (accuracy().companies.length || accuracy().projects.length) {
+          <div class="accuracy-list">
+            @for (row of accuracy().projects; track row.key) {
+              <div class="accuracy-row">
+                <span
+                  ><b>{{ row.name || 'Projeto removido' }}</b> ·
+                  {{ row.count }} cards</span
+                >
+                <span
+                  class="ratio"
+                  [class.over]="row.ratio > 1.1"
+                  [class.under]="row.ratio < 0.9"
+                  >{{ accuracyText(row.ratio) }} ({{ row.ratio }}×)</span
+                >
+              </div>
+            }
+            @for (row of accuracy().companies; track row.key) {
+              <div class="accuracy-row company">
+                <span
+                  ><b>{{ row.name || 'Categoria removida' }}</b> (categoria) ·
+                  {{ row.count }} cards</span
+                >
+                <span
+                  class="ratio"
+                  [class.over]="row.ratio > 1.1"
+                  [class.under]="row.ratio < 0.9"
+                  >{{ accuracyText(row.ratio) }} ({{ row.ratio }}×)</span
+                >
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="empty">
+            Aparece depois de 3 cards concluídos (do mesmo projeto ou categoria) que
+            tenham estimativa e tempo registrado.
+          </p>
+        }
+      </article>
+    </section>
+  }
+
+  @if (view() === 'suggestions') {
+    <section class="suggestions">
+      <p class="suggestions-intro">
+        Para cada projeto, a IA lê a descrição e os cards dele (títulos, colunas,
+        urgência, prazos, anotações e o texto lido das fotos) e sugere o que implementar a
+        seguir. Uma sugestão pode virar card do projeto com os passos já anotados.
+      </p>
+      @if (!gemini.configured()) {
+        <p class="message">IA indisponível: {{ gemini.statusMessage() }}</p>
+      }
+      @for (company of agenda.companies(); track company.id) {
+        <article
+          class="panel company-suggestions"
+          [style.--company-color]="company.color"
+        >
+          <header class="panel-head">
+            <h2><span class="company-dot"></span>{{ company.name }}</h2>
+          </header>
+          @for (project of projectsOf(company.id); track project.id) {
+            @let set = agenda.board()?.suggestions?.[project.id];
+            @let running = agenda.suggestionsRunning().has(project.id);
+            <section class="project-suggestions">
+              <header class="project-suggestions-head">
+                <h3>{{ project.name }}</h3>
+                <div class="suggestion-head-actions">
+                  @if (set) {
+                    <small class="panel-sub"
+                      >gerado em {{ formatDateTime(set.generatedAt) }}</small
+                    >
+                  }
+                  <button
+                    type="button"
+                    class="primary"
+                    [disabled]="!gemini.configured() || running"
+                    (click)="generateSuggestions(project.id)"
+                  >
+                    <mat-icon>auto_awesome</mat-icon>
+                    {{
+                      running
+                        ? 'Analisando...'
+                        : set
+                          ? 'Gerar de novo'
+                          : 'Gerar sugestões'
+                    }}
+                  </button>
+                </div>
+              </header>
+              @if (set?.items?.length) {
+                <div class="suggestion-grid">
+                  @for (item of set!.items; track item.id) {
+                    <div class="suggestion">
+                      <div class="suggestion-top">
+                        <strong>{{ item.title }}</strong>
+                        <span
+                          class="chip effort"
+                          [attr.data-effort]="item.effort"
+                          >esforço {{ item.effort }}</span
+                        >
+                      </div>
+                      @if (item.summary) {
+                        <p>{{ item.summary }}</p>
+                      }
+                      @if (item.steps.length) {
+                        <ol>
+                          @for (step of item.steps; track $index) {
+                            <li>{{ step }}</li>
+                          }
+                        </ol>
+                      }
+                      @if (item.relatedCards.length) {
+                        <div class="chips">
+                          @for (related of item.relatedCards; track $index) {
+                            <span class="chip"
+                              ><mat-icon>link</mat-icon> {{ related }}</span
+                            >
+                          }
+                        </div>
+                      }
+                      <div class="suggestion-actions">
+                        <button
+                          type="button"
+                          (click)="createFromSuggestion(project.id, item)"
+                        >
+                          <mat-icon>add_task</mat-icon> Criar card
+                        </button>
+                        <button
+                          type="button"
+                          (click)="agenda.dismissSuggestion(project.id, item.id)"
+                        >
+                          Descartar
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else if (set) {
+                <p class="empty">
+                  Nenhuma sugestão pendente. Gere de novo quando tiver novidades.
+                </p>
+              } @else {
+                <p class="empty">
+                  Clique em "Gerar sugestões" para a IA analisar {{ project.name }}.
+                </p>
+              }
+            </section>
+          } @empty {
+            <p class="empty">
+              Nenhum projeto em {{ company.name }}. Crie na aba
+              <button
+                type="button"
+                class="link-btn"
+                (click)="view.set('projects')"
+              >
+                Projetos
+              </button>
+              para receber sugestões.
+            </p>
+          }
+        </article>
+      } @empty {
+        <p class="empty">
+          Cadastre as categorias no Quadro (botão "Categorias") para gerar sugestões.
+        </p>
+      }
+    </section>
+  }
+
+  <!-- Right-click menu, anchored at the mouse -->
+  <div
+    class="menu-anchor"
+    #menuTrigger="matMenuTrigger"
+    [matMenuTriggerFor]="cardMenu"
+    [style.left.px]="menuX"
+    [style.top.px]="menuY"
+  ></div>
+  <mat-menu #cardMenu="matMenu">
+    @if (menuCard(); as card) {
+      <button
+        mat-menu-item
+        (click)="open(card)"
+      >
+        <mat-icon>open_in_new</mat-icon> Abrir e anotar
+      </button>
+      @if (card.task.parentId) {
+        <button
+          mat-menu-item
+          (click)="agenda.removeFromBlock(card.task)"
+        >
+          <mat-icon>call_split</mat-icon> Tirar do bloco "{{ card.parentTitle }}"
+        </button>
+      } @else if (card.task.subTaskIds.length) {
+        <button
+          mat-menu-item
+          disabled
+        >
+          <mat-icon>block</mat-icon> Tem subtarefas: não pode virar subtarefa
+        </button>
+      } @else {
+        <button
+          mat-menu-item
+          [matMenuTriggerFor]="blockMenu"
+        >
+          <mat-icon>playlist_add</mat-icon> Colocar num bloco de hoje
+        </button>
+      }
+      <button
+        mat-menu-item
+        (click)="hideCard(card)"
+      >
+        <mat-icon>visibility_off</mat-icon> Tirar do Kanban
+      </button>
+    }
+  </mat-menu>
+  <mat-menu #blockMenu="matMenu">
+    @if (menuCard(); as card) {
+      @for (block of agenda.todayBlocks(); track block.id) {
+        @if (block.id !== card.task.id) {
+          <button
+            mat-menu-item
+            (click)="addToBlock(card, block.id, block.title)"
+          >
+            {{ block.title }}
+          </button>
+        }
+      } @empty {
+        <button
+          mat-menu-item
+          disabled
+        >
+          Nenhuma tarefa planejada para hoje
+        </button>
+      }
+    }
+  </mat-menu>
+
+  @if (selected(); as card) {
+    <aside
+      class="detail"
+      [style.top.px]="detailTop()"
+    >
+      <header>
+        <strong>{{ card.task.title }}</strong>
+        <button
+          type="button"
+          mat-icon-button
+          aria-label="Fechar"
+          (click)="selectedTaskId.set(null)"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      <div class="fields">
+        <label
+          >Categoria
+          <select
+            [ngModel]="card.company?.id ?? ''"
+            (ngModelChange)="agenda.setCompany(card.task.id, $event || undefined)"
+          >
+            <option value="">Sem categoria</option>
+            @for (company of agenda.companies(); track company.id) {
+              <option [value]="company.id">{{ company.name }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Projeto
+          <select
+            [ngModel]="card.project?.id ?? NO_PROJECT"
+            (ngModelChange)="agenda.setProject(card.task.id, $event)"
+          >
+            <option [value]="NO_PROJECT">Sem projeto</option>
+            @for (company of agenda.companies(); track company.id) {
+              @if (projectsOf(company.id).length) {
+                <optgroup [label]="company.name">
+                  @for (project of projectsOf(company.id); track project.id) {
+                    <option [value]="project.id">{{ project.name }}</option>
+                  }
+                </optgroup>
+              }
+            }
+          </select>
+        </label>
+        <label
+          >Urgência
+          <select
+            [ngModel]="card.meta?.priority ?? ''"
+            (ngModelChange)="agenda.setPriority(card.task.id, $event || undefined)"
+          >
+            <option value="">Sem urgência</option>
+            @for (priority of PRIORITIES; track priority.id) {
+              <option [value]="priority.id">{{ priority.label }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Estimativa (minutos)
+          <input
+            type="number"
+            min="0"
+            step="5"
+            [ngModel]="estimateMinutes(card.task)"
+            (change)="agenda.setEstimate(card.task.id, +$any($event.target).value)"
+          />
+        </label>
+        <label
+          >Planejado para
+          <input
+            type="date"
+            [ngModel]="plannedDayOf(card)"
+            (change)="
+              $any($event.target).value &&
+                agenda.planForDay(card.task.id, $any($event.target).value)
+            "
+          />
+        </label>
+        <label
+          >Conclusão até
+          <input
+            type="date"
+            [ngModel]="card.task.deadlineDay ?? ''"
+            (change)="agenda.setDeadline(card.task.id, $any($event.target).value || null)"
+          />
+        </label>
+      </div>
+      @if (estimateAdvice(card); as advice) {
+        <p class="estimate-advice"><mat-icon>insights</mat-icon> {{ advice }}</p>
+      }
+
+      <h3>Academia Arcana</h3>
+      <div class="academy-links">
+        @for (link of card.meta?.academyLinks ?? []; track link.nodeId) {
+          <div class="academy-link">
+            <div>
+              <strong>{{ link.title }}</strong>
+              @if (link.reason) {
+                <small>{{ link.reason }}</small>
+              }
+            </div>
+            <button
+              type="button"
+              (click)="reviewAcademyTopic(link.nodeId)"
+            >
+              <mat-icon>school</mat-icon> Revisar
+            </button>
+          </div>
+        }
+        @for (topic of academyMatches(card); track topic.id) {
+          <div class="academy-link local">
+            <div>
+              <strong>{{ topic.title }}</strong>
+              <small>{{ topic.areaTitle }} · mesmo assunto do card</small>
+            </div>
+            <button
+              type="button"
+              (click)="reviewAcademyTopic(topic.id)"
+            >
+              <mat-icon>school</mat-icon> Revisar
+            </button>
+          </div>
+        }
+        <button
+          type="button"
+          class="academy-ai"
+          [disabled]="
+            !gemini.configured() || agenda.academyLinkRunning().has(card.task.id)
+          "
+          (click)="linkAcademy(card)"
+        >
+          <mat-icon>auto_awesome</mat-icon>
+          {{
+            agenda.academyLinkRunning().has(card.task.id)
+              ? 'Procurando...'
+              : 'Relacionar com a Academia (IA)'
+          }}
+        </button>
+      </div>
+
+      @if (card.parentTitle) {
+        <p class="in-block">
+          <mat-icon>push_pin</mat-icon> Subtarefa de "{{ card.parentTitle }}"
+          <button
+            type="button"
+            (click)="agenda.removeFromBlock(card.task)"
+          >
+            Tirar do bloco
+          </button>
+        </p>
+      }
+
+      <h3>Anotações</h3>
+      <form
+        class="note-form"
+        (ngSubmit)="saveNote(card.task.id)"
+      >
+        <input
+          type="date"
+          name="noteDay"
+          [(ngModel)]="noteDay"
+          aria-label="Dia da anotação"
+        />
+        <textarea
+          name="noteText"
+          rows="4"
+          [(ngModel)]="noteText"
+          (paste)="onNotePaste($event)"
+          placeholder="Anotação do dia... (cole imagens aqui também)"
+        ></textarea>
+        @if (noteFiles.length) {
+          <div class="pending-files">
+            @for (file of noteFiles; track $index) {
+              <span class="chip"
+                >{{ file.name }}
+                <button
+                  type="button"
+                  aria-label="Tirar arquivo"
+                  (click)="removePendingFile(file)"
+                >
+                  ×
+                </button></span
+              >
+            }
+          </div>
+        }
+        <div class="note-actions">
+          <label class="file-btn">
+            <mat-icon>attach_file</mat-icon> Fotos e arquivos
+            <input
+              type="file"
+              multiple
+              (change)="onNoteFiles($event)"
+            />
+          </label>
+          <button
+            type="submit"
+            class="primary"
+            [disabled]="!noteText.trim() && !noteFiles.length"
+          >
+            Salvar anotação
+          </button>
+        </div>
+        @if (!gemini.configured()) {
+          <small class="hint"
+            >Leitura de texto das fotos (OCR) indisponível:
+            {{ gemini.statusMessage() }}</small
+          >
+        }
+      </form>
+
+      @for (note of card.notes; track note.id) {
+        <article class="note">
+          <header>
+            <strong>{{ formatDay(note.day) }}/{{ note.day.slice(0, 4) }}</strong>
+            <span>
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Editar anotação"
+                (click)="startEditNote(note)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+              <label
+                class="icon-file"
+                matTooltip="Anexar"
+              >
+                <mat-icon>attach_file</mat-icon>
+                <input
+                  type="file"
+                  multiple
+                  (change)="addFilesToNote(note, $event)"
+                />
+              </label>
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Apagar anotação"
+                (click)="deleteNote(note)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </span>
+          </header>
+          @if (editingNoteId() === note.id) {
+            <div class="note-edit">
+              <input
+                type="date"
+                [(ngModel)]="noteDraft.day"
+                aria-label="Dia da anotação"
+              />
+              <textarea
+                rows="4"
+                [(ngModel)]="noteDraft.text"
+                aria-label="Texto da anotação"
+              ></textarea>
+              <div class="note-actions">
+                <button
+                  type="button"
+                  (click)="editingNoteId.set(null)"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  class="primary"
+                  (click)="saveNoteEdit(note)"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          } @else if (note.text) {
+            <p class="note-text">{{ note.text }}</p>
+          }
+          @for (attachment of note.attachments; track attachment.id) {
+            <div class="attachment">
+              @if (attachment.mimeType.startsWith('image/')) {
+                <img
+                  [src]="attachment.dataUrl"
+                  [alt]="attachment.name"
+                  (click)="download(attachment)"
+                />
+              }
+              <div class="attachment-row">
+                <button
+                  type="button"
+                  class="link"
+                  (click)="download(attachment)"
+                >
+                  <mat-icon>download</mat-icon> {{ attachment.name }}
+                  <small>({{ sizeLabel(attachment.size) }})</small>
+                </button>
+                @if (isOcrable(attachment.mimeType)) {
+                  <button
+                    type="button"
+                    [disabled]="
+                      !gemini.configured() || agenda.ocrRunning().has(attachment.id)
+                    "
+                    (click)="agenda.runOcr(note.id, attachment.id)"
+                  >
+                    <mat-icon>document_scanner</mat-icon>
+                    {{
+                      agenda.ocrRunning().has(attachment.id)
+                        ? 'Lendo...'
+                        : attachment.ocrText !== undefined
+                          ? 'Ler de novo'
+                          : 'Ler texto'
+                    }}
+                  </button>
+                }
+                <button
+                  type="button"
+                  mat-icon-button
+                  aria-label="Remover anexo"
+                  (click)="removeAttachment(note, attachment)"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              @if (attachment.ocrError) {
+                <small class="ocr-error">OCR falhou: {{ attachment.ocrError }}</small>
+              }
+              @if (attachment.ocrText) {
+                <details class="ocr">
+                  <summary>Texto lido</summary>
+                  <pre>{{ attachment.ocrText }}</pre>
+                </details>
+              }
+            </div>
+          }
+        </article>
+      } @empty {
+        <p class="empty">Sem anotações ainda.</p>
+      }
+    </aside>
+  }
+</div>

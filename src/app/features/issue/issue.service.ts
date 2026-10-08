@@ -779,6 +779,11 @@ export class IssueService {
       });
       return true;
     } else if (res?.task) {
+      // The issue panel lists issues whose task is done (e.g. a card reopened
+      // on the board), so re-adding one reopens the existing task.
+      if (res.task.isDone) {
+        this._taskService.setUnDone(res.task.id);
+      }
       if (
         res.task.projectId &&
         res.task.projectId === this._workContextService.activeWorkContextId

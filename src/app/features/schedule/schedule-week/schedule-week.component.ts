@@ -35,6 +35,7 @@ import { formatScheduleDragPreviewLabel } from './format-schedule-drag-preview-l
 import { truncate } from '../../../util/truncate';
 import { LS } from '../../../core/persistence/storage-keys.const';
 import { CalendarEventActionsService } from '../../calendar-integration/calendar-event-actions.service';
+import { GlobalConfigService } from '../../config/global-config.service';
 
 const D_HOURS = 24;
 const DEFAULT_ROW_HEIGHT_PX = 9;
@@ -87,6 +88,7 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
   private _dateTimeFormatService = inject(DateTimeFormatService);
   private _translateService = inject(TranslateService);
   private _calendarEventActions = inject(CalendarEventActionsService);
+  private _globalConfigService = inject(GlobalConfigService);
 
   isInPanel = input<boolean>(false);
   isHorizontalScrollMode = input<boolean>(false);
@@ -174,9 +176,26 @@ export class ScheduleWeekComponent implements OnInit, AfterViewInit, OnDestroy {
 
   endOfDayColRowStart = signal<number>(D_HOURS * 0.5 * FH);
   totalRows: number = D_HOURS * FH;
-  readonly sleepMorningEndRow = getScheduleGridRow(5, 50);
-  readonly sleepEveningStartRow = getScheduleGridRow(22);
   readonly gridEndRow = this.totalRows + 1;
+  // Shaded sleep period from Settings > Schedule; split in two when it crosses midnight.
+  readonly sleepBlocks = computed(() => {
+    const schedule = this._globalConfigService.cfg()?.schedule;
+    const start = schedule?.sleepStart || '22:00';
+    const end = schedule?.sleepEnd || '05:50';
+    const toRow = (time: string): number => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return getScheduleGridRow(hours, minutes);
+    };
+    const startRow = toRow(start);
+    const endRow = toRow(end);
+    if (startRow === endRow) return [];
+    return startRow > endRow
+      ? [
+          { startRow: 1, endRow, label: `00:00 até ${end}` },
+          { startRow, endRow: this.gridEndRow, label: `${start} até 00:00` },
+        ]
+      : [{ startRow, endRow, label: `${start} até ${end}` }];
+  });
 
   safeEvents = computed(() => this.events() || []);
   safeBeyondBudget = computed(() => this.beyondBudget() || []);

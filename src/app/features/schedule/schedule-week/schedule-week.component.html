@@ -93,20 +93,17 @@
     ></div>
   }
 
-  <!-- Daily sleep period: 22:00–05:50 -->
-  @for (day of daysToShow(); track $index) {
-    <div
-      class="sleep-period sleep-period-morning"
-      aria-label="Período de sono, de 00:00 até 05:50"
-      style="grid-column: {{ $index + 2 }}; grid-row: 1 / {{ sleepMorningEndRow }}"
-    ></div>
-    <div
-      class="sleep-period sleep-period-evening"
-      aria-label="Período de sono, de 22:00 até 00:00"
-      style="grid-column: {{ $index + 2 }}; grid-row: {{ sleepEveningStartRow }} / {{
-        gridEndRow
-      }}"
-    ></div>
+  <!-- Daily sleep period (Settings > Schedule) -->
+  @for (day of daysToShow(); track $index; let col = $index) {
+    @for (block of sleepBlocks(); track block.startRow) {
+      <div
+        class="sleep-period"
+        [attr.aria-label]="'Período de sono, de ' + block.label"
+        style="grid-column: {{ col + 2 }}; grid-row: {{ block.startRow }} / {{
+          block.endRow
+        }}"
+      ></div>
+    }
   }
 
   <!-- Work Start and End -->

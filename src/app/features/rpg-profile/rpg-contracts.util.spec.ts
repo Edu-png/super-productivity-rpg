@@ -1,10 +1,10 @@
 import {
   contractProgress,
   medalTierFor,
-  penaltyWeekCount,
+  penaltyMultiplier,
   startOfWeekMs,
 } from './rpg-contracts.util';
-import { RpgContract, RpgPenalty } from './rpg-profile.model';
+import { RpgContract, RpgPenalty, RpgPenaltyLogEntry } from './rpg-profile.model';
 import { Task } from '../tasks/task.model';
 
 const HOUR = 60 * 60 * 1000;
@@ -21,15 +21,30 @@ describe('rpg-contracts.util', () => {
     expect(startOfWeekMs(sunday)).toBe(monday);
   });
 
-  it('counts only this week applications of a penalty', () => {
-    const penalty = {
-      weekAppliedAt: [
-        new Date(2026, 8, 20).getTime(),
-        new Date(2026, 8, 22).getTime(),
-        new Date(2026, 8, 23).getTime(),
-      ],
-    } as RpgPenalty;
-    expect(penaltyWeekCount(penalty, new Date(2026, 8, 24).getTime())).toBe(2);
+  it('escalates penalties by 1.3 per recent repeat, faster when close together', () => {
+    const penalty = { id: 'p1' } as RpgPenalty;
+    const now = new Date(2026, 8, 24, 12).getTime();
+    const day = 24 * HOUR;
+    const log = (...ages: number[]): RpgPenaltyLogEntry[] =>
+      ages.map((age) => ({
+        penaltyId: 'p1',
+        title: '',
+        at: now - age,
+        xp: 0,
+        coins: 0,
+        money: 0,
+      }));
+    expect(penaltyMultiplier(penalty, [], now)).toBe(1);
+    expect(penaltyMultiplier(penalty, log(10 * day), now)).toBe(1.3);
+    expect(penaltyMultiplier(penalty, log(2 * day), now)).toBe(1.48);
+    expect(penaltyMultiplier(penalty, log(5 * HOUR), now)).toBe(1.69);
+    expect(penaltyMultiplier(penalty, log(40 * day), now)).toBe(1);
+    expect(
+      penaltyMultiplier(penalty, [{ ...log(HOUR)[0], penaltyId: 'other' }], now),
+    ).toBe(1);
+    expect(
+      penaltyMultiplier(penalty, log(HOUR, day / 2, 2 * day, 3 * day, 4 * day), now),
+    ).toBe(5);
   });
 
   it('maps target ratio to medal rarity', () => {

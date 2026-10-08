@@ -156,6 +156,11 @@
         </div>
         <mat-icon>style</mat-icon>
       </header>
+      <p class="review-delay-rule">
+        <mat-icon>trending_down</mat-icon> Cada tópico atrasado tira XP e moedas do
+        personagem por dia: 3 no 1º dia, +1 por dia, até 10 por dia. "Pular" não para a
+        cobrança; só revisar.
+      </p>
       <div class="review-today-list">
         @for (group of todayReviewGroups(); track group.areaId) {
           <h4
@@ -190,6 +195,18 @@
                 >
               } @else {
                 <small>Revisar hoje</small>
+              }
+              @let delay = reviewDelayByNode().get(row.node.id);
+              @if (delay) {
+                <small
+                  class="delay-xp"
+                  title="XP e moedas já perdidos por este tópico e quanto custa amanhã se continuar sem revisão"
+                >
+                  @if (delay.lost) {
+                    -{{ delay.lost }} XP / -{{ delay.lost }} 🪙 ·
+                  }
+                  amanhã -{{ delay.tomorrow }} XP / -{{ delay.tomorrow }} 🪙</small
+                >
               }
               <button
                 type="button"
@@ -1203,6 +1220,20 @@
               />
               min/dia
             </label>
+            <label
+              class="week-plan-minutes"
+              title="Tempo extra por dia para o Plano de Carreira (0 = sem carreira)"
+            >
+              +
+              <input
+                type="number"
+                min="0"
+                step="5"
+                [ngModel]="careerPlanMinutes()"
+                (ngModelChange)="setCareerPlanMinutes($event)"
+              />
+              min carreira
+            </label>
             <button
               type="button"
               class="ai-inline"
@@ -1223,33 +1254,230 @@
             <p class="chart-empty">{{ weekPlanMessage() }}</p>
           }
           @if (weekPlan(); as plan) {
-            <p class="week-plan-summary">
-              {{ plan.summary }}
-              <small>· gerado em {{ plan.generatedAt | date: 'dd/MM HH:mm' }}</small>
-            </p>
-            <div class="week-plan-days">
-              @for (day of plan.days; track $index) {
-                <section>
-                  <b>{{ day.day }}</b>
-                  @for (block of day.blocks; track $index) {
-                    <div [class]="'plan-block kind-' + block.kind">
-                      <span>{{ block.title }}</span>
-                      <small>{{ block.minutes }} min · {{ block.kind }}</small>
-                    </div>
-                  }
-                  @if (day.note) {
-                    <em>{{ day.note }}</em>
-                  }
-                </section>
-              }
-            </div>
+            <ng-container
+              *ngTemplateOutlet="
+                planBody;
+                context: { $implicit: plan, balance: weekPlanBalance(), kind: 'week' }
+              "
+            />
           } @else if (!weekPlanBusy()) {
             <p class="chart-empty">
               Usa suas revisões pendentes, notas abaixo de 70%, o que está em andamento,
-              seu ritmo real e os livros que você está lendo.
+              seu ritmo real, os livros que você está lendo e o Plano de Carreira.
             </p>
           }
         </article>
+
+        <article class="arcane-card week-plan-card other-plan-card">
+          <header>
+            <div>
+              <span>ORÁCULO DOS OUTROS SABERES</span>
+              <h2>Plano das outras áreas</h2>
+            </div>
+            <label class="week-plan-minutes">
+              <input
+                type="number"
+                min="25"
+                step="5"
+                [ngModel]="otherPlanMinutes()"
+                (ngModelChange)="setOtherPlanMinutes($event)"
+              />
+              min/dia
+            </label>
+            <button
+              type="button"
+              class="ai-inline"
+              [disabled]="otherPlanBusy()"
+              (click)="generateOtherPlan()"
+            >
+              <mat-icon>auto_awesome</mat-icon
+              >{{
+                otherPlanBusy()
+                  ? 'Montando...'
+                  : otherPlan()
+                    ? 'Gerar novo plano'
+                    : 'Gerar plano com IA'
+              }}
+            </button>
+          </header>
+          <div class="other-plan-areas">
+            @for (area of otherPlanAreas(); track area.id) {
+              <button
+                type="button"
+                [class.selected]="otherPlanSelected().has(area.id)"
+                (click)="toggleOtherPlanArea(area.id)"
+              >
+                <mat-icon>{{
+                  otherPlanSelected().has(area.id)
+                    ? 'check_box'
+                    : 'check_box_outline_blank'
+                }}</mat-icon
+                >{{ area.title }}
+              </button>
+            } @empty {
+              <p class="chart-empty">Nenhuma área fora de Ciência de Dados.</p>
+            }
+          </div>
+          <textarea
+            class="other-plan-focus"
+            rows="2"
+            placeholder="Foco e preferências (ex.: que tipo de tema sugerir em cada área, onde costuma estudar...)"
+            [ngModel]="otherPlanFocus()"
+            (ngModelChange)="setOtherPlanFocus($event)"
+          ></textarea>
+          @if (otherPlanMessage()) {
+            <p class="chart-empty">{{ otherPlanMessage() }}</p>
+          }
+          @if (otherPlan(); as plan) {
+            <ng-container
+              *ngTemplateOutlet="
+                planBody;
+                context: { $implicit: plan, balance: otherPlanBalance(), kind: 'other' }
+              "
+            />
+          } @else if (!otherPlanBusy()) {
+            <p class="chart-empty">
+              Escolha as áreas acima. Usa o que está em andamento e as revisões delas, e
+              sugere temas para as áreas sem nada em progresso.
+            </p>
+          }
+        </article>
+
+        <ng-template
+          #planBody
+          let-plan
+          let-balance="balance"
+          let-kind="kind"
+        >
+          @if (plan.goals?.length) {
+            <div class="week-goals">
+              <b>Meta da semana</b>
+              @for (goal of plan.goals; track $index) {
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="plan.goalsDone?.[$index]"
+                    (change)="toggleWeekGoal(kind, $index)"
+                  />
+                  <span [class.done]="plan.goalsDone?.[$index]">{{ goal }}</span>
+                </label>
+              }
+              <div class="week-goals-bar">
+                <progress
+                  [value]="goalsPercent(plan)"
+                  max="100"
+                ></progress>
+                <small>{{ goalsPercent(plan) }}%</small>
+              </div>
+            </div>
+          }
+          @if (balance; as bal) {
+            <div class="week-balance">
+              <span
+                >Meta semanal <b>{{ bal.target }} min</b></span
+              >
+              <span
+                >Planejado <b>{{ bal.planned }} min</b></span
+              >
+              <span
+                >Executado <b>{{ bal.done }} min</b></span
+              >
+              <span
+                >Restante <b>{{ bal.left }} min</b></span
+              >
+            </div>
+            @for (day of bal.days; track day.index) {
+              @if (day.deficit > 0) {
+                <div class="week-deficit">
+                  <span
+                    >{{ day.label }}: faltaram <b>{{ day.deficit }} min</b>. Redistribuir
+                    nos próximos dias?</span
+                  >
+                  <button
+                    type="button"
+                    (click)="settleDeficit(kind, day.index, 'redistribute')"
+                  >
+                    Redistribuir
+                  </button>
+                  <button
+                    type="button"
+                    (click)="settleDeficit(kind, day.index, 'review')"
+                  >
+                    Deixar para revisão
+                  </button>
+                  <button
+                    type="button"
+                    (click)="settleDeficit(kind, day.index, 'discard')"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              }
+            }
+          }
+          <p class="week-plan-summary">
+            {{ plan.summary }}
+            <small>· gerado em {{ plan.generatedAt | date: 'dd/MM HH:mm' }}</small>
+          </p>
+          <div
+            class="week-plan-days"
+            cdkDropList
+            cdkDropListOrientation="mixed"
+            (cdkDropListDropped)="movePlanDay(kind, $event)"
+          >
+            @for (day of plan.days; track $index; let dayIndex = $index) {
+              <section cdkDrag>
+                <b
+                  class="plan-day-handle"
+                  cdkDragHandle
+                  title="Arraste para trocar o dia"
+                  ><mat-icon>drag_indicator</mat-icon>{{ day.day }}</b
+                >
+                @if (balance?.days[dayIndex]; as dayBalance) {
+                  <small class="day-balance"
+                    >{{ dayBalance.done }} / {{ dayBalance.planned }} min
+                    realizados</small
+                  >
+                }
+                <div
+                  class="plan-day-blocks"
+                  cdkDropList
+                  [id]="'plan-' + kind + '-day-' + dayIndex"
+                  [cdkDropListData]="dayIndex"
+                  [cdkDropListConnectedTo]="planDayListIds(kind, plan.days.length)"
+                  (cdkDropListDropped)="movePlanBlock(kind, $event)"
+                >
+                  @for (block of day.blocks; track $index; let blockIndex = $index) {
+                    <div
+                      cdkDrag
+                      [class]="planBlockClass(block.kind)"
+                      [class.done]="block.done"
+                    >
+                      <label class="plan-block-title">
+                        <input
+                          type="checkbox"
+                          [checked]="block.done"
+                          (change)="togglePlanBlock(kind, dayIndex, blockIndex)"
+                        />
+                        <span>{{ block.title }}</span>
+                      </label>
+                      <small
+                        >{{ block.minutes }} min · {{ block.kind
+                        }}{{ block.kind === 'carreira' ? ' (extra)' : '' }}</small
+                      >
+                      @if (block.hint) {
+                        <small class="plan-hint">{{ block.hint }}</small>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (day.note) {
+                  <em>{{ day.note }}</em>
+                }
+              </section>
+            }
+          </div>
+        </ng-template>
       }
     </section>
   } @else if (tab() === 'library') {
@@ -1502,6 +1730,18 @@
                         >
                       }
                     </div>
+                    @if (node.kind !== 'folder') {
+                      <button
+                        type="button"
+                        class="node-subtask"
+                        title="Adicionar como subtarefa de uma tarefa de hoje"
+                        [matMenuTriggerFor]="subtaskMenu"
+                        [matMenuTriggerData]="{ node }"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <mat-icon>playlist_add</mat-icon> Subtarefa
+                      </button>
+                    }
                     @if (academy.topicReviewFor(node.id); as review) {
                       <div
                         class="review-status-badge"
@@ -1617,6 +1857,18 @@
                     >
                   }
                 </div>
+                @if (node.kind !== 'folder') {
+                  <button
+                    type="button"
+                    class="node-subtask"
+                    title="Adicionar como subtarefa de uma tarefa de hoje"
+                    [matMenuTriggerFor]="subtaskMenu"
+                    [matMenuTriggerData]="{ node }"
+                    (click)="$event.stopPropagation()"
+                  >
+                    <mat-icon>playlist_add</mat-icon> Subtarefa
+                  </button>
+                }
                 @if (node.description) {
                   <p>{{ node.description }}</p>
                 }
@@ -1686,6 +1938,11 @@
           <h2>Tópicos para revisar</h2>
         </div>
       </header>
+      <p class="review-delay-rule">
+        <mat-icon>trending_down</mat-icon> Cada tópico atrasado tira XP e moedas do
+        personagem por dia: 3 no 1º dia, +1 por dia, até 10 por dia. "Pular" não para a
+        cobrança; só revisar.
+      </p>
       <div class="review-today-list">
         @for (group of todayReviewGroups(); track group.areaId) {
           <h4
@@ -1720,6 +1977,18 @@
                 >
               } @else {
                 <small>Revisar hoje</small>
+              }
+              @let delay = reviewDelayByNode().get(row.node.id);
+              @if (delay) {
+                <small
+                  class="delay-xp"
+                  title="XP e moedas já perdidos por este tópico e quanto custa amanhã se continuar sem revisão"
+                >
+                  @if (delay.lost) {
+                    -{{ delay.lost }} XP / -{{ delay.lost }} 🪙 ·
+                  }
+                  amanhã -{{ delay.tomorrow }} XP / -{{ delay.tomorrow }} 🪙</small
+                >
               }
               <button
                 type="button"
@@ -1784,7 +2053,21 @@
       <header>
         <div>
           <span>GRIMÓRIO</span>
-          <h2>Flashcards</h2>
+          <h2>
+            Flashcards
+            <em
+              class="due-count"
+              [class.clear]="!academy.dashboard().pendingReviews"
+              [title]="
+                academy.dashboard().pendingReviews + ' flashcard(s) para revisar hoje'
+              "
+              >{{
+                academy.dashboard().pendingReviews
+                  ? academy.dashboard().pendingReviews + ' para revisar'
+                  : 'em dia'
+              }}</em
+            >
+          </h2>
         </div>
         <button (click)="exportData(['flashcards'])">Exportar flashcards</button>
       </header>
@@ -2203,6 +2486,15 @@
               >
                 <mat-icon>school</mat-icon>Tutor
               </button>
+              @if (editingNode(); as quizNode) {
+                <button
+                  type="button"
+                  title="Quiz de 10 questões sobre o assunto; em programação inclui exercícios de código"
+                  (click)="startManualQuiz(quizNode)"
+                >
+                  <mat-icon>quiz</mat-icon>Quiz
+                </button>
+              }
             </div>
             @if (tutorOpen()) {
               <div class="tutor-panel">
@@ -2862,7 +3154,10 @@
 
 @if (quiz(); as q) {
   <div class="quiz-backdrop">
-    <section class="quiz-modal">
+    <section
+      class="quiz-modal"
+      [class.wide]="!q.submitted && q.questions[q.step]?.kind === 'code'"
+    >
       <header class="quiz-head">
         <div>
           <span class="quiz-kicker"
@@ -2873,8 +3168,8 @@
         <button
           type="button"
           class="quiz-close"
-          title="Pular quiz"
-          (click)="quiz.set(null)"
+          title="Fechar quiz (se veio de Completo, o card volta para Estudando)"
+          (click)="closeQuiz()"
         >
           <mat-icon>close</mat-icon>
         </button>
@@ -2911,19 +3206,37 @@
           }
           <small>Pergunta {{ q.step + 1 }} de {{ q.questions.length }}</small>
         </div>
-        <p class="quiz-question-text">{{ question.question }}</p>
-        <div class="quiz-options">
-          @for (option of question.options; track $index; let oi = $index) {
-            <button
-              type="button"
-              [class.chosen]="q.answers[q.step] === oi"
-              (click)="answerQuiz(q.step, oi)"
-            >
-              <span class="quiz-letter">{{ quizLetters[oi] }}</span>
-              <span>{{ option }}</span>
-            </button>
-          }
-        </div>
+        @if (q.droppedCode) {
+          <p class="quiz-dropped">
+            <mat-icon>info</mat-icon>
+            {{ q.droppedCode }} exercício(s) de código descartado(s): a solução da própria
+            IA não passou nos testes dela (ou faltou internet para carregar o Python).
+          </p>
+        }
+        @if (question.kind === 'code' && question.challenge) {
+          <span class="quiz-code-kicker"
+            ><mat-icon>terminal</mat-icon>Exercício de código · teste antes de
+            seguir</span
+          >
+          <code-lab-challenge
+            [challenge]="question.challenge"
+            (graded)="answerCodeQuiz(q.step, $event)"
+          />
+        } @else {
+          <p class="quiz-question-text">{{ question.question }}</p>
+          <div class="quiz-options">
+            @for (option of question.options; track $index; let oi = $index) {
+              <button
+                type="button"
+                [class.chosen]="q.answers[q.step] === oi"
+                (click)="answerQuiz(q.step, oi)"
+              >
+                <span class="quiz-letter">{{ quizLetters[oi] }}</span>
+                <span>{{ option }}</span>
+              </button>
+            }
+          </div>
+        }
         <footer class="quiz-foot">
           <button
             type="button"
@@ -2972,19 +3285,33 @@
         </div>
         <ol class="quiz-review">
           @for (question of q.questions; track $index; let qi = $index) {
-            @let right = q.answers[qi] === question.correctIndex;
+            @let right = quizRight(question, q.answers[qi]);
             <li [class.right]="right">
               <mat-icon>{{ right ? 'check_circle' : 'cancel' }}</mat-icon>
               <div>
                 <b>{{ question.question }}</b>
-                @if (!right) {
+                @if (question.kind === 'code') {
+                  <small [class]="right ? 'quiz-correct' : 'quiz-yours'">{{
+                    right
+                      ? 'Seu código passou em todos os testes'
+                      : 'Seu código não passou em todos os testes'
+                  }}</small>
+                  @if (question.solution) {
+                    <details class="quiz-solution">
+                      <summary>Ver uma solução</summary>
+                      <pre>{{ question.solution }}</pre>
+                    </details>
+                  }
+                } @else if (!right) {
                   <small class="quiz-yours"
                     >Sua resposta: {{ question.options[q.answers[qi] ?? 0] }}</small
                   >
                 }
-                <small class="quiz-correct"
-                  >Correta: {{ question.options[question.correctIndex] }}</small
-                >
+                @if (question.kind !== 'code') {
+                  <small class="quiz-correct"
+                    >Correta: {{ question.options[question.correctIndex] }}</small
+                  >
+                }
                 <em>{{ question.explanation }}</em>
               </div>
             </li>
@@ -2995,7 +3322,7 @@
           <button
             type="button"
             class="quiz-primary"
-            (click)="quiz.set(null)"
+            (click)="closeQuiz()"
           >
             Fechar
           </button>
@@ -3004,3 +3331,26 @@
     </section>
   </div>
 }
+
+<mat-menu #subtaskMenu="matMenu">
+  <ng-template
+    matMenuContent
+    let-node="node"
+  >
+    @for (block of todayTaskBlocks(); track block.id) {
+      <button
+        mat-menu-item
+        (click)="addNodeAsSubtask(node, block)"
+      >
+        {{ block.title }}
+      </button>
+    } @empty {
+      <button
+        mat-menu-item
+        disabled
+      >
+        Nenhuma tarefa planejada para hoje
+      </button>
+    }
+  </ng-template>
+</mat-menu>

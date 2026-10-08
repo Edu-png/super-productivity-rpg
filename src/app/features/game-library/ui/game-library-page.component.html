@@ -554,9 +554,11 @@
               <progress
                 [value]="game.completionPercent"
                 [max]="100"
-              ></progress
-              ><span>{{ game.completionPercent }}% concluído</span>
-              <span>{{ hoursPlayedLabel(game) }}h jogadas</span>
+              ></progress>
+              <div class="progress-meta">
+                <span>{{ game.completionPercent }}% concluído</span>
+                <span>{{ hoursPlayedLabel(game) }}h jogadas</span>
+              </div>
               @if (playingDays(game); as days) {
                 <b class="play-time"
                   ><mat-icon>schedule</mat-icon>{{ days }} dia(s) jogando</b

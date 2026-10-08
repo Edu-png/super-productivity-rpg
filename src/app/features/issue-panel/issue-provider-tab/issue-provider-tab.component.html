@@ -105,6 +105,24 @@
         <!--    }-->
       </mat-form-field>
     </form>
+    @if (isGitHub()) {
+      <div class="mine-filter">
+        <button
+          type="button"
+          [class.active]="!onlyMine()"
+          (click)="setOnlyMine(false)"
+        >
+          Todas abertas
+        </button>
+        <button
+          type="button"
+          [class.active]="onlyMine()"
+          (click)="setOnlyMine(true)"
+        >
+          Só as minhas
+        </button>
+      </div>
+    }
   }
   <!---->
   @if (isLoading()) {

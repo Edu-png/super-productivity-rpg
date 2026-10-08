@@ -248,6 +248,9 @@ export type ScheduleConfig = Readonly<{
   isLunchBreakEnabled: boolean;
   lunchBreakStart: string;
   lunchBreakEnd: string;
+  /** Start/end of the shaded sleep period in the week view (HH:mm); may cross midnight. */
+  sleepStart?: string;
+  sleepEnd?: string;
 }>;
 
 export type ReminderConfig = Readonly<{

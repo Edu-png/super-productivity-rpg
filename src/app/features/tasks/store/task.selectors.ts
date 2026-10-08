@@ -1050,7 +1050,9 @@ export const selectTasksByTag = createSelector(
 export const selectAllTaskIssueIdsForIssueProvider = (issueProvider: IssueProvider) => {
   return createSelector(selectAllTasks, (tasks: Task[]): string[] => {
     return tasks
-      .filter((task) => !!task && task.issueProviderId === issueProvider.id)
+      .filter(
+        (task) => !!task && task.issueProviderId === issueProvider.id && !task.isDone,
+      )
       .map((t) => t.issueId as string);
   });
 };
